@@ -1,12 +1,10 @@
-# cryptmypi 4.x
+# cryptmypi for rpi4
 
-Assists in the full setup of [encrypted] Raspberry Pis. Able to maintain multiple setup configurations, for multiple usages, ofers a multitude of modular configurations hooks providing out-of-the-box optinal features for initramfs (while the system in encrypted) and the actual system (after boot).
+Assists in the full setup of [encrypted] Raspberry Pis.
+Modular configurations hooks
 
 **Note:** Only tested on:
-- Kali host
-- Kali and Pi OS guest/target
-- RaspberryPi 2, 3, and 4 64 bit image
-- irc channel freenode/#cryptmypi
+RPI 4B
 
 ## How it works
 
@@ -37,7 +35,6 @@ Optional configuration hooks can be set in any of the stages:
 - changing the root password;
 - openVPN client configuration;
 - ssh service, with authorized_keys;
-- ssh exposure to the internet through reverse forwarding: sshhub.de as a jumphost;
 
 ## Scenarios
 
@@ -56,12 +53,3 @@ Simply:
 $ `./cryptmypi.sh configuration_profile_directory`
 
 `configuration_profile_directory` should be an existing configuration directory. Use one of the provided examples or create your own.
-
-## Explore stage2
-You can decrypt, mount and chroot an SD card by using the `explore` pre-configuration:
-
-$ `./cryptmypi.sh examples/explore configuration_profile_directory`
-
-There is an actual `explore` directory that contains an customized configuration profile. This profile overwrites the default stage1 and stage2 hooks so that no formatting, partitioning, etc is done. It reads another configuration profile and mounts an block device accordingly.
-
-Aditionally, you can use this "hack" configuration for more than chrooting to bash. You may update existing systems by copying the `examples/explore` directory and changing `stage2_optional_hooks` to execute optional hooks or other commands.
