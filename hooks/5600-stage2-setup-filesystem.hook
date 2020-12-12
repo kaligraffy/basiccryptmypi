@@ -2,7 +2,7 @@
 set -e
 
 
-# Attempt to rsync files from build to mounted device
+# Attempt to copy files from build to mounted device
 echo_debug "Attempting to cp ${_BUILDDIR}/root/ to /mnt/cryptmypi/ ..."
 cp -a "${_BUILDDIR}/root/"* /mnt/cryptmypi/
 echo
