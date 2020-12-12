@@ -17,6 +17,6 @@ myhooks(){
         done
     else
         echo_error "Hook operations not specified! Stopping here."
-        exit 1
+        exit_program 1
     fi
 }

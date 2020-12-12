@@ -6,5 +6,5 @@ if [ -z "${_HOSTNAME}" ]; then
     echo_error "ERROR: '_HOSTNAME' variable was not defined!"
     echo ""
     echo "Exiting ..."
-    exit 1
+    exit_program 1
 fi

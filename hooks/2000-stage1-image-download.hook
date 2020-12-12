@@ -1,11 +1,18 @@
 #!/bin/bash
 set -e
 
+export _IMAGENAMEEXTRACTED=$(eval echo ${_IMAGENAME} | sed "s#.xz##g") 
+# Download ARM image if we don't already have it
+if [ -f ${_IMAGEDIR}/${_IMAGENAMEEXTRACTED} ]; then
+    echo_debug "Image file extracted, skipping download/verify"
+    return
+fi
+
 # Download ARM image if we don't already have it
 if [ -f ${_IMAGEDIR}/${_IMAGENAME} ]; then
-    echo_debug "ARM image ${_IMAGENAME} already exists!"
+    echo_debug "Image ${_IMAGENAME} already exists!"
 else
-    echo_debug "Downloading ARM image from ${_IMAGEURL} ..."
+    echo_debug "Downloading Image from ${_IMAGEURL} ..."
     wget ${_IMAGEURL} -O ${_IMAGEDIR}/${_IMAGENAME}
 fi
 
@@ -21,6 +28,6 @@ else
         echo_error "Removing ${_IMAGENAME} ..."
         rm ${_IMAGEDIR}/${_IMAGENAME}
         echo_error "Exiting ..."
-        exit 1
+        exit_program 1
     }
 fi

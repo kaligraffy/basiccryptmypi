@@ -4,13 +4,13 @@ set -e
 
 is_build_encrypted && {
     # Format LUKS
-    echo_debug "Attempting to format LUKS on /dev/mapper/crypt ..."
-    if mkfs.ext4 /dev/mapper/crypt
+    echo_debug "Attempting to format LUKS on /dev/mapper/${_ENCRYPTED_VOLUME_NAME} ..."
+    if mkfs.ext4 /dev/mapper/${_ENCRYPTED_VOLUME_NAME}
     then
         echo_debug "- LUKS formatted to ext4."
     else
-        echo_error "- Aborting since we failed to format /dev/mapper/crypt to ext4"
-        exit 1
+        echo_error "- Aborting since we failed to format /dev/mapper/${_ENCRYPTED_VOLUME_NAME} to ext4"
+        exit_program 1
     fi
     echo
 } || {
@@ -21,7 +21,7 @@ is_build_encrypted && {
         echo_debug "- Root partition formatted to ext4."
     else
         echo_error "- Aborting since we failed to format root partition to ext4"
-        exit 1
+        exit_program 1
     fi
     echo
 }

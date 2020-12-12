@@ -10,6 +10,13 @@ cat << EOF
 
 EOF
 
+############################
+# Exit Function
+############################
+exit_program(){
+    echo "Script completed at `date` with exit status $1"
+    exit $1
+}
 
 ############################
 # Parameter helper functions
@@ -106,7 +113,7 @@ do
     case $key in
         -h|--help)
             display_help
-            exit 0
+            exit_program 0
             ;;
         -s|--simulate)
             _SIMULATE=true
@@ -163,7 +170,7 @@ if [ -z "$1" ]; then
     echo "ERROR: Configuration directory was not supplied. "
     display_help
     echo "Exiting..."
-    exit 1
+    exit_program 1
 else
     _CONFDIRNAME=$1
 fi
@@ -206,6 +213,7 @@ _SCRIPT_DIRECTORY="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
 
 
 # Variables
+export _DATE=$(date +"%m-%d-%Y")
 export _USER_HOME=$(eval echo ~${SUDO_USER})
 export _VER="next-0.1"
 export _BASEDIR="${_SCRIPT_DIRECTORY}"
@@ -215,7 +223,8 @@ export _BUILDDIR=${_CONFDIR}/build
 export _FILESDIR=${_BASEDIR}/files
 export _IMAGEDIR=${_FILESDIR}/images
 export _CACHEDIR=${_FILESDIR}/cache
-
+#export _ENCRYPTED_VOLUME_NAME="crypt-$_DATE"
+export _ENCRYPTED_VOLUME_NAME="crypt-1"
 
 # Creating Directories
 mkdir -p "${_IMAGEDIR}"
@@ -232,7 +241,7 @@ ERROR: No 'cryptmypi.conf' file found in the config folder!
 
 Exiting ...
 EOF
-    exit 1
+    exit_program 1
 fi
 
 
@@ -331,6 +340,7 @@ EOF
 # STAGE 2 Encrypt & Write SD
 ############################
 stage2(){
+    echo "stage2 started at `date`"
     # Simple check for type of sdcard block device
     if echo ${_BLKDEV} | grep -qs "mmcblk"
     then
@@ -366,17 +376,9 @@ EOF
 
 ##################### W A R N I N G #####################
 This process can damage your local install if the script
-has the wrong block device for your system.
+has the wrong block device for your system. 
+If the block device is wrong DO NOT proceed. 
 
-******************** P l e a s e ************************
-Double check and know you have the correct block device
-that matches your sdcard.
-
-##################### W A R N I N G #####################
-  ** ** ** There is no undoing these actions! ** ** **
-  ** ** **  If you are unsure DO NOT proceed. ** ** **
-
--------------------Sanity Check Prompt ------------------
 This is a listing of your system block devices:
 
 $(lsblk)
@@ -385,24 +387,20 @@ And below is the block device to be used with the script:
 
 block device:  ${_BLKDEV}
 
-If the block device is wrong DO NOT continue. Adjust the
-block device in the cryptmypi.conf file located in the
-config directory.
-
-To continue type in the phrase 'Yes, do as I say!'
+To continue type in the phrase 'YES'
 EOF
 
         echo -n ": "
         read _CONTINUE
     } || {
         echo "STAGE2 confirmation set to FALSE: skipping confirmation"
-        echo "STAGE2 will execute (assuming 'Yes, do as I say!' input) ..."
-        _CONTINUE='Yes, do as I say!'
+        echo "STAGE2 will execute (assuming 'YES' input) ..."
+        _CONTINUE='YES'
     }
 
     redirect_output
     case "${_CONTINUE}" in
-        'Yes, do as I say!')
+        'YES')
             function_exists "stage2_hooks" && {
                 echo ""
                 echo "--- Custom STAGE2 SELECTED"
@@ -416,7 +414,7 @@ EOF
         *)
             restore_output
             echo "Abort."
-            exit 1
+            exit_program 1
             ;;
     esac
 }
@@ -444,17 +442,16 @@ execute(){
     esac
 }
 
-
 # Cleanup EXIT Trap
 cleanup(){
     chroot_umount || true
     umount ${_BLKDEV}* || true
     umount /mnt/cryptmypi || {
         umount -l /mnt/cryptmypi || true
-        umount -f /dev/mapper/crypt || true
+        umount -f /dev/mapper/${_ENCRYPTED_VOLUME_NAME} || true
     }
     [ -d /mnt/cryptmypi ] && rm -r /mnt/cryptmypi || true
-    cryptsetup luksClose crypt || true
+    cryptsetup luksClose $_ENCRYPTED_VOLUME_NAME || true
 }
 trap cleanup EXIT
 
@@ -490,13 +487,19 @@ main(){
             case "${_CONTINUE}" in
                 'y')
                     $_RMBUILD_ONREBUILD && {
-                        echo "Removing current build files..."
-                        $_SIMULATE || rm -Rf ${_BUILDDIR}
+                        echo "Removing current build files." #TESTING ONLY
+                        $_SIMULATE || rm -Rf ${_BUILDDIR} 
                     } || echo_warn "--keep_build_dir set: Not cleaning old build."
+                    
+                    #Prevent lock ups whilst performing copy
+                    echo $((16*1024*1024)) > /proc/sys/vm/dirty_background_bytes
+                    echo $((48*1024*1024)) > /proc/sys/vm/dirty_bytes
+                    
+                    echo "stage1 started at `date`"
                     execute "both"
                     break;
                     ;;
-                'n')
+                'n') 
                     execute "stage2"
                     break;
                     ;;
@@ -509,6 +512,4 @@ main(){
 }
 main
 
-
-echo "Goodbye from cryptmypi (${_VER})."
-exit 0
+exit_program 0

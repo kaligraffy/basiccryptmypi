@@ -27,7 +27,7 @@ chroot_mount(){
 
 chroot_umount(){
     [ -z "${CHROOTDIR}" ] && {
-        exit 1
+        exit_program 1
     }
     echo_debug "Tearing down RPi chroot mount structure at '${CHROOTDIR}'."
 
@@ -48,9 +48,12 @@ chroot_umount(){
 chroot_update(){
     [ -z "${CHROOTDIR}" ] && {
         echo_error "Chroot dir was not defined! Aborting..."
-        exit 1
+        exit_program 1
     }
-
+    
+    #Force https on initial use of apt
+    sed -i 's|http:|https:|g' ${CHROOTDIR}/etc/apt/sources.list
+    
     if [ -f "${CHROOTDIR}/etc/resolv.conf" ]; then
         echo_debug "${CHROOTDIR}/etc/resolv.conf exists."
     else
@@ -67,7 +70,7 @@ chroot_update(){
 chroot_pkginstall(){
     [ -z "${CHROOTDIR}" ] && {
         echo_error "Chroot dir was not defined! Aborting..."
-        exit 1
+        exit_program 1
     }
 
     if [ ! -z "$1" ]; then
@@ -79,12 +82,12 @@ chroot_pkginstall(){
                     chroot ${CHROOTDIR} /bin/bash -x <<EOF
                         sleep 5
                         apt-get update
-                        apt-get -y install "${pkg}" || exit 1
+                        apt-get -y install "${pkg}" || exit_program 1
 EOF
                     status=$?
                     [ $status -eq 0 ] || {
                         echo_error "ERROR: Could not install ${pkg} correctly... Exiting.";
-                        exit 1
+                        exit_program 1
                     }
                 }
             done
@@ -96,7 +99,7 @@ EOF
 chroot_pkgpurge(){
     [ -z "${CHROOTDIR}" ] && {
         echo_error "Chroot dir was not defined! Aborting..."
-        exit 1
+        exit_program 1
     }
 
     if [ ! -z "$1" ]; then
@@ -114,7 +117,7 @@ chroot_pkgpurge(){
 chroot_execute(){
     [ -z "${CHROOTDIR}" ] && {
         echo_error "Chroot dir was not defined! Aborting..."
-        exit 1
+        exit_program 1
     }
 
     chroot ${CHROOTDIR} "$@"
@@ -135,7 +138,6 @@ chroot_mkinitramfs(){
 
     # Finally, Create the initramfs
     echo_debug "  Building new initramfs ..."
-    #chroot_execute update-initramfs -u # -k ${_KERNEL_VERSION} # TODO Test this + test without it completely
     chroot_execute mkinitramfs -o /boot/initramfs.gz -v ${_KERNEL_VERSION}
 
     # cleanup

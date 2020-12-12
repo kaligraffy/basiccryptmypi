@@ -18,3 +18,4 @@ is_build_encrypted(){
         fi
     } || return 1;
 }
+

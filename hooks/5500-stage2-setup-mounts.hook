@@ -4,14 +4,14 @@ set -e
 
 is_build_encrypted && {
     # Mount ext4 formatted LUKS
-    echo_debug "Attempting to mount /dev/mapper/crypt to /mnt/cryptmypi ..."
+    echo_debug "Attempting to mount /dev/mapper/${_ENCRYPTED_VOLUME_NAME} to /mnt/cryptmypi ..."
     mkdir /mnt/cryptmypi
-    if mount /dev/mapper/crypt /mnt/cryptmypi
+    if mount /dev/mapper/${_ENCRYPTED_VOLUME_NAME} /mnt/cryptmypi
     then
-        echo_debug "- Mounted /dev/mapper/crypt to /mnt/cryptmypi"
+        echo_debug "- Mounted /dev/mapper/${_ENCRYPTED_VOLUME_NAME} to /mnt/cryptmypi"
     else
-        echo_error "- Aborting since we failed to mount /dev/mapper/crypt to /mnt/cryptmypi"
-        exit 1
+        echo_error "- Aborting since we failed to mount /dev/mapper/${_ENCRYPTED_VOLUME_NAME} to /mnt/cryptmypi"
+        exit_program 1
     fi
     echo
 } || {
@@ -23,7 +23,7 @@ is_build_encrypted && {
         echo_debug "- Mounted ${_BLKDEV}${__PARTITIONPREFIX}2 to /mnt/cryptmypi"
     else
         echo_error "- Aborting since we failed to mount ${_BLKDEV}${__PARTITIONPREFIX}2 to /mnt/cryptmypi"
-        exit 1
+        exit_program 1
     fi
     echo
 }
@@ -37,6 +37,6 @@ then
     echo_debug "- Mounted ${_BLKDEV}${__PARTITIONPREFIX}1 to /mnt/cryptmypi/boot"
 else
     echo_error "- Aborting since we failed to mount ${_BLKDEV}${__PARTITIONPREFIX}1 to /mnt/cryptmypi/boot"
-    exit 1
+    exit_program 1
 fi
 echo

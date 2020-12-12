@@ -1,7 +1,6 @@
 #!/bin/bash
 set -e
 
-
 echo_debug "Attempting to set system's DNS settings..."
 
 
@@ -26,7 +25,7 @@ chmod o+r ${CHROOTDIR}/etc/resolv.conf
 #EOT
 
 
-echo_debug "Uptading /etc/network/interfaces"
+echo_debug "Updating /etc/network/interfaces"
 cat <<EOT >> ${CHROOTDIR}/etc/network/interfaces
 
 # DNS (by optional-sys-dns)

@@ -7,5 +7,5 @@ if [ ! -e /usr/bin/rsync ]; then
     echo "Exiting ..."
     echo "On Debian based systems, rsync can be installed with:"
     echo "  apt install rsync"
-    exit 1
+    exit_program 1
 fi

@@ -4,5 +4,5 @@ set -e
 # Precondition check for root powers
 if [[ $EUID -ne 0 ]]; then
     echo_error "ERROR: This script must be run as root ... Exiting"
-    exit 1
+    exit_program 1
 fi

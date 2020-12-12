@@ -3,12 +3,9 @@
 ###################################
 # Raspbian Pi OS stage1-otherscript.sh
 
-
-
-
 echo 'Modifying /boot/cmdline.txt for encrypted boot.'
 sed -i.bak "s#quiet init=/usr/lib/raspi-config/init_resize.sh##g" /boot/cmdline.txt
-sed -i.bak "s#root=PARTUUID=.*-02#root=/dev/mapper/crypt cryptdevice=/dev/mmcblk0p2:crypt#g" /boot/cmdline.txt
+sed -i.bak "s#root=PARTUUID=.*-02#root=/dev/mapper/${_ENCRYPTED_VOLUME_NAME} cryptdevice=/dev/mmcblk0p2:crypt#g" /boot/cmdline.txt
 
 #echo 'Appending initramfs information to /boot/cmdline.txt.'
 #echo 'initramfs initramfs.gz followkernel' >> /boot/config.txt

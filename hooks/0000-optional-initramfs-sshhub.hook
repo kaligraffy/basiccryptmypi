@@ -185,7 +185,7 @@ EOT
 Host hub
     Hostname sshhub.de
     User ${_SSHHUB_USERNAME}
-    IdentityFIle ${_SSHHUB_LOCAL_KEYFILE}
+    IdentityFile ${_SSHHUB_LOCAL_KEYFILE}
 # cryptmypi-sshhub-entry-end
 EOT
     fi
