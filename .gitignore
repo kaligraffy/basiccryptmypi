@@ -14,11 +14,12 @@ dropbear_*_key
 # IDE configuration files
 .vscode/
 *.code-workspace
+*.kate
 
 # Personal directories
 personal/
 
-# Other genral files
+# Other general files
 *.zip
 
 # Experimental hooks
