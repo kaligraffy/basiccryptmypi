@@ -135,7 +135,7 @@ chroot_mkinitramfs(){
     # determining the kernel
     _KERNEL_VERSION=$(ls ${CHROOTDIR}/lib/modules/ | grep "${_KERNEL_VERSION_FILTER}" | tail -n 1)
     echo_debug "  Using kernel '${_KERNEL_VERSION}'"
-
+    chroot_execute update-initramfs -u -k all
     # Finally, Create the initramfs
     echo_debug "  Building new initramfs ..."
     chroot_execute mkinitramfs -o /boot/initramfs.gz -v ${_KERNEL_VERSION}
