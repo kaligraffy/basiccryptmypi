@@ -3,11 +3,9 @@ function_exists(){
     return $?
 }
 
-
 function_summary(){
     type $1 | sed '1,3d;$d'
 }
-
 
 is_build_encrypted(){
     test -e ${_BUILDDIR}/root/etc/cryptsetup-initramfs/conf-hook && {
@@ -18,4 +16,3 @@ is_build_encrypted(){
         fi
     } || return 1;
 }
-

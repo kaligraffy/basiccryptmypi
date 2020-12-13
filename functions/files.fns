@@ -5,7 +5,7 @@ lazy_download(){
     local _FILENAME="${_URLMD5}_$(basename "${_URL}")"
     local _DOWNLOAD_FILEPATH=${_CACHEDIR}/${_FILENAME}
 
-    # Download file if we don't already have it on files
+    # Download to files directory
     echo_debug "Lazy Downloading ${_URL} ..."
     if [ -f "${_DOWNLOAD_FILEPATH}" ]; then
         echo_debug "    File ${_FILENAME} already exists on cache!"

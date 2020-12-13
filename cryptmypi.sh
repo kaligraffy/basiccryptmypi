@@ -1,7 +1,6 @@
 #!/bin/bash
 set -e
 
-
 cat << EOF
 
 ###############################################################################
@@ -25,9 +24,15 @@ exit_program(){
 display_help(){
     cat << EOF
 
-Usage: $0 [OPTIONS] configuration_dir
-Assists in the full setup of [encrypted] Raspberry Pis.
+PURPOSE: Creates encrypted raspberry pis running kali linux
+    
+USAGE: $0 [OPTIONS] configuration_dir
 
+EXAMPLE:
+    $0 --device /dev/sda /examples/kali-complete 
+    - Executes script using examples/kali-complete/cryptmypi.conf
+    - using /dev/sdb as destination block device
+    
 OPTIONS:
 
     -d, --device <device>       Block device to use on stage 2
@@ -41,16 +46,8 @@ OPTIONS:
     -s, --simulate              Simulate execution flow (does not call hooks)
     --keep_build_dir            When rebuilding stage 1, use last build as base
                                 (default cleans up removing old build)
-
-    --options                   Display execution options
     -h, --help                  Display this help and exit
     -o,--output <file>          Redirects stdout and stderr to <file>
-
-Examples:
-    $0 --device /dev/sdb /examples/kali-complete -o execution.log
-    - Executes script using examples/kali-complete/cryptmypi.conf
-    - using /dev/sdb as destination block device
-    - outputing stdout and stderr to execution.log
 
 EOF
 }
@@ -111,10 +108,6 @@ do
             ;;
         -s|--simulate)
             _SIMULATE=true
-            shift
-            ;;
-        --options)
-            _SHOW_OPTIONS=true
             shift
             ;;
         -o|--output)
@@ -228,12 +221,8 @@ mkdir -p "${_FILESDIR}"
 # Check if configuration file is present
 if [ ! -f ${_CONFDIR}/cryptmypi.conf ]; then
     cat << EOF
-ERROR: No 'cryptmypi.conf' file found in the config folder!
+ERROR: Cannot find 'cryptmypi.conf'
 
-    You might try copying the default ./cryptmypi.conf file to the ${_CONFDIRNAME}/ directory, then attempt to run again.
-    Remember to edit the ${_CONFDIRNAME}/cryptmypi.conf with your desired settings.
-
-Exiting ...
 EOF
     exit_program 1
 fi
@@ -279,8 +268,7 @@ stage1(){
     cat << EOF
 ###############################################################################
                                C R Y P T M Y P I
-                               ---- Stage 1 ----
-v${_VER}
+v${_VER}                       ---- Stage 1 ----
 ###############################################################################
 EOF
     function_exists "stage1_hooks" && {
@@ -318,8 +306,6 @@ EOF
                 *)    echo -e "Invalid selection error ..." && sleep 2
             esac
         done
-
-
     }
 }
 
@@ -342,37 +328,26 @@ stage2(){
 
 ###############################################################################
                                C R Y P T M Y P I
-                               ---- Stage 2 ----
-v${_VER}
+v${_VER}                       ---- Stage 2 ----
 ###############################################################################
 EOF
 
-    
     local _CONTINUE
     $_STAGE2_CONFIRM && {
-        read -p "Press enter to continue."
 
         cat << EOF
 
-Cryptmypi will attempt to perform the following operations on the sdcard:
-1. Partition and format the sdcard.
-2. Create bootable sdcard with LUKS encrypted root partition.
-##################### W A R N I N G #####################
-This process can damage your local install if the script
-has the wrong block device for your system. 
-If the block device is wrong DO NOT proceed. 
+Cryptmypi will attempt to partition and format the sdcard then 
+create a bootable sdcard with LUKS encrypted root partition.
 
-This is a listing of your system block devices:
+This process can damage your local install if the script
+has the wrong device:
 
 $(lsblk)
 
-And below is the block device to be used with the script:
+Type 'YES' if the selected device is correct:  ${_BLKDEV}
 
-block device:  ${_BLKDEV}
-
-To continue type in the phrase 'YES'
 EOF
-
         echo -n ": "
         read _CONTINUE
     } || {
@@ -473,11 +448,7 @@ main(){
                         echo "Removing current build files." #TESTING ONLY
                         $_SIMULATE || rm -Rf ${_BUILDDIR} 
                     } || echo_warn "--keep_build_dir set: Not cleaning old build."
-                    
-                    #Prevent lock ups whilst performing copy
-                    echo $((16*1024*1024)) > /proc/sys/vm/dirty_background_bytes
-                    echo $((48*1024*1024)) > /proc/sys/vm/dirty_bytes
-                    
+                                        
                     echo "stage1 started at `date`"
                     execute "both"
                     break;

@@ -35,7 +35,7 @@ EOT
 
 
 test -e "${CHROOTDIR}/etc/dhclient.conf" && {
-    echo_debug "Uptading /etc/dhclient.conf"
+    echo_debug "Updating /etc/dhclient.conf"
     cat <<EOT >> ${CHROOTDIR}/etc/dhclient.conf
 
 # DNS (by optional-sys-dns)
