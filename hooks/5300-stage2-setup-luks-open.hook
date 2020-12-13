@@ -1,20 +1,12 @@
 #!/bin/bash
 set -e
 
-
-is_build_encrypted && {
-    # Open LUKS
-    echo_debug "Attempting to open LUKS ${_BLKDEV}${__PARTITIONPREFIX}2 ..."
-    if [ ! -z "${_LUKSPASSWD}" ]; then
-        echo "${_LUKSPASSWD}" | cryptsetup -v luksOpen ${_BLKDEV}${__PARTITIONPREFIX}2 ${_ENCRYPTED_VOLUME_NAME}
-    else
-        cryptsetup -v luksOpen ${_BLKDEV}${__PARTITIONPREFIX}2 ${_ENCRYPTED_VOLUME_NAME}
-    fi
+echo_debug "Attempting to open LUKS ${_BLKDEV}${__PARTITIONPREFIX}2 ..."
+if [ ! -z "${_LUKSPASSWD}" ]; then
+    echo "${_LUKSPASSWD}" | cryptsetup -v luksOpen ${_BLKDEV}${__PARTITIONPREFIX}2 ${_ENCRYPTED_VOLUME_NAME} 
     if [ $? -eq 0 ]; then
-        echo_debug "- LUKS opened."
+        echo_debug "- LUKS open"
     else
-        echo_error "- Aborting since we failed to open LUKS on ${_BLKDEV}${__PARTITIONPREFIX}2"
+        echo_error "- Aborting since we failed to create LUKS on ${_BLKDEV}${__PARTITIONPREFIX}2"
         exit_program 1
-    fi
-    echo
-} || echo_debug "Skipping: building unencrypted configuration."
+fi
