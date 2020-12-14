@@ -2,7 +2,7 @@
 set -e
 
 # Check if btrfs is the file system, if so install required packages
-$FS=$FILESYSTEM;
+FS=$FILESYSTEM;
 if [ $FS = "btrfs"]; then
     echo_debug "- Setting up btrfs-progs on build machine"
     apt-get -y install btrfs-progs

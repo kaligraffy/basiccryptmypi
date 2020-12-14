@@ -4,37 +4,34 @@ set -e
 #install mail package
 chroot_pkginstall mailutils
 
-#MAKE A HASH OF /BOOT AND COMPARE TO LAST RECORDED 
-#MAIL A USER IF CHANGED
-echo_debug "Creating script bootHash.sh in /usr/local/bin"
-cat << EOF > ${_BUILDDIR}/root/usr/local/bin/bootHash.sh
+BOOTDRIVE="${_BLKDEV}${__PARTITIONPREFIX}1"
+BOOTHASHSCRIPT="${_BUILDDIR}/root/usr/local/bin/bootHash.sh"
+echo_debug "Creating script bootHash.sh in ${_BUILDDIR}/usr/local/bin"
+
+cat << 'EOF' > "$BOOTHASHSCRIPT"
 #!/bin/bash
 #user to be mailed (kali, root)
 MAILUSER=kali 
 #boot device mmcblk0p1 or /dev/sda1
-BOOTDRIVE=mmcblk0p1 
+BOOTDRIVE=/dev/sdX
 LOGFILE="/var/log/$BOOTDRIVE-hashes"
 LASTHASH=$(tail -1 $LOGFILE)
-NEWHASH="$(sha256sum /dev/$BOOTDRIVE) $(date)" 
+NEWHASH="$(sha256sum $BOOTDRIVE) $(date)" 
 echo $NEWHASH >> "$LOGFILE"
 
 LASTHASH=$(echo "$LASTHASH" | cut -d' ' -f 1)
 NEWHASH=$(echo "$NEWHASH" | cut -d' ' -f 1)
 
-echo $LASTHASH
-echo $NEWHASH
-
 if [ "$LASTHASH" != "$NEWHASH" ]; then
-    echo "HASH CHANGED"
-    echo -e "${NEWHASH}\n${LASTHASH}" | mail -s "BOOT HASH CHANGE" $MAILUSER 
-else
-    echo "HASH NOT CHANGED"
+    echo -e "${NEWHASH}\n${LASTHASH}" | mail -s "BOOT HASH CHANGE" $MAILUSER
 fi
 EOF
-chmod 700 ${_BUILDDIR}/root/usr/local/bin/bootHash.sh
+
+sed -i "s|/dev/sdX|${BOOTDRIVE}|g" "$BOOTHASHSCRIPT"
+chmod 700 "$BOOTHASHSCRIPT"
 
 #crontab run on startup
-cat << EOF > ${_BUILDDIR}/root/etc/cron.d/startBootHash
+cat << 'EOF' > ${_BUILDDIR}/root/etc/cron.d/startBootHash
 @reboot root /bin/bash /usr/local/bin/bootHash.sh
 EOF
-chmod 700 ${_BUILDDIR}/root/etc/cron.d/startBootHash
+chmod 755 ${_BUILDDIR}/root/etc/cron.d/startBootHash
