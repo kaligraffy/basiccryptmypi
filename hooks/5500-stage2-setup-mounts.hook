@@ -9,7 +9,7 @@ then
     echo_debug "- Mounted /dev/mapper/${_ENCRYPTED_VOLUME_NAME} to /mnt/cryptmypi"
 else
     echo_error "- Abort - failed to mount /dev/mapper/${_ENCRYPTED_VOLUME_NAME} on /mnt/cryptmypi"
-    exit_program 1
+    exit 1
 fi
 echo
 
@@ -21,6 +21,6 @@ then
     echo_debug "- Mounted ${_BLKDEV}${__PARTITIONPREFIX}1 to /mnt/cryptmypi/boot"
 else
     echo_error "- Aborting since we failed to mount ${_BLKDEV}${__PARTITIONPREFIX}1 to /mnt/cryptmypi/boot"
-    exit_program 1
+    exit 1
 fi
 echo

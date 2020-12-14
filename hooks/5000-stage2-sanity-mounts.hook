@@ -1,7 +1,6 @@
 #!/bin/bash
 set -e
 
-
 echo_debug "Attempt to unmount just to be safe ..."
 umount ${_BLKDEV}* || true
 umount /mnt/cryptmypi || {

@@ -8,5 +8,5 @@ if [ ! -z "${_LUKSPASSWD}" ]; then
         echo_debug "- LUKS open"
     else
         echo_error "- Aborting since we failed to create LUKS on ${_BLKDEV}${__PARTITIONPREFIX}2"
-        exit_program 1
+        exit 1
 fi

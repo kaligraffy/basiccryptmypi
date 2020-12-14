@@ -28,6 +28,6 @@ else
         echo_error "Removing ${_IMAGENAME} ..."
         rm ${_IMAGEDIR}/${_IMAGENAME}
         echo_error "Exiting ..."
-        exit_program 1
+        exit 1
     }
 fi

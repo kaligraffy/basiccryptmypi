@@ -1,10 +1,9 @@
 #!/bin/bash
 set -e
 
-
 if [ -z "${_HOSTNAME}" ]; then
     echo_error "ERROR: '_HOSTNAME' variable was not defined!"
     echo ""
     echo "Exiting ..."
-    exit_program 1
+    exit 1
 fi

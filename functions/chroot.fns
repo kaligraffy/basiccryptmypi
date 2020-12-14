@@ -27,7 +27,7 @@ chroot_mount(){
 
 chroot_umount(){
     [ -z "${CHROOTDIR}" ] && {
-        exit_program 1
+        exit 1
     }
     echo_debug "Tearing down RPi chroot mount structure at '${CHROOTDIR}'."
 
@@ -48,7 +48,7 @@ chroot_umount(){
 chroot_update(){
     [ -z "${CHROOTDIR}" ] && {
         echo_error "Chroot dir was not defined! Aborting..."
-        exit_program 1
+        exit 1
     }
     
     #Force https on initial use of apt
@@ -70,7 +70,7 @@ chroot_update(){
 chroot_pkginstall(){
     [ -z "${CHROOTDIR}" ] && {
         echo_error "Chroot dir was not defined! Aborting..."
-        exit_program 1
+        exit 1
     }
 
     if [ ! -z "$1" ]; then
@@ -82,12 +82,12 @@ chroot_pkginstall(){
                     chroot ${CHROOTDIR} /bin/bash -x <<EOF
                         sleep 5
                         apt-get update
-                        apt-get -y install "${pkg}" || exit_program 1
+                        apt-get -y install "${pkg}" || exit 1
 EOF
                     status=$?
                     [ $status -eq 0 ] || {
                         echo_error "ERROR: Could not install ${pkg} correctly... Exiting.";
-                        exit_program 1
+                        exit 1
                     }
                 }
             done
@@ -99,7 +99,7 @@ EOF
 chroot_pkgpurge(){
     [ -z "${CHROOTDIR}" ] && {
         echo_error "Chroot dir was not defined! Aborting..."
-        exit_program 1
+        exit 1
     }
 
     if [ ! -z "$1" ]; then
@@ -117,7 +117,7 @@ chroot_pkgpurge(){
 chroot_execute(){
     [ -z "${CHROOTDIR}" ] && {
         echo_error "Chroot dir was not defined! Aborting..."
-        exit_program 1
+        exit 1
     }
 
     chroot ${CHROOTDIR} "$@"

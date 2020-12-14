@@ -1,6 +1,16 @@
 #!/bin/bash
 set -e
 
+# Check if btrfs is the file system, if so install required packages
+$FS=$FILESYSTEM;
+if [ $FS = "btrfs"]; then
+    echo_debug "- Setting up btrfs-progs on build machine"
+    apt-get -y install btrfs-progs
+    echo_debug "- Setting up btrfs-progs in chroot"
+    chroot_pkginstall btrfs-progs
+    echo_debug "- Adding btrfs module to initramfs-tools/modules"
+    chroot_execute 'echo "btrfs" >> /etc/initramfs-tools/modules'
+fi
 
 # Setup qemu emulator for aarch64
 echo_debug "- Copying qemu emulator to chroot ..."
@@ -18,14 +28,14 @@ echo_debug "Making the cryptsetup settings ..."
 
 # Update /boot/cmdline.txt to boot crypt
 sed -i "s#root=/dev/mmcblk0p2#root=/dev/mapper/${_ENCRYPTED_VOLUME_NAME} cryptdevice=/dev/mmcblk0p2:${_ENCRYPTED_VOLUME_NAME}#g" ${_BUILDDIR}/root/boot/cmdline.txt
-sed -i 's#rootfstype=ext3#rootfstype=ext4#g' ${_BUILDDIR}/root/boot/cmdline.txt
+sed -i "s#rootfstype=ext3#rootfstype=${FS}#g" ${_BUILDDIR}/root/boot/cmdline.txt
 
 # Enable cryptsetup when building initramfs
 echo "CRYPTSETUP=y" >> ${_BUILDDIR}/root/etc/cryptsetup-initramfs/conf-hook
 
 # Update /etc/fstab
 sed -i "s#/dev/mmcblk0p2#/dev/mapper/${_ENCRYPTED_VOLUME_NAME}#g" ${_BUILDDIR}/root/etc/fstab
-sed -i 's#ext3#ext4#g' ${_BUILDDIR}/root/etc/fstab
+sed -i "s#ext3#${FS}#g"${_BUILDDIR}/root/etc/fstab
 
 # Update /etc/crypttab
 echo "${_ENCRYPTED_VOLUME_NAME}    /dev/mmcblk0p2    none    luks" > ${_BUILDDIR}/root/etc/crypttab

@@ -7,11 +7,11 @@ echo_debug "Attempting to install dropbear ..."
 
 if [ -z "${_SSH_LOCAL_KEYFILE}" ]; then
     echo_error "ERROR: _SSH_LOCAL_KEYFILE variable was not set. Exiting..."
-    exit_program 1
+    exit 1
 else
     test -f "${_SSH_LOCAL_KEYFILE}" || {
         echo_error "ERROR: Obligatory SSH keyfile '${_SSH_LOCAL_KEYFILE}' could not be found. Exiting..."
-        exit_program 1
+        exit 1
     }
 fi
 

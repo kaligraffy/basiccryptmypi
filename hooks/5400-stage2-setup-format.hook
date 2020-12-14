@@ -1,16 +1,18 @@
 #!/bin/bash
 set -e
 
-# Format LUKS
+$FS=$_FILESYSTEM
+
+# Format
 echo_debug "Formatting /dev/mapper/${_ENCRYPTED_VOLUME_NAME}"
-if mkfs.ext4 /dev/mapper/${_ENCRYPTED_VOLUME_NAME}
-then
+case $FS in
+"ext4"|"btrfs")       
+    mkfs.$FS /dev/mapper/${_ENCRYPTED_VOLUME_NAME}
     echo_debug "- Formatted"
-else
-    echo_error "- Abort - failed to format /dev/mapper/${_ENCRYPTED_VOLUME_NAME} to ext4"
-    exit_program 1
-fi
-    
+    ;;          
+*) echo "Filesystem not detected"; exit 1;             
+esac 
+
 # Format boot partition
 echo_debug "Formatting Boot Partition"
 mkfs.vfat ${_BLKDEV}${__PARTITIONPREFIX}1

@@ -10,14 +10,6 @@ cat << EOF
 EOF
 
 ############################
-# Exit Function
-############################
-exit_program(){
-    echo "Script completed at `date` with exit status $1"
-    exit $1
-}
-
-############################
 # Parameter helper functions
 ############################
 # Displays help
@@ -104,7 +96,7 @@ do
     case $key in
         -h|--help)
             display_help
-            exit_program 0
+            exit 0
             ;;
         -s|--simulate)
             _SIMULATE=true
@@ -157,7 +149,7 @@ if [ -z "$1" ]; then
     echo "ERROR: Configuration directory was not supplied. "
     display_help
     echo "Exiting..."
-    exit_program 1
+    exit 1
 else
     _CONFDIRNAME=$1
 fi
@@ -224,7 +216,7 @@ if [ ! -f ${_CONFDIR}/cryptmypi.conf ]; then
 ERROR: Cannot find 'cryptmypi.conf'
 
 EOF
-    exit_program 1
+    exit 1
 fi
 
 
@@ -372,7 +364,7 @@ EOF
         *)
             restore_output
             echo "Abort."
-            exit_program 1
+            exit 1
             ;;
     esac
 }
@@ -400,7 +392,11 @@ execute(){
     esac
 }
 
-# Cleanup EXIT Trap
+# Message on exit
+exitMessage(){
+    echo "Script completed at `date` with exit status $1"
+}
+# Cleanup on exit
 cleanup(){
     chroot_umount || true
     umount ${_BLKDEV}* || true
@@ -411,8 +407,9 @@ cleanup(){
     [ -d /mnt/cryptmypi ] && rm -r /mnt/cryptmypi || true
     cryptsetup luksClose $_ENCRYPTED_VOLUME_NAME || true
 }
-trap cleanup EXIT
-
+# EXIT Trap
+trapExit () { exitMessage; cleanup; }
+trap trapExit EXIT
 
 # Main logic routine
 main(){
@@ -466,4 +463,4 @@ main(){
 }
 main
 
-exit_program 0
+exit 0
