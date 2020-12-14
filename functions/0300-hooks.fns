@@ -11,7 +11,7 @@ myhooks(){
                 $_SIMULATE && {
                     echo "SKIPPING: Simulation mode active: Hook will not be executed."
                 } || source ${_HOOK}
-                echo_info "    ... $(basename ${_HOOK}) completed!"
+                echo_debug "    ... $(basename ${_HOOK}) completed!"
                 echo ""
             fi
         done

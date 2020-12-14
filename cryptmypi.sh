@@ -1,13 +1,84 @@
 #!/bin/bash
 set -e
 
-cat << EOF
+# Determining script directory (absolute path resolving symlinks)
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+  DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+_SCRIPT_DIRECTORY="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
 
-###############################################################################
-                               C R Y P T M Y P I
-###############################################################################
+# Check if configuration name was provided
+if [ -z "$1" ]; then
+    echo "ERROR: Configuration directory was not supplied. "
+    display_help
+    exit 1
+else
+    _CONFDIRNAME=$1
+fi
 
-EOF
+# Variables
+export _USER_HOME=$(eval echo ~${SUDO_USER})
+export _BASEDIR="${_SCRIPT_DIRECTORY}"
+export _CURRDIR=$(pwd)
+export _CONFDIR=${_CURRDIR}/${_CONFDIRNAME}
+export _SHAREDCONFDIR=${_CURRDIR}/shared-config
+export _BUILDDIR=${_CONFDIR}/build
+export _FILESDIR=${_BASEDIR}/files
+export _IMAGEDIR=${_FILESDIR}/images
+export _CACHEDIR=${_FILESDIR}/cache
+export _ENCRYPTED_VOLUME_NAME="crypt-1"
+# Default input variable values
+_OUTPUT_TO_FILE=""
+_STAGE1_CONFIRM=true
+_STAGE2_CONFIRM=true
+_BLKDEV_OVERRIDE=""
+_SHOW_OPTIONS=false
+_SIMULATE=true
+_STAGE1_REBUILD=""
+_RMBUILD_ONREBUILD=true
+# Load configuration files
+. ${_CONFDIR}/cryptmypi.conf
+. ${_CURRDIR}/shared-config/shared-cryptmypi.conf
+# Configuration dependent variables
+export _IMAGENAME=$(basename ${_IMAGEURL})
+
+############################
+# Load Script Base Functions
+############################
+
+for _FN in ${_BASEDIR}/functions/*.fns
+do
+    . ${_FN}
+    echo_debug "  $(basename ${_FN}) loaded"
+done
+echo_info "Loaded functions"
+
+# Message on exit
+exitMessage(){
+    if [ $1 -gt 0 ]; then
+        echo_error "Script failed at `date` with exit status $1 at line $2"
+    else
+        echo_info "Script completed at `date` with exit status $1"
+    fi
+}
+# Cleanup on exit
+cleanup(){
+    chroot_umount || true
+    umount ${_BLKDEV}* || true
+    umount /mnt/cryptmypi || {
+        umount -l /mnt/cryptmypi || true
+        umount -f /dev/mapper/${_ENCRYPTED_VOLUME_NAME} || true
+    }
+    [ -d /mnt/cryptmypi ] && rm -r /mnt/cryptmypi || true
+    cryptsetup luksClose $_ENCRYPTED_VOLUME_NAME || true
+}
+
+# EXIT Trap
+trapExit () { exitMessage $1 $2 ; cleanup; }
+trap 'trapExit $? $LINENO' EXIT
 
 ############################
 # Parameter helper functions
@@ -73,20 +144,6 @@ restore_output(){
     }
 }
 
-
-############################
-# Verifying input parameters
-############################
-# Default input variable value
-_OUTPUT_TO_FILE=""
-_STAGE1_CONFIRM=true
-_STAGE2_CONFIRM=true
-_BLKDEV_OVERRIDE=""
-_SHOW_OPTIONS=false
-_SIMULATE=false
-_STAGE1_REBUILD=""
-_RMBUILD_ONREBUILD=true
-
 # Parsing input parameters
 POSITIONAL=()
 while [[ $# -gt 0 ]]
@@ -144,16 +201,6 @@ do
 done
 set -- "${POSITIONAL[@]}" # restore positional parameters
 
-# Check if configuration name was provided
-if [ -z "$1" ]; then
-    echo "ERROR: Configuration directory was not supplied. "
-    display_help
-    echo "Exiting..."
-    exit 1
-else
-    _CONFDIRNAME=$1
-fi
-
 # Display options
 $_SHOW_OPTIONS && {
 cat << EOF
@@ -180,78 +227,27 @@ EOF
     echo
 }
 
-
-# Determining script directory (absolute path resolving symlinks)
-SOURCE="${BASH_SOURCE[0]}"
-while [ -h "$SOURCE" ]; do
-  DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
-  SOURCE="$(readlink "$SOURCE")"
-  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
-done
-_SCRIPT_DIRECTORY="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
-
-
-# Variables
-export _DATE=$(date +"%m-%d-%Y")
-export _USER_HOME=$(eval echo ~${SUDO_USER})
-export _VER="next-0.1"
-export _BASEDIR="${_SCRIPT_DIRECTORY}"
-export _CURRDIR=$(pwd)
-export _CONFDIR=${_CURRDIR}/${_CONFDIRNAME}
-export _SHAREDCONFDIR=${_CURRDIR}/shared-config
-export _BUILDDIR=${_CONFDIR}/build
-export _FILESDIR=${_BASEDIR}/files
-export _IMAGEDIR=${_FILESDIR}/images
-export _CACHEDIR=${_FILESDIR}/cache
-export _ENCRYPTED_VOLUME_NAME="crypt-1"
-
-# Creating Directories
-mkdir -p "${_IMAGEDIR}"
-mkdir -p "${_FILESDIR}"
-
-
 # Check if configuration file is present
 if [ ! -f ${_CONFDIR}/cryptmypi.conf ]; then
     cat << EOF
-ERROR: Cannot find 'cryptmypi.conf'
+ERROR: Cannot find ${_CONFDIR}/cryptmypi.conf
 
 EOF
     exit 1
 fi
 
-
-# Load configuration file
-. ${_CONFDIR}/cryptmypi.conf
-. ${_CURRDIR}/shared-config/shared-cryptmypi.conf
-
-
 # Overriding _BLKDEV if _BLKDEV_OVERRIDE set
 [ -z "${_BLKDEV_OVERRIDE}" ] || _BLKDEV=${_BLKDEV_OVERRIDE}
-
-
-# Configuration dependent variables
-export _IMAGENAME=$(basename ${_IMAGEURL})
-
-
-############################
-# Load Script Base Functions
-############################
-echo "Loading functions..."
-for _FN in ${_BASEDIR}/functions/*.fns
-do
-    if [ -e ${_FN} ]; then
-        echo "- Loading $(basename ${_FN}) ..."
-        source ${_FN}
-        echo "  ... $(basename ${_FN}) loaded!"
-    fi
-done
-
 
 ############################
 # Validate All Preconditions
 ############################
+cat << EOF
+###############################################################################
+next-0.1                         C R Y P T M Y P I
+###############################################################################
+EOF
 myhooks preconditions
-
 
 ############################
 # STAGE 1 Image Preparation
@@ -259,8 +255,7 @@ myhooks preconditions
 stage1(){
     cat << EOF
 ###############################################################################
-                               C R Y P T M Y P I
-v${_VER}                       ---- Stage 1 ----
+---- Stage 1 started at `date` ----
 ###############################################################################
 EOF
     function_exists "stage1_hooks" && {
@@ -301,12 +296,10 @@ EOF
     }
 }
 
-
 ############################
 # STAGE 2 Encrypt & Write SD
 ############################
 stage2(){
-    echo "stage2 started at `date`"
     # Simple check for type of sdcard block device
     if echo ${_BLKDEV} | grep -qs "mmcblk"
     then
@@ -319,8 +312,7 @@ stage2(){
     cat << EOF
 
 ###############################################################################
-                               C R Y P T M Y P I
-v${_VER}                       ---- Stage 2 ----
+---- Stage 2 started at `date` ----
 ###############################################################################
 EOF
 
@@ -329,11 +321,9 @@ EOF
 
         cat << EOF
 
-Cryptmypi will attempt to partition and format the sdcard then 
-create a bootable sdcard with LUKS encrypted root partition.
+Cryptmypi will now write the build to disk.
 
-This process can damage your local install if the script
-has the wrong device:
+WARNING: CHECK DISK IS CORRECT
 
 $(lsblk)
 
@@ -369,13 +359,15 @@ EOF
     esac
 }
 
-
 ############################
 # EXECUTION LOGIC FLOW
 ############################
 # Logic execution routine
 execute(){
-    mkdir -p ${_BUILDDIR}
+    # Creating Directories
+    mkdir -p "${_IMAGEDIR}"
+    mkdir -p "${_FILESDIR}"
+    mkdir -p "${_BUILDDIR}"
     cd ${_BUILDDIR}
     case "$1" in
         'both')
@@ -391,25 +383,6 @@ execute(){
             ;;
     esac
 }
-
-# Message on exit
-exitMessage(){
-    echo "Script completed at `date` with exit status $1"
-}
-# Cleanup on exit
-cleanup(){
-    chroot_umount || true
-    umount ${_BLKDEV}* || true
-    umount /mnt/cryptmypi || {
-        umount -l /mnt/cryptmypi || true
-        umount -f /dev/mapper/${_ENCRYPTED_VOLUME_NAME} || true
-    }
-    [ -d /mnt/cryptmypi ] && rm -r /mnt/cryptmypi || true
-    cryptsetup luksClose $_ENCRYPTED_VOLUME_NAME || true
-}
-# EXIT Trap
-trapExit () { exitMessage; cleanup; }
-trap trapExit EXIT
 
 # Main logic routine
 main(){
@@ -446,7 +419,6 @@ main(){
                         $_SIMULATE || rm -Rf ${_BUILDDIR} 
                     } || echo_warn "--keep_build_dir set: Not cleaning old build."
                                         
-                    echo "stage1 started at `date`"
                     execute "both"
                     break;
                     ;;
