@@ -20,11 +20,11 @@ chroot_mount(){
     echo_debug "Mounting '${CHROOTDIR}/proc/' ..."
     mount -t proc /proc ${CHROOTDIR}/proc/ || echo_error "ERROR while mounting '${CHROOTDIR}/proc/'"
 
-    # ld.so.preload fix
-    test -e ${CHROOTDIR}/etc/ld.so.preload && {
-        echo_debug "Fixing ld.so.preload"
-        sed -i 's/^/#CHROOT /g' ${CHROOTDIR}/etc/ld.so.preload
-    } || true
+#    # ld.so.preload fix
+#    test -e ${CHROOTDIR}/etc/ld.so.preload && {
+#        echo_debug "Fixing ld.so.preload"
+#        sed -i 's/^/#CHROOT /g' ${CHROOTDIR}/etc/ld.so.preload
+#    } || true
 }
 
 
@@ -34,7 +34,7 @@ chroot_umount(){
     }
     echo_debug "Tearing down RPi chroot mount structure at '${CHROOTDIR}'."
 
-    # revert ld.so.preload fix
+#    # revert ld.so.preload fix
 #    test -e ${CHROOTDIR}/etc/ld.so.preload && {
 #        echo_debug "Reverting ld.so.preload fix"
 #        sed -i 's/^#CHROOT //g' ${CHROOTDIR}/etc/ld.so.preload

@@ -7,9 +7,7 @@ myhooks(){
         do
             if [ -e ${_HOOK} ]; then
                 echo_info "- Calling $(basename ${_HOOK}) ..."
-                $_SIMULATE && {
-                    echo_debug "SKIPPING: Simulation mode active: Hook will not be executed."
-                } || source ${_HOOK}
+                source ${_HOOK}
                 echo_debug "- $(basename ${_HOOK}) completed"
             fi
         done

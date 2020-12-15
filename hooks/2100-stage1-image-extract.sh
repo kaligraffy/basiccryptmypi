@@ -4,8 +4,6 @@ set -e
 IMAGE="${_IMAGEDIR}/${_IMAGENAME}"
 EXTRACTEDIMAGE="${_IMAGEDIR}/extracted.img"
 
-
-
 if [ -e "$EXTRACTEDIMAGE" ]; then
     echo_info "$EXTRACTEDIMAGE found, skipping extract"
 else

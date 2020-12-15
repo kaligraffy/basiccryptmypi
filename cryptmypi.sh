@@ -40,66 +40,61 @@ export _SSH_PASSWORD_AUTHENTICATION="no"
 export _ENCRYPTED_VOLUME_NAME="crypt-1"
 #_STAGE1_OTHERSCRIPT='stage1-otherscript.sh'
 #_STAGE2_OTHERSCRIPT='stage2-otherscript.sh'
+
 stage1_hooks(){
-    stage1profile_complete
-}
-stage1_optional_hooks(){
-    myhooks "experimental-initramfs-wifi"
-    myhooks "experimental-boot-hash"
-    myhooks "optional-initramfs-luksnuke"
-    myhooks "optional-sys-gpugovernor-ondemand"
-    myhooks "optional-sys-dns"
-    #myhooks "experimental-initramfs-iodine.hook"
-    #myhooks "experimental-sys-iodine.hook"
-    #myhooks "optional-sys-vpnclient.hook"
-}
-stage2_optional_hooks(){
-    myhooks "optional-sys-rootpassword"
-    #myhooks "optional-sys-wifi"
-    #myhooks "optional-sys-docker.hook"
-}
-export _BASEDIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
-export _CURRDIR=$(pwd)
-export _CONFDIRNAME="${1}"
-export _CONFDIR=${_CURRDIR}/${_CONFDIRNAME}
-export _USER_HOME=$(eval echo ~${SUDO_USER})
-export _SHAREDCONFDIR=${_CURRDIR}/shared-config
-export _BUILDDIR=${_CONFDIR}/build
-export _FILESDIR=${_BASEDIR}/files
-export _IMAGEDIR=${_FILESDIR}/images
-#0 = debug messages, 1+ = info, no debug messages 2+ = warnings 3+ = only errors
-export _LOG_LEVEL=1
-export _IMAGENAME=$(basename ${_IMAGEURL})
-# Default input variable values
-_STAGE1_CONFIRM=true
-_STAGE2_CONFIRM=true
-_BLKDEV_OVERRIDE=""
-_STAGE1_REBUILD=""
-_RMBUILD_ONREBUILD=false
+0000-experimental-boot-hash.sh
+0000-experimental-initramfs-iodine.sh
+0000-experimental-initramfs-wifi.sh
+0000-experimental-sys-iodine.sh
+0000-optional-initramfs-luksnuke.sh
+0000-optional-sys-cpugovernor-ondemand.sh
+0000-optional-sys-dns.sh
+0000-optional-sys-docker.sh
+0000-optional-sys-rootpassword.sh
+0000-optional-sys-vpnclient.sh
+0000-optional-sys-wifi.sh
 
-# Load Script Base Functions
-for _FN in ${_BASEDIR}/functions/*.sh
-do
-    . ${_FN}
-    echo_debug "- $(basename ${_FN}) loaded"
-done
-
-# Message on exit
-exitMessage(){
-    if [ $1 -gt 0 ]; then
-        echo_error "Script failed at `date` with exit status $1 at line $2"
-    else
-        echo_info "Script completed at `date`"
-    fi
+stage1-sanity-qemu.sh
+stage1-image-download.sh
+stage1-image-extract.sh
+stage1-setup-chroot.sh
+stage1-locale.sh
+stage1-setup-encryption.sh
+stage1-hostname.sh
+stage1-ssh.sh
+stage1-dropbear.sh
+stage1-packages.sh
+stage1-runoptional.sh
+stage1-otherscript.sh
+stage1-disabledisplaymanager.sh
+stage1-initramfs.sh
+stage1-teardown-chroot.sh
 }
+
+stage2_hooks(){
+stage2-sanity-mounts.sh
+stage2-setup-partitions.sh
+stage2-setup-luks-create.sh
+stage2-setup-luks-open.sh
+stage2-setup-format.sh
+stage2-setup-mounts.sh
+stage2-setup-filesystem.sh
+stage2-setup-chroot.sh
+stage2-runoptional.sh
+stage2-initramfs.sh
+stage2-otherscript.sh
+stage2-teardown-chroot.sh
+stage2-teardown-mounts.sh
+stage2-teardown-luks-close.sh
+stage2-teardown-cleanup.sh
+}
+
 # Cleanup on exit
 cleanup(){
     chroot_umount || true
     umount ${_BLKDEV}* || true
-    umount /mnt/cryptmypi || {
-        umount -l /mnt/cryptmypi || true
+    umount -l /mnt/cryptmypi || true
         umount -f /dev/mapper/${_ENCRYPTED_VOLUME_NAME} || true
-    }
     [ -d /mnt/cryptmypi ] && rm -r /mnt/cryptmypi || true
     cryptsetup luksClose $_ENCRYPTED_VOLUME_NAME || true
 }
@@ -125,16 +120,7 @@ stagePreconditions(){
         display_help
         exit 1
     fi
-
-    # Check if configuration file is present
-    if [ ! -f ${_CONFDIR}/cryptmypi.conf ]; then
-        echo_error "ERROR: Cannot find ${_CONFDIR}/cryptmypi.conf"
-        exit 1
-    fi
-
-    # Overriding _BLKDEV if _BLKDEV_OVERRIDE set
-    [ -z "${_BLKDEV_OVERRIDE}" ] || _BLKDEV=${_BLKDEV_OVERRIDE}
-
+    
     myhooks preconditions
 }
 ############################
@@ -142,9 +128,7 @@ stagePreconditions(){
 ############################
 stage1(){
     echo_info "$FUNCNAME started at `date` "
-    function_exists "stage1_hooks" && {
-        function_summary stage1_hooks
-        stage1_hooks
+        myhooks stage1
     }
 }
 
@@ -154,7 +138,7 @@ stage1(){
 stage2(){
     echo_info "$FUNCNAME started at `date` "
     # Simple check for type of sdcard block device
-    if echo ${_BLKDEV} | grep -qs "mmcblk"
+    if [ echo ${_BLKDEV} | grep -qs "mmcblk" ]
     then
         __PARTITIONPREFIX=p
     else
@@ -162,33 +146,15 @@ stage2(){
     fi
 
     # Show Stage2 menu
-    local _CONTINUE
-    $_STAGE2_CONFIRM && {
-
-    echo_warn "Cryptmypi will now write the build to disk."
+    local CONTINUE
+    echo_warn "${_BLKDEV} will not be overwritten."
     echo_warn "WARNING: CHECK DISK IS CORRECT"
     echo_info "$(lsblk)"
     echo_info "Type 'YES' if the selected device is correct:  ${_BLKDEV}"
-    echo -n ": "
-        read _CONTINUE
-    } || {
-        echo_debug "STAGE2 confirmation set to FALSE: skipping confirmation"
-        echo_debug "STAGE2 will execute (assuming 'YES' input) ..."
-        _CONTINUE='YES'
-    }
-
-    case "${_CONTINUE}" in
-        'YES')
-            function_exists "stage2_hooks" && {
-                function_summary stage2_hooks
-                stage2_hooks
-            } || myhooks "stage2"
-            ;;
-        *)
-            echo "Abort."
-            exit 1
-            ;;
-    esac
+    read CONTINUE
+    if "${CONTINUE}" = 'YES' ] ; then
+        myhooks stage2
+    fi
 }
 
 # Main logic routine

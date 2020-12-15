@@ -1,9 +1,7 @@
 #!/bin/bash
 set -e
 
-
 echo_debug 'Setting WIFI up ...'
-
 
 # Checking if WIFI interface was provided
 if [ -z "${_WIFI_INTERFACE}" ]; then
@@ -11,10 +9,8 @@ if [ -z "${_WIFI_INTERFACE}" ]; then
     echo_warn "_WIFI_INTERFACE is not set on config: Setting default value ${_WIFI_INTERFACE}"
 fi
 
-
 echo_debug "Generating PSK for '${_WIFI_SSID}' '${_WIFI_PASS}'"
 _WIFI_PSK=$(wpa_passphrase "${_WIFI_SSID}" "${_WIFI_PASS}" | grep "psk=" | grep -v "#psk")
-
 
 echo_debug "Creating wpa_supplicant file"
 cat <<EOT > ${CHROOTDIR}/etc/wpa_supplicant.conf
@@ -30,7 +26,6 @@ ${_WIFI_PSK}
 }
 EOT
 
-
 echo_debug "Uptading /etc/network/interfaces file"
 cat <<EOT >> ${CHROOTDIR}/etc/network/interfaces
 
@@ -43,7 +38,6 @@ wpa-conf /etc/wpa_supplicant.conf
 # post-down killall -q wpa_supplicant
 
 EOT
-
 
 echo_debug "Create connection script /root/sys-wifi-connect.sh"
 cat <<EOT >> ${CHROOTDIR}/root/sys-wifi-connect.sh
@@ -64,9 +58,5 @@ wpa_supplicant -B -Dwext -i ${_WIFI_INTERFACE} -c /etc/wpa_supplicant.conf
 EOT
 chmod +x ${CHROOTDIR}/root/sys-wifi-connect.sh
 
-
 #echo_debug "Add to cron to start at boot (before login)"
 #echo_debug "@reboot /root/sys-wifi-connect.sh" > ${CHROOTDIR}/etc/cron.d/sys-wifi
-
-
-echo_debug " ... done!"

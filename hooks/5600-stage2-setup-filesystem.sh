@@ -9,6 +9,3 @@ echo
 # Sync file system
 echo_debug "Syncing the filesystems ...."
 sync
-sync
-echo_debug "Done syncing the filesystems."
-echo
