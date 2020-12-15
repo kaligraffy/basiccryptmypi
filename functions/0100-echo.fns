@@ -16,22 +16,26 @@ _COLOR_LIGHTGRAY='\033[0;37m'
 _COLOR_WHITE='\033[1;37m'
 _COLOR_NORMAL='\033[0m' # No Color
 
-
 echo_error(){
-    echo -e "${_COLOR_RED}$@${_COLOR_NORMAL}"
+    if [ $_LOG_LEVEL -gt 0 ] && [ $_LOG_LEVEL -lt 4  ]; then
+        echo -e "${_COLOR_RED}$@${_COLOR_NORMAL}"
+    fi
 }
-
 
 echo_warn(){
-    echo -e "${_COLOR_YELLOW}$@${_COLOR_NORMAL}"
+    if [ $_LOG_LEVEL -gt 0 ] && [ $_LOG_LEVEL -lt 3 ]; then
+        echo -e "${_COLOR_YELLOW}$@${_COLOR_NORMAL}"
+    fi
 }
-
 
 echo_info(){
-    echo -e "${_COLOR_LIGHTBLUE}$@${_COLOR_NORMAL}"
+    if [ $_LOG_LEVEL -gt 0 ] && [ $_LOG_LEVEL -lt 2 ]; then
+        echo -e "${_COLOR_LIGHTBLUE}$@${_COLOR_NORMAL}"
+    fi
 }
 
-
 echo_debug(){
-    echo -e "${_COLOR_LIGHTGRAY}$@${_COLOR_NORMAL}"
+    if [ $_LOG_LEVEL -lt 1 ]; then
+        echo -e "${_COLOR_LIGHTGRAY}$@${_COLOR_NORMAL}"
+    fi
 }

@@ -9,13 +9,13 @@ chroot_mount(){
 
     # mount binds
     echo_debug "Mounting '${CHROOTDIR}/dev/' ..."
-    mount --bind /dev ${CHROOTDIR}/dev/ || echo_error "   ... ERROR while mounting '${CHROOTDIR}/dev/'"
+    mount --bind /dev ${CHROOTDIR}/dev/ || echo_error "ERROR while mounting '${CHROOTDIR}/dev/'"
     echo_debug "Mounting '${CHROOTDIR}/dev/pts' ..."
-    mount --bind /dev/pts ${CHROOTDIR}/dev/pts || echo_error "   ... ERROR while mounting '${CHROOTDIR}/dev/pts'"
+    mount --bind /dev/pts ${CHROOTDIR}/dev/pts || echo_error "ERROR while mounting '${CHROOTDIR}/dev/pts'"
     echo_debug "Mounting '${CHROOTDIR}/sys/' ..."
-    mount --bind /sys ${CHROOTDIR}/sys/ || echo_error "   ... ERROR while mounting '${CHROOTDIR}/sys/'"
+    mount --bind /sys ${CHROOTDIR}/sys/ || echo_error "ERROR while mounting '${CHROOTDIR}/sys/'"
     echo_debug "Mounting '${CHROOTDIR}/proc/' ..."
-    mount -t proc /proc ${CHROOTDIR}/proc/ || echo_error "   ... ERROR while mounting '${CHROOTDIR}/proc/'"
+    mount -t proc /proc ${CHROOTDIR}/proc/ || echo_error "ERROR while mounting '${CHROOTDIR}/proc/'"
 
     # ld.so.preload fix
     test -e ${CHROOTDIR}/etc/ld.so.preload && {
@@ -77,12 +77,12 @@ chroot_pkginstall(){
         for param in "$@"; do
             for pkg in $param; do
                 echo_debug "- Installing ${pkg}"
-                chroot ${CHROOTDIR} apt-get -y install "${pkg}" || {
+                chroot ${CHROOTDIR} apt-get -qq install "${pkg}" || {
                     echo_warn "apt-get failed: Trying to recover..."
                     chroot ${CHROOTDIR} /bin/bash -x <<EOF
                         sleep 5
                         apt-get update
-                        apt-get -y install "${pkg}" || exit 1
+                        apt-get -qq install "${pkg}" || exit 1
 EOF
                     status=$?
                     [ $status -eq 0 ] || {

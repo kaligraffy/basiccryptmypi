@@ -6,11 +6,11 @@ echo_debug "Attempting to set ssh up ..."
 
 
 if [ -z "${_SSH_LOCAL_KEYFILE}" ]; then
-    echo_error "ERROR: _SSH_LOCAL_KEYFILE variable was not set. Exiting..."
+    echo_error "ERROR: _SSH_LOCAL_KEYFILE variable was not set."
     exit 1
 else
     test -f "${_SSH_LOCAL_KEYFILE}" || {
-        echo_error "ERROR: Obligatory SSH keyfile '${_SSH_LOCAL_KEYFILE}' could not be found. Exiting..."
+        echo_error "ERROR: Obligatory SSH keyfile '${_SSH_LOCAL_KEYFILE}' could not be found. "
         exit 1
     }
 fi

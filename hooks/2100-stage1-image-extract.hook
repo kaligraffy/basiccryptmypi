@@ -1,53 +1,42 @@
 #!/bin/bash
 set -e
 
-# Extract files from image
 mkdir ${_BUILDDIR}/root
 mkdir ${_BUILDDIR}/mount
 
-
-
-echo_debug "Extracting image: ${_IMAGENAME} ..."
-case ${_IMAGENAME} in
-    *.xz)
-        xz --decompress --stdout ${_IMAGEDIR}/${_IMAGENAME} > ${_BUILDDIR}/cryptmypi.img
-        ;;
-    *.zip)
-        unzip -p ${_IMAGEDIR}/${_IMAGENAME} > ${_BUILDDIR}/cryptmypi.img
-        ;;
-    *.img)
-        cp -av "${_IMAGEDIR}/${_IMAGENAME}"  "${_BUILDDIR}/cryptmypi.img"
-        
-        ;;
-    *)
-        echo_error "Unknown extension type on image: ${_IMAGENAME} ! Stopping here."
-        exit 1
-        ;;
-esac
-
-
+echo_info "Starting extract at $(date)"
+echo_debug "Extracting image: ${_IMAGENAME}"
+if [ ! -e ${_IMAGEDIR}/cryptmypi.img ]; then
+    case ${_IMAGENAME} in
+        *.xz)
+            xz --decompress --stdout ${_IMAGEDIR}/${_IMAGENAME} > ${_IMAGEDIR}/cryptmypi.img
+            ;;
+        *.zip)
+            unzip -p ${_IMAGEDIR}/${_IMAGENAME} > ${_IMAGEDIR}/cryptmypi.img
+            ;;
+        *)
+            echo_error "Unknown extension type on image: ${_IMAGENAME}"
+            exit 1
+            ;;
+    esac
+else 
+    echo_debug "${_IMAGEDIR}/cryptmypi.img found, skipping extract"
+fi
+echo_info "Finished extract at $(date)"
 echo_debug "Mounting loopback ..."
-loopdev=$(losetup -f --show ${_BUILDDIR}/cryptmypi.img)
-partprobe ${loopdev}
+loopdev=$(losetup -P -f --show ${_IMAGEDIR}/cryptmypi.img)
 
-
-# Extract root partition
 mount ${loopdev}p2 ${_BUILDDIR}/mount/
-
-echo_debug "Syncing image/root to ${_BUILDDIR}/root ..."
+echo_info "Starting copy of root to ${_BUILDDIR}/root $(date)"
 cp -a ${_BUILDDIR}/mount/* ${_BUILDDIR}/root/
 umount ${_BUILDDIR}/mount
+echo_info "Finished copy of root to ${_BUILDDIR}/root $(date)"
 
-
-# Extract boot partition
-mount ${loopdev}p1 ${_BUILDDIR}/mount/
-echo_debug "Syncing image/root/boot to ${_BUILDDIR}/root/boot ..."
+mount ${loopdev}p1 ${_BUILDDIR}/mount/boot
+echo_info "Starting copy of boot to ${_BUILDDIR}/boot $(date)"
 cp -a ${_BUILDDIR}/mount/* ${_BUILDDIR}/root/boot/
-umount ${_BUILDDIR}/mount
+umount ${_BUILDDIR}/mount/boot
+echo_info "Finished copy of root to ${_BUILDDIR}/root $(date)"
 
-
-# Clear loopback
-rmdir ${_BUILDDIR}/mount
 echo_debug "Cleaning loopback ..."
 losetup -d ${loopdev}
-rm ${_BUILDDIR}/cryptmypi.img
