@@ -10,5 +10,6 @@ if [ ! -z "${_LUKSPASSWD}" ]; then
     else
         echo_error "- Aborting since we failed to create LUKS on ${_BLKDEV}${__PARTITIONPREFIX}2"
         exit 1
+    fi
 fi
 

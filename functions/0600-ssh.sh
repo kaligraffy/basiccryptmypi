@@ -1,3 +1,4 @@
+#!/bin/bash
 assure_box_sshkey(){
     _KEYFILE="${_CONFDIR}/id_rsa"
 

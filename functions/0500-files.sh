@@ -1,3 +1,4 @@
+#!/bin/bash
 lazy_download(){
     local _URL=$1
     local _DEST=$2

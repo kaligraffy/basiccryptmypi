@@ -1,3 +1,4 @@
+#!/bin/bash
 chroot_mount(){
     export CHROOTDIR=$1
 

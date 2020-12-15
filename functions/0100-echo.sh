@@ -1,3 +1,5 @@
+#!/bin/bash
+# shellcheck disable=SC2034
 _COLOR_BLACK='\033[0;30m'
 _COLOR_DARKGRAY='\033[1;30m'
 _COLOR_RED='\033[0;31m'

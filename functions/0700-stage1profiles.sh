@@ -1,3 +1,4 @@
+#!/bin/bash
 # Basic STAGE definitions
 stage1profile_encryption(){
     myhooks "stage1-sanity"

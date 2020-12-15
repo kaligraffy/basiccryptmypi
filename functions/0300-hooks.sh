@@ -1,3 +1,4 @@
+#!/bin/bash
 myhooks(){
     local _HOOK=''
     if [ ! -z "${1}" ]; then
