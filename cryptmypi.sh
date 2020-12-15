@@ -38,7 +38,7 @@ _STAGE1_REBUILD=""
 _RMBUILD_ONREBUILD=true
 
 # Load Script Base Functions
-for _FN in ${_BASEDIR}/functions/*.fns
+for _FN in ${_BASEDIR}/functions/*.sh
 do
     . ${_FN}
     echo_debug "- $(basename ${_FN}) loaded"

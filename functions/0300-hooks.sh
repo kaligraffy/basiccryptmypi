@@ -3,7 +3,7 @@ myhooks(){
     local _HOOK=''
     if [ ! -z "${1}" ]; then
         _HOOKOP="${1}"
-        for _HOOK in ${_BASEDIR}/hooks/????-${_HOOKOP}*.hook
+        for _HOOK in ${_BASEDIR}/hooks/????-${_HOOKOP}*.sh
         do
             if [ -e ${_HOOK} ]; then
                 echo_info "- Calling $(basename ${_HOOK}) ..."
