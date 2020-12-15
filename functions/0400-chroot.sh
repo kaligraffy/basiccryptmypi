@@ -1,4 +1,6 @@
 #!/bin/bash
+set -e
+
 chroot_mount(){
     export CHROOTDIR=$1
 
@@ -33,10 +35,10 @@ chroot_umount(){
     echo_debug "Tearing down RPi chroot mount structure at '${CHROOTDIR}'."
 
     # revert ld.so.preload fix
-    test -e ${CHROOTDIR}/etc/ld.so.preload && {
-        echo_debug "Reverting ld.so.preload fix"
-        sed -i 's/^#CHROOT //g' ${CHROOTDIR}/etc/ld.so.preload
-    } || true
+#    test -e ${CHROOTDIR}/etc/ld.so.preload && {
+#        echo_debug "Reverting ld.so.preload fix"
+#        sed -i 's/^#CHROOT //g' ${CHROOTDIR}/etc/ld.so.preload
+#    } || true
 
     # unmount everything
     echo_debug "Unmounting binds"
@@ -52,7 +54,7 @@ chroot_update(){
         exit 1
     }
     
-    #Force https on initial use of apt
+    #Force https on initial use of apt for the main kali repo
     sed -i 's|http:|https:|g' ${CHROOTDIR}/etc/apt/sources.list
     
     if [ -f "${CHROOTDIR}/etc/resolv.conf" ]; then
@@ -66,7 +68,6 @@ chroot_update(){
     echo_debug "Updating apt-get"
     chroot ${CHROOTDIR} apt-get update
 }
-
 
 chroot_pkginstall(){
     [ -z "${CHROOTDIR}" ] && {

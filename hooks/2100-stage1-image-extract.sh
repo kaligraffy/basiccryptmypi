@@ -4,12 +4,12 @@ set -e
 IMAGE="${_IMAGEDIR}/${_IMAGENAME}"
 EXTRACTEDIMAGE="${_IMAGEDIR}/extracted.img"
 
-mkdir $_BUILDDIR/mount
 
-echo_info "Starting extract at $(date)"
+
 if [ -e "$EXTRACTEDIMAGE" ]; then
-    echo_info "$EXTRACTEDIMAGE found"
+    echo_info "$EXTRACTEDIMAGE found, skipping extract"
 else
+    echo_info "Starting extract at $(date)"
     case ${IMAGE} in
         *.xz)
             echo_info "Extracting with xz"
@@ -24,22 +24,27 @@ else
             exit 1
             ;;
     esac
+    echo_info "Finished extract at $(date)"
 fi
 
-# At this point, there is a a decompressed image in the IMAGE/folder
-# Now we
+# Testing Code only (Remove later)
+# Skips the loop/mount and copys our preprepared version to the root folder instead.
+echo_info "Starting copy of boot to ${_BUILDDIR}/root $(date)"
+rsync -Ha --no-inc-recursive --partial --append-verify --info=progress2 ${_IMAGEDIR}/mount.backup/ ${_BUILDDIR}/root
+echo_info "Finished copy of boot to ${_BUILDDIR}/root $(date)"
+return 0;
+# End of test code.
 
-echo_info "Finished extract at $(date)"
-exit
 echo_debug "Mounting loopback ..."
 loopdev=$(losetup -P -f --show "$EXTRACTEDIMAGE")
 
+mkdir $_BUILDDIR/mount
 echo_debug "Unmounted $_BUILDDIR/boot $(date)"
 mount ${loopdev}p2 ${_BUILDDIR}/mount/
 mount ${loopdev}p1 ${_BUILDDIR}/mount/boot
 
 echo_info "Starting copy of boot to ${_BUILDDIR}/boot $(date)"
-cp -a ${_BUILDDIR}/mount ${_BUILDDIR}/root
+rsync -Ha --no-inc-recursive --partial --append-verify --info=progress2 --delete ${_BUILDDIR}/mount/ ${_BUILDDIR}/root
 echo_info "Finished copy of boot to ${_BUILDDIR}/boot $(date)"
 
 echo_debug "Unmounted ${_BUILDDIR}/boot $(date)"
@@ -48,3 +53,5 @@ umount ${_BUILDDIR}/mount
 rmdir ${_BUILDDIR}/mount
 echo_debug "Cleaning loopback ..."
 losetup -d ${loopdev}
+echo "Removing extracted image"
+#rm $EXTRACTEDIMAGE

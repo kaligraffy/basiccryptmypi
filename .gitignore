@@ -4,7 +4,6 @@ build/
 
 # File caches
 files/images/
-files/cache/
 
 # Keyfiles
 id_rsa
@@ -16,12 +15,5 @@ dropbear_*_key
 *.code-workspace
 *.kate
 
-# Personal directories
-personal/
-
 # Other general files
 *.zip
-
-# Experimental hooks
-hooks/0000-experimental-driver-rtl8188eu.hook
-hooks/0000-experimental-initramfs-v2wifi.hook
