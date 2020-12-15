@@ -30,7 +30,12 @@ fi
 # Testing Code only (Remove later)
 # Skips the loop/mount and copys our preprepared version to the root folder instead.
 echo_info "Starting copy of boot to ${_BUILDDIR}/root $(date)"
-rsync -Ha --no-inc-recursive --partial --append-verify --info=progress2 ${_IMAGEDIR}/mount.backup/ ${_BUILDDIR}/root
+rsync --hard-links --archive --no-inc-recursive --partial --append-verify --info=progress2 --delete ${_IMAGEDIR}/mount.backup/ ${_BUILDDIR}/root
+#--delete SHOULD RESTORE $BUILDDIR TO MOUNTBACKUP LEVEL OF EXTRACTION
+#HOWEVER LOTS OF THE STUFF THAT GETS MOUNTED NEEDS TO BE CHECKED TO BE
+#REMOVED OTHERWISE IT'LL FUCK IT ALL UP! PUT IN A CHECK TO
+#CHECK TO SEE IF ANYTHING IS MOUNTED IN THE CHROOT FOR IT
+#AND UNMOUNT IT. CALL THE CHROOTUNMOUNT FUNCTION IF IT'S USABLE
 echo_info "Finished copy of boot to ${_BUILDDIR}/root $(date)"
 return 0;
 # End of test code.

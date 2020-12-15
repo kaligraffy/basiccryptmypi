@@ -6,7 +6,7 @@ echo_debug "Attempting to set the hostname up ..."
 
 
 if [ -z "${_HOSTNAME}" ]; then
-    _HOSTNAME="cryptmypi"
+    _HOSTNAME="kali"
 fi
 
 

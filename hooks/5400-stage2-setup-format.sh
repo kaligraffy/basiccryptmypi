@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-FS=$_FILESYSTEM
+FS=$_FILESYSTEM_TYPE
 
 # Format
 echo_debug "Formatting /dev/mapper/${_ENCRYPTED_VOLUME_NAME}"
