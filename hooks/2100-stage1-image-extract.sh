@@ -1,6 +1,14 @@
 #!/bin/bash
 set -e
 
+trap 'rm -iRf ${_CHROOT_ROOT}; umountgracefully' ERR
+umountgracefully() {
+    umount -f ${_BUILDDIR}/boot || true
+    umount -f ${_BUILDDIR}/mount || true
+    losetup -D ${loopdev}
+    rm -Rf ${_BUILDDIR}/mount
+    rm -Rf ${_BUILDDIR}/boot
+}
 IMAGENAME=$(basename ${_IMAGEURL})
 IMAGE="${_FILEDIR}/${IMAGENAME}"
 EXTRACTEDIMAGE="${_FILEDIR}/extracted.img"
@@ -26,45 +34,32 @@ else
     echo_info "Finished extract at $(date)"
 fi
 
-# Testing Code only (Remove later)
-# Skips the loop/mount and copys our preprepared version to the root folder instead.
-#chroot_umount || true
-#echo_info "Starting copy of boot to ${_CHROOT_ROOT} $(date)"
-#rsync \
-#--hard-links \
-#--archive \
-#--checksum \
-#--partial \
-#--append-verify \
-#--info=progress2 \
-#${_FILEDIR}/mount.backup/ ${_CHROOT_ROOT}
-#echo_info "Finished copy of boot to ${_CHROOT_ROOT} $(date)"
-#return 0;
-# End of test code.
-
-echo_debug "Mounting loopback ..."
+mkdir "${_BUILDDIR}/mount"
+mkdir "${_BUILDDIR}/boot"
+mkdir "${_CHROOT_ROOT}"
+echo_debug "Mounting loopback"
 loopdev=$(losetup -P -f --show "$EXTRACTEDIMAGE")
-mkdir $_BUILDDIR/mount
-mount ${loopdev}p2 ${_BUILDDIR}/mount/
-mount ${loopdev}p1 ${_BUILDDIR}/mount/boot
-echo_info "Starting copy of boot to ${_BUILDDIR}/boot $(date)"
+mount -o ro ${loopdev}p2 ${_BUILDDIR}/mount/
+mount -o ro ${loopdev}p1 ${_BUILDDIR}/boot/
+echo_info "Starting copy of boot to ${_CHROOT_ROOT}/ $(date)"
 
 rsync \
 --hard-links \
 --archive \
 --checksum \
 --partial \
---append-verify \
 --info=progress2 \
-${_BUILDDIR}/mount ${_CHROOT_ROOT}
+"${_BUILDDIR}/boot" "${_CHROOT_ROOT}/"
 
-echo_info "Finished copy of boot to ${_BUILDDIR}/boot $(date)"
-echo_debug "Unmounted ${_BUILDDIR}/boot $(date)"
-umount ${_BUILDDIR}/mount/boot
-umount ${_BUILDDIR}/mount
-rmdir ${_BUILDDIR}/mount
-echo_debug "Cleaning loopback ..."
-losetup -d ${loopdev}
-echo "Removing extracted image"
-#rm $EXTRACTEDIMAGE
+echo_info "Starting copy of / to ${_CHROOT_ROOT}/root $(date)"
+rsync \
+--hard-links \
+--archive \
+--checksum \
+--partial \
+--info=progress2 \
+"${_BUILDDIR}/mount" "${_CHROOT_ROOT}"
+
+umountgracefully
+
 

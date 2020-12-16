@@ -7,7 +7,7 @@ set -e
 #    https://wiki.archlinux.org/index.php/Dm-crypt/Specialties#Remote_unlock_via_wifi
 #    http://retinal.dehy.de/docs/doku.php?id=technotes:raspberryrootnfs
 
-echo_debug "Attempting to set initramfs WIFI up ..."
+echo_debug "Attempting to set initramfs WIFI up "
 if [ -z "$_WIFI_SSID" ] || [ -z "$_WIFI_PASS" ]; then
     echo_warn 'SKIPPING: _WIFI_PASSWORD and/or _WIFI_SSID are not set.'
     exit 1
@@ -127,11 +127,10 @@ if [ \`WPACLI status | grep wpa_state\` != "wpa_state=COMPLETED" ]; then
   log_failure_msg "WLAN offline after timeout"
   echo
   panic
-else
-  ONLINE=1
-  log_success_msg "WLAN online"
-  echo
 fi
+ONLINE=1
+log_success_msg "WLAN online"
+echo
 
 configure_networking
 EOT
@@ -158,8 +157,8 @@ esac
 . /usr/share/initramfs-tools/hook-functions
 
 # Adding wifi drivers
-for x in ${_INITRAMFS_WIFI_DRIVERS}; do
-    manual_add_modules \${x}
+for driver in ${_INITRAMFS_WIFI_DRIVERS}; do
+    manual_add_modules \${driver}
 done
 
 copy_exec /sbin/wpa_supplicant
@@ -168,9 +167,8 @@ copy_file config /etc/initramfs-tools/wpa_supplicant.conf /etc/wpa_supplicant.co
 EOT
 chmod +x "${_CHROOT_ROOT}/etc/initramfs-tools/hooks/enable-wireless"
 
-
 echo_debug "Creating initramfs script kill_wireless"
-cat <<EOT > ${_CHROOT_ROOT}/etc/initramfs-tools/scripts/local-bottom/kill_wireless
+cat <<EOT > "${_CHROOT_ROOT}/etc/initramfs-tools/scripts/local-bottom/kill_wireless"
 #!/bin/sh
 # this goes into /etc/initramfs-tools/scripts/local-bottom/kill_wireless
 PREREQ=""
@@ -193,7 +191,8 @@ chmod +x "${_CHROOT_ROOT}/etc/initramfs-tools/scripts/local-bottom/kill_wireless
 
 
 # Adding modules to initramfs modules
-for x in ${_INITRAMFS_WIFI_DRIVERS}; do echo ${x} >> ${_CHROOT_ROOT}/etc/initramfs-tools/modules; done
+for driver in ${_INITRAMFS_WIFI_DRIVERS}; do 
+    echo ${driver} >> ${_CHROOT_ROOT}/etc/initramfs-tools/modules; 
+done
 
-
-echo_debug "... initramfs wifi completed!"
+echo_debug "initramfs wifi completed"

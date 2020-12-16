@@ -1,7 +1,6 @@
 #!/bin/bash
 set -e
-
-
+set -u
 # Install and configure cryptsetup nuke package if we were given a password
 if [ -n "${_LUKSNUKEPASSWD}" ]; then
     echo_debug "Attempting to install and configure encrypted pi cryptsetup nuke password."

@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo_debug 'Setting WIFI up ...'
+echo_debug 'Setting WIFI up'
 
 # Checking if WIFI interface was provided
 if [ -z "${_WIFI_INTERFACE}" ]; then

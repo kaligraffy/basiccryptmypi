@@ -1,10 +1,10 @@
 #!/bin/bash
 set -e
 
-echo_debug "Attempting to set system's DNS settings..."
+echo_debug "Attempting to set system's DNS settings"
 
 
-echo_debug "Writing /etc/resolv.conf ..."
+echo_debug "Writing /etc/resolv.conf "
 cat <<EOT > ${_CHROOT_ROOT}/etc/resolv.conf
 # DNS (by optional-sys-dns)
 nameserver ${_DNS1}
@@ -18,7 +18,7 @@ chmod o+r ${_CHROOT_ROOT}/etc/resolv.conf
 #chroot_execute systemctl enable resolvconf.service
 #
 #
-#echo_debug "Updating /etc/resolvconf/resolv.conf.d/head ..."
+#echo_debug "Updating /etc/resolvconf/resolv.conf.d/head "
 #cat <<EOT >> ${_CHROOT_ROOT}/etc/resolvconf/resolv.conf.d/head
 #nameserver ${_DNS1}
 #nameserver ${_DNS2}
@@ -54,4 +54,4 @@ EOT
 }
 
 
-echo_debug " ... system's DNS settings configured."
+echo_debug " system's DNS settings configured."

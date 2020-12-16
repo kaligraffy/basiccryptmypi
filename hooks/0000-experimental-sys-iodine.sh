@@ -6,14 +6,11 @@ set -e
 #   https://davidhamann.de/2019/05/12/tunnel-traffic-over-dns-ssh/
 
 
-echo_debug "Attempting iodine ..."
+echo_debug "Attempting iodine "
 
-if [ -z "$_IODINE_PASSWORD" ] || [ -z "$_IODINE_DOMAIN" ]; then
-    echo_warn 'SKIPPING: IODINE will not be configured. _IODINE_PASSWORD and/or _IODINE_DOMAIN are not set.'
-else
-    chroot_pkginstall install iodine
+chroot_pkginstall install iodine
 
-    # Create iodine startup script (not initramfs)
+# Create iodine startup script (not initramfs)
     cat << EOF > ${_CHROOT_ROOT}/opt/iodine.sh
 #!/bin/bash
 while true; do
@@ -21,14 +18,13 @@ while true; do
     sleep 60
 done
 EOF
-    chmod 755 ${_CHROOT_ROOT}/opt/iodine.sh
+chmod 755 ${_CHROOT_ROOT}/opt/iodine.sh
 
-    cat << EOF > ${_CHROOT_ROOT}/crontab_setup
+cat << EOF > ${_CHROOT_ROOT}/crontab_setup
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 @reboot /opt/iodine.sh
 EOF
-    chroot_execute crontab /crontab_setup
-    rm ${_CHROOT_ROOT}/crontab_setup
+chroot_execute crontab /crontab_setup
+rm ${_CHROOT_ROOT}/crontab_setup
 
-    echo_debug "... iodine call completed!"
-fi
+echo_debug "iodine call complete"

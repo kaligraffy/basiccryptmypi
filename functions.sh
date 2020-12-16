@@ -1,6 +1,7 @@
 #!/bin/bash
 # shellcheck disable=SC2034
 set -e
+set -u
 
 _COLOR_BLACK='\033[0;30m'
 _COLOR_DARKGRAY='\033[1;30m'
@@ -41,16 +42,14 @@ echo_debug(){
 # Message on exit
 exitMessage(){
     if [ $1 -gt 0 ]; then
-        echo_error "Script failed at $(date) with exit status $1 at line $2"
-    else
-        echo_info "Script completed at $(date)"
+        echo_error "Script failed with exit status $1 at line $2"
     fi
+    echo_info "Script completed at $(date)"
+    
 }
 
 # Cleanup on exit
 cleanup(){
-    umount ${_BUILDDIR}/mount/boot
-    umount ${_BUILDDIR}/mount
     chroot_umount || true
     umount ${_BLKDEV}* || true
     umount -l /mnt/cryptmypi || true
@@ -62,21 +61,15 @@ cleanup(){
 trapExit () { exitMessage $1 $2 ; cleanup; }
 
 myhooks(){
-    local _HOOK=''
-    if [ -n "${1}" ]; then
-        _HOOKOP="${1}"
-        for _HOOK in ${_BASEDIR}/hooks/????-${_HOOKOP}*
-        do
-            if [ -e ${_HOOK} ]; then
-                echo_info "- Calling $(basename ${_HOOK}) ..."
-                . ${_HOOK}
-                echo_debug "- $(basename ${_HOOK}) completed"
-            fi
-        done
-    else
-        echo_error "Hook operations not specified!"
-        exit 1
-    fi
+    _HOOKOP="${1}"
+    for _HOOK in ${_BASEDIR}/hooks/????-${_HOOKOP}*
+    do
+        if [ -e ${_HOOK} ]; then
+            echo_info "- Calling $(basename ${_HOOK}) "
+            . ${_HOOK}
+            echo_debug "- $(basename ${_HOOK}) completed"
+        fi
+    done
 }
 
 ############################
@@ -120,13 +113,13 @@ stage2(){
 chroot_mount(){
     echo_debug "Preparing chroot mount structure at '${_CHROOT_ROOT}'."
     # mount binds
-    echo_debug "Mounting '${_CHROOT_ROOT}/dev/' ..."
+    echo_debug "Mounting '${_CHROOT_ROOT}/dev/' "
     mount --bind /dev ${_CHROOT_ROOT}/dev/ || echo_error "ERROR while mounting '${_CHROOT_ROOT}/dev/'"
-    echo_debug "Mounting '${_CHROOT_ROOT}/dev/pts' ..."
+    echo_debug "Mounting '${_CHROOT_ROOT}/dev/pts' "
     mount --bind /dev/pts ${_CHROOT_ROOT}/dev/pts || echo_error "ERROR while mounting '${_CHROOT_ROOT}/dev/pts'"
-    echo_debug "Mounting '${_CHROOT_ROOT}/sys/' ..."
+    echo_debug "Mounting '${_CHROOT_ROOT}/sys/' "
     mount --bind /sys ${_CHROOT_ROOT}/sys/ || echo_error "ERROR while mounting '${_CHROOT_ROOT}/sys/'"
-    echo_debug "Mounting '${_CHROOT_ROOT}/proc/' ..."
+    echo_debug "Mounting '${_CHROOT_ROOT}/proc/' "
     mount -t proc /proc ${_CHROOT_ROOT}/proc/ || echo_error "ERROR while mounting '${_CHROOT_ROOT}/proc/'"
 }
 
@@ -142,9 +135,7 @@ chroot_update(){
     #Force https on initial use of apt for the main kali repo
     sed -i 's|http:|https:|g' ${_CHROOT_ROOT}/etc/apt/sources.list
     
-    if [ -f "${_CHROOT_ROOT}/etc/resolv.conf" ]; then
-        echo_debug "${_CHROOT_ROOT}/etc/resolv.conf exists."
-    else
+    if [ ! -f "${_CHROOT_ROOT}/etc/resolv.conf" ]; then
         echo_warn "${_CHROOT_ROOT}/etc/resolv.conf does not exists."
         echo_warn "Setting nameserver to $_DNS1 and $_DNS2 in ${_CHROOT_ROOT}/etc/resolv.conf"
         echo -e "nameserver $_DNS1\nnameserver $_DNS2" > "${_CHROOT_ROOT}/etc/resolv.conf"
@@ -194,7 +185,7 @@ chroot_mkinitramfs(){
     echo_debug "  Using kernel '${_KERNEL_VERSION}'"
     chroot_execute update-initramfs -u -k all
     # Finally, Create the initramfs
-    echo_debug "  Building new initramfs ..."
+    echo_debug "  Building new initramfs "
     chroot_execute mkinitramfs -o /boot/initramfs.gz -v ${_KERNEL_VERSION}
 
     # cleanup
@@ -208,15 +199,15 @@ assure_box_sshkey(){
 
     echo_debug "    Asserting box ssh keyfile:"
     test -f "${_KEYFILE}" && {
-        echo_debug "    - Keyfile ${_KEYFILE} already exists!"
+        echo_debug "    - Keyfile ${_KEYFILE} already exists"
     } || {
-        echo_debug "    - Keyfile ${_KEYFILE} does not exists. Generating ..."
+        echo_debug "    - Keyfile ${_KEYFILE} does not exists. Generating "
         ssh-keygen -q -t rsa -N '' -f "${_KEYFILE}" 2>/dev/null <<< y >/dev/null
         chmod 600 "${_KEYFILE}"
         chmod 644 "${_KEYFILE}.pub"
     }
 
-    echo_debug "    - Copying keyfile ${_KEYFILE} to box's default user .ssh directory ..."
+    echo_debug "    - Copying keyfile ${_KEYFILE} to box's default user .ssh directory "
     cp "${_KEYFILE}" "${_CHROOT_ROOT}/.ssh/id_rsa"
     cp "${_KEYFILE}.pub" "${_CHROOT_ROOT}/.ssh/id_rsa.pub"
     chmod 600 "${_CHROOT_ROOT}/.ssh/id_rsa"

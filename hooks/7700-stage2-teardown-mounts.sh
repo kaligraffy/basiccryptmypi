@@ -3,7 +3,7 @@ set -e
 
 
 # Unmount boot partition
-echo_debug "Attempting to unmount ${_BLKDEV}${_PARTITIONPREFIX}1 ..."
+echo_debug "Attempting to unmount ${_BLKDEV}${_PARTITIONPREFIX}1 "
 if umount ${_BLKDEV}${_PARTITIONPREFIX}1
 then
     echo_debug "- Unmounted ${_BLKDEV}${_PARTITIONPREFIX}1"
@@ -14,7 +14,7 @@ fi
 echo
 
 # Unmount root partition
-echo_debug "Attempting to unmount /mnt/cryptmypi ..."
+echo_debug "Attempting to unmount /mnt/cryptmypi "
 if umount /mnt/cryptmypi
 then
     echo_debug "- Unmounted /mnt/cryptmypi"

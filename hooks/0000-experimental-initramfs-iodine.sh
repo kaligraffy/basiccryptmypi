@@ -1,20 +1,14 @@
 #!/bin/bash
 set -e
-
+set -u
 
 # REFERENCE:
 #   https://davidhamann.de/2019/05/12/tunnel-traffic-over-dns-ssh/
+echo_debug "Attempting iodine"
+chroot_pkginstall install iodine
 
-
-echo_debug "Attempting iodine ..."
-
-if [ -z "$_IODINE_PASSWORD" ] || [ -z "$_IODINE_DOMAIN" ]; then
-    echo_warn 'SKIPPING: IODINE will not be configured. _IODINE_PASSWORD and/or _IODINE_DOMAIN are not set.'
-else
-    chroot_pkginstall install iodine
-
-    # Create initramfs hook file for iodine
-    cat << 'EOF2' > ${_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-iodine
+# Create initramfs hook file for iodine
+cat << 'EOF2' > ${_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-iodine
 #!/bin/sh
 if [ "$1" = "prereqs" ]; then exit 0; fi
 . /usr/share/initramfs-tools/hook-functions
@@ -50,14 +44,14 @@ chmod 755 ${DESTDIR}/start_iodine
 
 exit 0
 EOF2
-    chmod 755 ${_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-iodine
+chmod 755 ${_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-iodine
 
-    # Replace variables in iodine hook file
-    sed -i "s#IODINE_PASSWORD#${_IODINE_PASSWORD}#g" ${_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-iodine
-    sed -i "s#IODINE_DOMAIN#${_IODINE_DOMAIN}#g" ${_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-iodine
+# Replace variables in iodine hook file
+sed -i "s#IODINE_PASSWORD#${_IODINE_PASSWORD}#g" ${_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-iodine
+sed -i "s#IODINE_DOMAIN#${_IODINE_DOMAIN}#g" ${_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-iodine
 
-    # Create initramfs script file for iodine
-    cat << 'EOF' > ${_CHROOT_ROOT}/etc/initramfs-tools/scripts/init-premount/iodine
+# Create initramfs script file for iodine
+cat << 'EOF' > ${_CHROOT_ROOT}/etc/initramfs-tools/scripts/init-premount/iodine
 #!/bin/sh
 if [ "$1" = "prereqs" ]; then exit 0; fi
 startIodine(){
@@ -66,7 +60,6 @@ startIodine(){
 startIodine &
 exit 0
 EOF
-    chmod 755 ${_CHROOT_ROOT}/etc/initramfs-tools/scripts/init-premount/iodine
+chmod 755 ${_CHROOT_ROOT}/etc/initramfs-tools/scripts/init-premount/iodine
 
-    echo_debug "... iodine call completed!"
-fi
+echo_debug " iodine call completed"

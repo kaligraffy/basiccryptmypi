@@ -14,7 +14,7 @@ if [ $FS = "btrfs" ]; then
 fi
 
 # Setup qemu emulator for aarch64
-echo_debug "- Copying qemu emulator to chroot ..."
+echo_debug "- Copying qemu emulator to chroot "
 cp /usr/bin/qemu-aarch64-static ${_CHROOT_ROOT}/usr/bin/
 chroot_pkginstall cryptsetup busybox
 
@@ -25,7 +25,7 @@ chroot ${_CHROOT_ROOT} /bin/bash -c "test -L /sbin/fsck.luks || ln -s /sbin/e2fs
 echo "initramfs initramfs.gz followkernel" >> ${_CHROOT_ROOT}/boot/config.txt
 
 # Begin cryptsetup
-echo_debug "Making the cryptsetup settings ..."
+echo_debug "Making the cryptsetup settings "
 
 # Update /boot/cmdline.txt to boot crypt
 sed -i "s|root=/dev/mmcblk0p2|root=/dev/mapper/${_ENCRYPTED_VOLUME_NAME} cryptdevice=/dev/mmcblk0p2:${_ENCRYPTED_VOLUME_NAME}|g" ${_CHROOT_ROOT}/boot/cmdline.txt

@@ -9,11 +9,11 @@ set -e
 #   https://gist.github.com/decidedlygray/1288c0265457e5f2426d4c3b768dfcef
 
 
-echo_debug "Attempting to install docker ..."
+echo_debug "Attempting to install docker "
 echo_warn "### Docker service may experience conflicts VPN services/connections ###"
 
 
-echo_debug "    Updating /boot/cmdline.txt to enable cgroup ..."
+echo_debug "    Updating /boot/cmdline.txt to enable cgroup "
 # Needed to avoid "cgroups: memory cgroup not supported on this system"
 #   see https://github.com/moby/moby/issues/35587
 #       cgroup_enable works on kernel 4.9 upwards
@@ -22,14 +22,14 @@ echo_debug "    Updating /boot/cmdline.txt to enable cgroup ..."
 sed -i "s#rootwait#cgroup_enable=memory cgroup_memory=1 rootwait#g" ${_CHROOT_ROOT}/boot/cmdline.txt
 
 
-echo_debug "    Updating iptables ... (issue: default kali iptables was stalling)"
+echo_debug "    Updating iptables  (issue: default kali iptables was stalling)"
 # systemctl start and stop commands would hang/stall due to pristine iptables on kali-linux-2020.1a-rpi3-nexmon-64.img.xz
 chroot_pkginstall iptables
 chroot_execute update-alternatives --set iptables /usr/sbin/iptables-legacy
 chroot_execute update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
 
 
-echo_debug "    Installing docker ..."
+echo_debug "    Installing docker "
 chroot_pkginstall docker.io
 
 
@@ -52,9 +52,9 @@ chroot_pkginstall docker.io
 # chroot_pkginstall --no-install-recommends docker-ce
 
 
-echo_debug "    Enabling service ..."
+echo_debug "    Enabling service "
 chroot_execute systemctl enable docker
 # chroot_execute systemctl start docker
 
 
-echo_debug "... docker hook call completed!"
+echo_debug " docker hook call completed"

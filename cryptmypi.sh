@@ -29,7 +29,7 @@ execute()
         fi
         stage1
     fi
-    export _CHROOT_ROOT=/mnt/cryptmypi
+    export _CHROOT_ROOT=/mnt/cryptmypi #NASTY, fix later.
     stage2
     exit 0
 }
