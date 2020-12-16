@@ -15,12 +15,12 @@ _STAGE2_OTHERSCRIPT_PATH="${_SHAREDCONFDIR}/${_STAGE2_OTHERSCRIPT}"
 echo_debug "Checking if stage2 other script ${_STAGE2_OTHERSCRIPT_PATH} exists ..."
 test -f "${_STAGE2_OTHERSCRIPT_PATH}" && {
     echo_debug "   ${_STAGE2_OTHERSCRIPT_PATH} found!"
-    cp "${_STAGE2_OTHERSCRIPT_PATH}" "${CHROOTDIR}/root/"
-    chmod +x "${CHROOTDIR}/root/${_STAGE2_OTHERSCRIPT}"
+    cp "${_STAGE2_OTHERSCRIPT_PATH}" "${_CHROOT_ROOT}/"
+    chmod +x "${_CHROOT_ROOT}/${_STAGE2_OTHERSCRIPT}"
     echo_debug "## Script execution ############################################################"
-    chroot ${CHROOTDIR} /bin/bash -c "/root/${_STAGE2_OTHERSCRIPT}"
+    chroot ${_CHROOT_ROOT} /bin/bash -c "/root/${_STAGE2_OTHERSCRIPT}"
     echo_debug "## End of Script execution #####################################################"
-    rm "${CHROOTDIR}/root/${_STAGE2_OTHERSCRIPT}"
+    rm "${_CHROOT_ROOT}/${_STAGE2_OTHERSCRIPT}"
 } || {
     echo_debug "    SKIPPING: Optional stage2 other script was not found (and will not be executed)."
 }

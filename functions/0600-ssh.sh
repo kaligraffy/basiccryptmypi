@@ -13,10 +13,10 @@ assure_box_sshkey(){
     }
 
     echo_debug "    - Copying keyfile ${_KEYFILE} to box's default user .ssh directory ..."
-    cp "${_KEYFILE}" "${CHROOTDIR}/root/.ssh/id_rsa"
-    cp "${_KEYFILE}.pub" "${CHROOTDIR}/root/.ssh/id_rsa.pub"
-    chmod 600 "${CHROOTDIR}/root/.ssh/id_rsa"
-    chmod 644 "${CHROOTDIR}/root/.ssh/id_rsa.pub"
+    cp "${_KEYFILE}" "${_CHROOT_ROOT}/.ssh/id_rsa"
+    cp "${_KEYFILE}.pub" "${_CHROOT_ROOT}/.ssh/id_rsa.pub"
+    chmod 600 "${_CHROOT_ROOT}/.ssh/id_rsa"
+    chmod 644 "${_CHROOT_ROOT}/.ssh/id_rsa.pub"
 }
 
 backup_and_use_sshkey(){

@@ -5,7 +5,7 @@ set -e
 chroot_pkginstall mailutils
 
 BOOTDRIVE="${_BLKDEV}${__PARTITIONPREFIX}1"
-BOOTHASHSCRIPT="${_BUILDDIR}/root/usr/local/bin/bootHash.sh"
+BOOTHASHSCRIPT="${_CHROOT_ROOT}/usr/local/bin/bootHash.sh"
 echo_debug "Creating script bootHash.sh in ${_BUILDDIR}/usr/local/bin"
 
 cat << 'EOF' > "$BOOTHASHSCRIPT"
@@ -31,7 +31,7 @@ sed -i "s|/dev/sdX|${BOOTDRIVE}|g" "$BOOTHASHSCRIPT"
 chmod 700 "$BOOTHASHSCRIPT"
 
 #crontab run on startup
-cat << 'EOF' > ${_BUILDDIR}/root/etc/cron.d/startBootHash
+cat << 'EOF' > ${_CHROOT_ROOT}/etc/cron.d/startBootHash
 @reboot root /bin/bash /usr/local/bin/bootHash.sh
 EOF
-chmod 755 ${_BUILDDIR}/root/etc/cron.d/startBootHash
+chmod 755 ${_CHROOT_ROOT}/etc/cron.d/startBootHash

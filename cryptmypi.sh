@@ -89,6 +89,35 @@ stage2-teardown-luks-close.sh
 stage2-teardown-cleanup.sh
 }
 
+export _BASEDIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
+export _CURRDIR=$(pwd)
+export _CONFDIRNAME="${1}"
+export _CONFDIR=${_CURRDIR}/${_CONFDIRNAME}
+export _USER_HOME=$(eval echo ~${SUDO_USER})
+export _SHAREDCONFDIR=${_CURRDIR}/shared-config
+export _BUILDDIR=${_CONFDIR}/build
+export _CHROOT_ROOT=${_BUILDDIR}/root
+export _FILESDIR=${_BASEDIR}/files
+export _IMAGEDIR=${_FILESDIR}/images
+#0 = debug messages, 1+ = info, no debug messages 2+ = warnings 3+ = only errors
+export _LOG_LEVEL=1
+export _IMAGENAME=$(basename ${_IMAGEURL})
+
+# Load Script Base Functions
+for _FN in ${_BASEDIR}/functions/*.sh
+do
+    . ${_FN}
+    echo_debug "- $(basename ${_FN}) loaded"
+done
+
+# Message on exit
+exitMessage(){
+    if [ $1 -gt 0 ]; then
+        echo_error "Script failed at `date` with exit status $1 at line $2"
+    else
+        echo_info "Script completed at `date`"
+    fi
+}
 # Cleanup on exit
 cleanup(){
     chroot_umount || true
@@ -107,7 +136,7 @@ trap 'trapExit $? $LINENO' EXIT
 # Validate All Preconditions
 ############################
 stagePreconditions(){
-    echo_info "$FUNCNAME started at `date` "
+    echo_info "$FUNCNAME started at $(date)"
 
     # Creating Directories
     mkdir -p "${_IMAGEDIR}"
@@ -128,8 +157,7 @@ stagePreconditions(){
 ############################
 stage1(){
     echo_info "$FUNCNAME started at `date` "
-        myhooks stage1
-    }
+    myhooks stage1
 }
 
 ############################
@@ -171,7 +199,7 @@ main(){
         read _CONTINUE
         CONTINUE=$(echo "${CONTINUE}" | sed -e 's/\(.*\)/\L\1/')
         
-        if ["${CONTINUE}" = 'y'] || [ "${CONTINUE}" = 'Y' ]; then
+        if [ "${CONTINUE}" = 'y' ] || [ "${CONTINUE}" = 'Y' ]; then
             echo_warn "Cleaning old build."
             rm -Rf ${_BUILDDIR}
         fi
@@ -181,4 +209,3 @@ main(){
     exit 0
 }
 main
-

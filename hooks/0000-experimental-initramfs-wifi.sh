@@ -35,7 +35,7 @@ fi
 
 
 # Update /boot/cmdline.txt to boot crypt
-sed -i "s#rootwait#ip=${_INITRAMFS_WIFI_IP} rootwait#g" ${CHROOTDIR}/boot/cmdline.txt
+sed -i "s#rootwait#ip=${_INITRAMFS_WIFI_IP} rootwait#g" ${_CHROOT_ROOT}/boot/cmdline.txt
 
 
 echo_debug "Generating PSK for '${_WIFI_SSID}' '${_WIFI_PASS}'"
@@ -43,7 +43,7 @@ _WIFI_PSK=$(wpa_passphrase "${_WIFI_SSID}" "${_WIFI_PASS}" | grep "psk=" | grep 
 
 
 echo_debug "Creating hook to include firmware files for brcmfmac"
-cat << EOF > ${_BUILDDIR}/root/etc/initramfs-tools/hooks/zz-brcm
+cat << EOF > ${_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-brcm
 # !/bin/sh
 set -e
 
@@ -66,11 +66,11 @@ echo "Copying firmware files for brcm to initramfs"
 cp -r /lib/firmware/brcm \${DESTDIR}/lib/firmware/
 
 EOF
-chmod 755 ${_BUILDDIR}/root/etc/initramfs-tools/hooks/zz-brcm
+chmod 755 ${_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-brcm
 
 
 echo_debug "Creating wpa_supplicant file"
-cat <<EOT > ${CHROOTDIR}/etc/initramfs-tools/wpa_supplicant.conf
+cat <<EOT > ${_CHROOT_ROOT}/etc/initramfs-tools/wpa_supplicant.conf
 ctrl_interface=/tmp/wpa_supplicant
 
 network={
@@ -83,7 +83,7 @@ EOT
 
 
 echo_debug "Creating initramfs script a_enable_wireless"
-cat <<EOT > ${CHROOTDIR}/etc/initramfs-tools/scripts/init-premount/a_enable_wireless
+cat <<EOT > ${_CHROOT_ROOT}/etc/initramfs-tools/scripts/init-premount/a_enable_wireless
 #!/bin/sh
 
 PREREQ=""
@@ -135,11 +135,11 @@ fi
 
 configure_networking
 EOT
-chmod +x "${CHROOTDIR}/etc/initramfs-tools/scripts/init-premount/a_enable_wireless"
+chmod +x "${_CHROOT_ROOT}/etc/initramfs-tools/scripts/init-premount/a_enable_wireless"
 
 
 echo_debug "Creating initramfs hook enable_wireless"
-cat <<EOT > ${CHROOTDIR}/etc/initramfs-tools/hooks/enable-wireless
+cat <<EOT > ${_CHROOT_ROOT}/etc/initramfs-tools/hooks/enable-wireless
 # !/bin/sh
 # This goes into /etc/initramfs-tools/hooks/enable-wireless
 set -e
@@ -166,11 +166,11 @@ copy_exec /sbin/wpa_supplicant
 copy_exec /sbin/wpa_cli
 copy_file config /etc/initramfs-tools/wpa_supplicant.conf /etc/wpa_supplicant.conf
 EOT
-chmod +x "${CHROOTDIR}/etc/initramfs-tools/hooks/enable-wireless"
+chmod +x "${_CHROOT_ROOT}/etc/initramfs-tools/hooks/enable-wireless"
 
 
 echo_debug "Creating initramfs script kill_wireless"
-cat <<EOT > ${CHROOTDIR}/etc/initramfs-tools/scripts/local-bottom/kill_wireless
+cat <<EOT > ${_CHROOT_ROOT}/etc/initramfs-tools/scripts/local-bottom/kill_wireless
 #!/bin/sh
 # this goes into /etc/initramfs-tools/scripts/local-bottom/kill_wireless
 PREREQ=""
@@ -189,11 +189,11 @@ esac
 echo "Killing wpa_supplicant so the system takes over later."
 kill \`cat /run/initram-wpa_supplicant.pid\`
 EOT
-chmod +x "${CHROOTDIR}/etc/initramfs-tools/scripts/local-bottom/kill_wireless"
+chmod +x "${_CHROOT_ROOT}/etc/initramfs-tools/scripts/local-bottom/kill_wireless"
 
 
 # Adding modules to initramfs modules
-for x in ${_INITRAMFS_WIFI_DRIVERS}; do echo ${x} >> ${CHROOTDIR}/etc/initramfs-tools/modules; done
+for x in ${_INITRAMFS_WIFI_DRIVERS}; do echo ${x} >> ${_CHROOT_ROOT}/etc/initramfs-tools/modules; done
 
 
 echo_debug "... initramfs wifi completed!"
