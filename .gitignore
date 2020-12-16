@@ -3,7 +3,7 @@ build/
 *build*/
 
 # File caches
-files/images/
+files
 
 # Keyfiles
 id_rsa
@@ -17,3 +17,5 @@ dropbear_*_key
 
 # Other general files
 *.zip
+*.img
+*.xz

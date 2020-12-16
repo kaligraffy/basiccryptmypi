@@ -2,14 +2,6 @@
 set -e
 
 # Create LUKS
-echo_debug "Attempting to create LUKS ${_BLKDEV}${__PARTITIONPREFIX}2 ..."
-if [ -n "${_LUKSPASSWD}" ]; then
-    echo "${_LUKSPASSWD}" | cryptsetup -v --cipher ${_LUKSCIPHER} luksFormat ${_BLKDEV}${__PARTITIONPREFIX}2 
-    if [ $? -eq 0 ]; then
-        echo_debug "- LUKS created."
-    else
-        echo_error "- Aborting since we failed to create LUKS on ${_BLKDEV}${__PARTITIONPREFIX}2"
-        exit 1
-    fi
-fi
-
+echo_debug "Attempting to create LUKS ${_BLKDEV}${_PARTITIONPREFIX}2 ..."
+echo "${_LUKSPASSWD}" | cryptsetup -v --cipher ${_LUKSCIPHER} luksFormat ${_BLKDEV}${_PARTITIONPREFIX}2
+echo_debug "LUKS created ${_BLKDEV}${_PARTITIONPREFIX}2 ..."

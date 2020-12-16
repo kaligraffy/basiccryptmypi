@@ -4,7 +4,7 @@ set -e
 #install mail package
 chroot_pkginstall mailutils
 
-BOOTDRIVE="${_BLKDEV}${__PARTITIONPREFIX}1"
+BOOTDRIVE="${_BLKDEV}${_PARTITIONPREFIX}1"
 BOOTHASHSCRIPT="${_CHROOT_ROOT}/usr/local/bin/bootHash.sh"
 echo_debug "Creating script bootHash.sh in ${_BUILDDIR}/usr/local/bin"
 

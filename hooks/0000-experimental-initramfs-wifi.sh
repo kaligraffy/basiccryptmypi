@@ -7,10 +7,10 @@ set -e
 #    https://wiki.archlinux.org/index.php/Dm-crypt/Specialties#Remote_unlock_via_wifi
 #    http://retinal.dehy.de/docs/doku.php?id=technotes:raspberryrootnfs
 
-
 echo_debug "Attempting to set initramfs WIFI up ..."
 if [ -z "$_WIFI_SSID" ] || [ -z "$_WIFI_PASS" ]; then
     echo_warn 'SKIPPING: _WIFI_PASSWORD and/or _WIFI_SSID are not set.'
+    exit 1
 fi
 
 # Checking if WIFI interface was provided

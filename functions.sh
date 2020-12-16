@@ -1,7 +1,7 @@
 #!/bin/bash
+# shellcheck disable=SC2034
 set -e
 
-# shellcheck disable=SC2034
 _COLOR_BLACK='\033[0;30m'
 _COLOR_DARKGRAY='\033[1;30m'
 _COLOR_RED='\033[0;31m'
@@ -29,7 +29,7 @@ echo_warn(){
 }
 
 echo_info(){
-    echo -e "${_COLOR_LIGHTBLUE}$@${_COLOR_NORMAL}"
+    echo -e "${_COLOR_PURPLE}$@${_COLOR_NORMAL}"
 }
 
 echo_debug(){
@@ -41,14 +41,16 @@ echo_debug(){
 # Message on exit
 exitMessage(){
     if [ $1 -gt 0 ]; then
-        echo_error "Script failed at `date` with exit status $1 at line $2"
+        echo_error "Script failed at $(date) with exit status $1 at line $2"
     else
-        echo_info "Script completed at `date`"
+        echo_info "Script completed at $(date)"
     fi
 }
 
 # Cleanup on exit
 cleanup(){
+    umount ${_BUILDDIR}/mount/boot
+    umount ${_BUILDDIR}/mount
     chroot_umount || true
     umount ${_BLKDEV}* || true
     umount -l /mnt/cryptmypi || true
@@ -61,7 +63,7 @@ trapExit () { exitMessage $1 $2 ; cleanup; }
 
 myhooks(){
     local _HOOK=''
-    if [ ! -z "${1}" ]; then
+    if [ -n "${1}" ]; then
         _HOOKOP="${1}"
         for _HOOK in ${_BASEDIR}/hooks/????-${_HOOKOP}*
         do
@@ -82,19 +84,6 @@ myhooks(){
 ############################
 stagePreconditions(){
     echo_info "$FUNCNAME started at $(date)"
-
-    # Creating Directories
-    mkdir -p "${_IMAGEDIR}"
-    mkdir -p "${_FILESDIR}"
-    mkdir -p "${_BUILDDIR}"
-
-    # Check if configuration name was provided
-    if [  -z "$_CONFDIRNAME" ]; then
-        echo_error "ERROR: Configuration directory was not supplied. "
-        display_help
-        exit 1
-    fi
-    
     myhooks preconditions
 }
 
@@ -102,38 +91,34 @@ stagePreconditions(){
 # STAGE 1 Image Preparation
 ############################
 stage1(){
-    echo_info "$FUNCNAME started at `date` "
+    echo_info "$FUNCNAME started at $(date) "
+    mkdir -p "${_BUILDDIR}"
     myhooks stage1
+    stage1-extra
+    chroot_mkinitramfs
+    chroot_umount || true
 }
 
 ############################
 # STAGE 2 Encrypt & Write SD
 ############################
 stage2(){
-    echo_info "$FUNCNAME started at `date` "
-    
-    __PARTITIONPREFIX=""
-    echo ${_BLKDEV} | grep -qs "mmcblk" && __PARTITIONPREFIX=p   
+    echo_info "$FUNCNAME started at $(date) "
+    _PARTITIONPREFIX=""
+    echo ${_BLKDEV} | grep -qs "mmcblk" && _PARTITIONPREFIX=p   
     
     # Show Stage2 menu
     local CONTINUE
     echo_warn "WARNING: CHECK DISK IS CORRECT"
     echo_info "$(lsblk)"
-    echo_info 
     read -p "Type 'YES' if the selected device is correct:  ${_BLKDEV}" CONTINUE
-    if "${CONTINUE}" = 'YES' ] ; then
+    if [ "${CONTINUE}" = 'YES' ] ; then
         myhooks stage2
     fi
 }
 
 chroot_mount(){
-
-    echo_debug "Preparing RPi chroot mount structure at '${_CHROOT_ROOT}'."
-    [ -z "${_CHROOT_ROOT}" ] && {
-        echo_error "Chroot dir was not defined! Aborting..."
-        exit 1
-    }
-
+    echo_debug "Preparing chroot mount structure at '${_CHROOT_ROOT}'."
     # mount binds
     echo_debug "Mounting '${_CHROOT_ROOT}/dev/' ..."
     mount --bind /dev ${_CHROOT_ROOT}/dev/ || echo_error "ERROR while mounting '${_CHROOT_ROOT}/dev/'"
@@ -145,13 +130,7 @@ chroot_mount(){
     mount -t proc /proc ${_CHROOT_ROOT}/proc/ || echo_error "ERROR while mounting '${_CHROOT_ROOT}/proc/'"
 }
 
-
 chroot_umount(){
-    [ -z "${_CHROOT_ROOT}" ] && {
-        exit 1
-    }
-    echo_debug "Tearing down RPi chroot mount structure at '${_CHROOT_ROOT}'."
-    # unmount everything
     echo_debug "Unmounting binds"
     umount ${_CHROOT_ROOT}/dev/pts || true
     umount ${_CHROOT_ROOT}/dev || true
@@ -160,11 +139,6 @@ chroot_umount(){
 }
 
 chroot_update(){
-    [ -z "${_CHROOT_ROOT}" ] && {
-        echo_error "Chroot dir was not defined! Aborting..."
-        exit 1
-    }
-    
     #Force https on initial use of apt for the main kali repo
     sed -i 's|http:|https:|g' ${_CHROOT_ROOT}/etc/apt/sources.list
     
@@ -181,11 +155,6 @@ chroot_update(){
 }
 
 chroot_pkginstall(){
-    [ -z "${_CHROOT_ROOT}" ] && {
-        echo_error "Chroot dir was not defined! Aborting..."
-        exit 1
-    }
-
     if [ -n "$1" ]; then
       for PACKAGE in "$@"; do
         echo_info "- Installing ${PACKAGE}"
@@ -197,11 +166,6 @@ chroot_pkginstall(){
 }  
 
 chroot_pkgpurge(){
-    [ -z "${_CHROOT_ROOT}" ] && {
-        echo_error "Chroot dir was not defined! Aborting..."
-        exit 1
-    }
-
     if [ -n "$1" ]; then
       for PACKAGE in "$@"; do
         echo_info "- Uninstalling ${PACKAGE}"
@@ -214,18 +178,13 @@ chroot_pkgpurge(){
 } 
 
 chroot_execute(){
-    [ -z "${_CHROOT_ROOT}" ] && {
-        echo_error "Chroot dir was not defined! Aborting..."
-        exit 1
-    }
-
     chroot ${_CHROOT_ROOT} "$@"
 }
 
 chroot_mkinitramfs(){
-    echo_debug "Attempting to build new initramfs ... (CHROOT is ${_CHROOT_ROOT})"
+    echo_debug "Building new initramfs (CHROOT is ${_CHROOT_ROOT})"
 
-    # crypttab needs to point to the current physical device during mkinitramfs or cryptsetup won't deploy
+    #Point crypttab to the current physical device during mkinitramfs
     echo_debug "  Creating symbolic links from current physical device to crypttab device (if not using sd card mmcblk0p)"
     test -e "/dev/mmcblk0p1" || (test -e "${_BLKDEV}1" && ln -s "${_BLKDEV}1" "/dev/mmcblk0p1")
     test -e "/dev/mmcblk0p2" || (test -e "${_BLKDEV}2" && ln -s "${_BLKDEV}2" "/dev/mmcblk0p2")
@@ -245,7 +204,7 @@ chroot_mkinitramfs(){
 }
 
 assure_box_sshkey(){
-    _KEYFILE="${_CONFDIR}/id_rsa"
+    _KEYFILE="${_FILEDIR}/id_rsa"
 
     echo_debug "    Asserting box ssh keyfile:"
     test -f "${_KEYFILE}" && {
@@ -268,10 +227,10 @@ backup_and_use_sshkey(){
     local _TMP_KEYPATH=$1
     local _TMP_KEYNAME=$(basename ${_TMP_KEYPATH})
 
-    test -f "${_CONFDIR}/${_TMP_KEYNAME}" && {
-        cp "${_CONFDIR}/${_TMP_KEYNAME}" "${_TMP_KEYPATH}"
+    test -f "${_FILEDIR}/${_TMP_KEYNAME}" && {
+        cp "${_FILEDIR}/${_TMP_KEYNAME}" "${_TMP_KEYPATH}"
         chmod 600 "${_TMP_KEYPATH}"
     } || {
-        cp "${_TMP_KEYPATH}" "${_CONFDIR}/${_TMP_KEYNAME}"
+        cp "${_TMP_KEYPATH}" "${_FILEDIR}/${_TMP_KEYNAME}"
     }
 }

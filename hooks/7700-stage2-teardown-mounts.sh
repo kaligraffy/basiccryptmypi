@@ -3,12 +3,12 @@ set -e
 
 
 # Unmount boot partition
-echo_debug "Attempting to unmount ${_BLKDEV}${__PARTITIONPREFIX}1 ..."
-if umount ${_BLKDEV}${__PARTITIONPREFIX}1
+echo_debug "Attempting to unmount ${_BLKDEV}${_PARTITIONPREFIX}1 ..."
+if umount ${_BLKDEV}${_PARTITIONPREFIX}1
 then
-    echo_debug "- Unmounted ${_BLKDEV}${__PARTITIONPREFIX}1"
+    echo_debug "- Unmounted ${_BLKDEV}${_PARTITIONPREFIX}1"
 else
-    echo_error "- Aborting since we failed to unmount ${_BLKDEV}${__PARTITIONPREFIX}1"
+    echo_error "- Aborting since we failed to unmount ${_BLKDEV}${_PARTITIONPREFIX}1"
     exit 1
 fi
 echo

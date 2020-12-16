@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+set -u
 
 # Check if btrfs is the file system, if so install required packages
 FS=$_FILESYSTEM_TYPE
