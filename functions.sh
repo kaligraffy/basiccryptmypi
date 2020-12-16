@@ -46,6 +46,7 @@ exitMessage(){
         echo_info "Script completed at `date`"
     fi
 }
+
 # Cleanup on exit
 cleanup(){
     chroot_umount || true
@@ -55,6 +56,8 @@ cleanup(){
     [ -d /mnt/cryptmypi ] && rm -r /mnt/cryptmypi || true
     cryptsetup luksClose $_ENCRYPTED_VOLUME_NAME || true
 }
+
+trapExit () { exitMessage $1 $2 ; cleanup; }
 
 myhooks(){
     local _HOOK=''
@@ -71,6 +74,60 @@ myhooks(){
     else
         echo_error "Hook operations not specified!"
         exit 1
+    fi
+}
+
+############################
+# Validate All Preconditions
+############################
+stagePreconditions(){
+    echo_info "$FUNCNAME started at $(date)"
+
+    # Creating Directories
+    mkdir -p "${_IMAGEDIR}"
+    mkdir -p "${_FILESDIR}"
+    mkdir -p "${_BUILDDIR}"
+
+    # Check if configuration name was provided
+    if [  -z "$_CONFDIRNAME" ]; then
+        echo_error "ERROR: Configuration directory was not supplied. "
+        display_help
+        exit 1
+    fi
+    
+    myhooks preconditions
+}
+
+############################
+# STAGE 1 Image Preparation
+############################
+stage1(){
+    echo_info "$FUNCNAME started at `date` "
+    myhooks stage1
+}
+
+############################
+# STAGE 2 Encrypt & Write SD
+############################
+stage2(){
+    echo_info "$FUNCNAME started at `date` "
+    # Simple check for type of sdcard block device
+    if [ echo ${_BLKDEV} | grep -qs "mmcblk" ]
+    then
+        __PARTITIONPREFIX=p
+    else
+        __PARTITIONPREFIX=""
+    fi
+
+    # Show Stage2 menu
+    local CONTINUE
+    echo_warn "${_BLKDEV} will not be overwritten."
+    echo_warn "WARNING: CHECK DISK IS CORRECT"
+    echo_info "$(lsblk)"
+    echo_info "Type 'YES' if the selected device is correct:  ${_BLKDEV}"
+    read CONTINUE
+    if "${CONTINUE}" = 'YES' ] ; then
+        myhooks stage2
     fi
 }
 

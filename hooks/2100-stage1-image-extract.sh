@@ -1,5 +1,7 @@
 #!/bin/bash
 set -e
+#echo $((16*1024*1024)) > /proc/sys/vm/dirty_background_bytes
+#echo $((48*1024*1024)) > /proc/sys/vm/dirty_bytes
 
 IMAGE="${_IMAGEDIR}/${_IMAGENAME}"
 EXTRACTEDIMAGE="${_IMAGEDIR}/extracted.img"
