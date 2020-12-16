@@ -67,7 +67,7 @@ myhooks(){
         do
             if [ -e ${_HOOK} ]; then
                 echo_info "- Calling $(basename ${_HOOK}) ..."
-                source ${_HOOK}
+                . ${_HOOK}
                 echo_debug "- $(basename ${_HOOK}) completed"
             fi
         done
@@ -111,21 +111,16 @@ stage1(){
 ############################
 stage2(){
     echo_info "$FUNCNAME started at `date` "
-    # Simple check for type of sdcard block device
-    if [ echo ${_BLKDEV} | grep -qs "mmcblk" ]
-    then
-        __PARTITIONPREFIX=p
-    else
-        __PARTITIONPREFIX=""
-    fi
-
+    
+    __PARTITIONPREFIX=""
+    echo ${_BLKDEV} | grep -qs "mmcblk" && __PARTITIONPREFIX=p   
+    
     # Show Stage2 menu
     local CONTINUE
-    echo_warn "${_BLKDEV} will not be overwritten."
     echo_warn "WARNING: CHECK DISK IS CORRECT"
     echo_info "$(lsblk)"
-    echo_info "Type 'YES' if the selected device is correct:  ${_BLKDEV}"
-    read CONTINUE
+    echo_info 
+    read -p "Type 'YES' if the selected device is correct:  ${_BLKDEV}" CONTINUE
     if "${CONTINUE}" = 'YES' ] ; then
         myhooks stage2
     fi
@@ -191,7 +186,7 @@ chroot_pkginstall(){
         exit 1
     }
 
-    if [ ! -z "$1" ]; then
+    if [ -n "$1" ]; then
       for PACKAGE in "$@"; do
         echo_info "- Installing ${PACKAGE}"
         chroot ${_CHROOT_ROOT} apt-get -y install "${PACKAGE}" || {
@@ -207,7 +202,7 @@ chroot_pkgpurge(){
         exit 1
     }
 
-    if [ ! -z "$1" ]; then
+    if [ -n "$1" ]; then
       for PACKAGE in "$@"; do
         echo_info "- Uninstalling ${PACKAGE}"
         chroot ${_CHROOT_ROOT} apt-get -y purge "${PACKAGE}" || {

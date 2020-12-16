@@ -2,7 +2,7 @@
 set -e
 
 
-if [ ! -z "${_ROOTPASSWD}" ]; then
+if [ -n "${_ROOTPASSWD}" ]; then
     echo_debug "Attempting to change root password."
     chroot ${_CHROOT_ROOT} /bin/bash -c "echo root:${_ROOTPASSWD} | /usr/sbin/chpasswd"
 else
