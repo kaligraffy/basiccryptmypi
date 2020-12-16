@@ -1,7 +1,8 @@
 #!/bin/bash
 set -e
 
-IMAGE="${_FILEDIR}/${_IMAGENAME}"
+IMAGENAME=$(basename ${_IMAGEURL})
+IMAGE="${_FILEDIR}/${IMAGENAME}"
 EXTRACTEDIMAGE="${_FILEDIR}/extracted.img"
 
 if [ -e "$EXTRACTEDIMAGE" ]; then

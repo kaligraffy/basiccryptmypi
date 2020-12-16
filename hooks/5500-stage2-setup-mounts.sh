@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+set -u
 
 # Mount LUKS
 echo_debug "Mounting /dev/mapper/${_ENCRYPTED_VOLUME_NAME} to /mnt/cryptmypi"

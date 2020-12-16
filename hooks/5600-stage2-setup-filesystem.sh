@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+set -u
 
 # Attempt to copy files from build to mounted device
 echo_debug "Attempting to cp ${_CHROOT_ROOT}/ to /mnt/cryptmypi/ ..."

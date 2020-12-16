@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+set -u
 
 echo_debug "Attempt to unmount just to be safe ..."
 umount ${_BLKDEV}* || true

@@ -5,7 +5,7 @@ set -u
 export _USER_HOME=$(eval echo ~${SUDO_USER})
 export _DNS1='1.1.1.1'
 export _DNS2='8.8.8.8'
-export _CPU_GOVERNOR='performance'
+export _CPU_GOVERNOR='performance' #can be 'ondemand' to be less power hungry
 export _WIFI_SSID='SKYNET'
 export _WIFI_PASS='JOHNCONNOR'
 export _WIFI_INTERFACE='wlan0'
@@ -32,7 +32,6 @@ export _ENCRYPTED_VOLUME_NAME="crypt-1"
 export _BUILDDIR=${_BASEDIR}/build
 export _FILEDIR=${_BASEDIR}/files
 export _CHROOT_ROOT=${_BUILDDIR}/root
-export _IMAGENAME=$(basename ${_IMAGEURL})
 #0 = debug messages and normal, 1 normal only
 export _LOG_LEVEL=0
 
@@ -50,5 +49,6 @@ stage1extra(){
     #myhooks 0000-optional-sys-wifi.sh
 }
 
+# Optional, makes the copys/rsyncs less choppy on slow systems.
 echo $((16*1024*1024)) > /proc/sys/vm/dirty_background_bytes
 echo $((48*1024*1024)) > /proc/sys/vm/dirty_bytes

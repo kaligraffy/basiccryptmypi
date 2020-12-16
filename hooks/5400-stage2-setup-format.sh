@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+set -u
 
 FS=$_FILESYSTEM_TYPE
 
