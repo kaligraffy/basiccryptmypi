@@ -1,16 +1,12 @@
 #!/bin/bash
 set -e
 
-
-
 if [ -z "${_STAGE1_OTHERSCRIPT}" ]; then
     _STAGE1_OTHERSCRIPT='stage1-otherscript.sh'
         echo_warn "Other script _STAGE1_OTHERSCRIPT is not set on config: Setting default value ${_STAGE1_OTHERSCRIPT}"
 fi
 
-
-_STAGE1_OTHERSCRIPT_PATH="${_SHAREDCONFDIR}/${_STAGE1_OTHERSCRIPT}"
-
+_STAGE1_OTHERSCRIPT_PATH="${_OTHER_SCRIPTS_DIR}/${_STAGE1_OTHERSCRIPT}"
 
 echo_debug "Checking if stage1 other script ${_STAGE1_OTHERSCRIPT_PATH} exists ..."
 test -f "${_STAGE1_OTHERSCRIPT_PATH}" && {

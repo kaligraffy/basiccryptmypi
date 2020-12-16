@@ -9,7 +9,7 @@ if [ -z "${_STAGE2_OTHERSCRIPT}" ]; then
 fi
 
 
-_STAGE2_OTHERSCRIPT_PATH="${_SHAREDCONFDIR}/${_STAGE2_OTHERSCRIPT}"
+_STAGE2_OTHERSCRIPT_PATH="${_OTHER_SCRIPTS_DIR}/${_STAGE2_OTHERSCRIPT}"
 
 
 echo_debug "Checking if stage2 other script ${_STAGE2_OTHERSCRIPT_PATH} exists ..."

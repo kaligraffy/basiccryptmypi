@@ -35,7 +35,7 @@ echo "CRYPTSETUP=y" >> ${_CHROOT_ROOT}/etc/cryptsetup-initramfs/conf-hook
 
 # Update /etc/fstab
 sed -i "s|/dev/mmcblk0p2|/dev/mapper/${_ENCRYPTED_VOLUME_NAME}|g" ${_CHROOT_ROOT}/etc/fstab
-sed -i "s|ext3#${FS}|g" ${_CHROOT_ROOT}/etc/fstab
+sed -i "s#ext3#${FS}#g" ${_CHROOT_ROOT}/etc/fstab
 
 # Update /etc/crypttab
 echo "${_ENCRYPTED_VOLUME_NAME}    /dev/mmcblk0p2    none    luks" > ${_CHROOT_ROOT}/etc/crypttab
