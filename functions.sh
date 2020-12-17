@@ -29,7 +29,7 @@ echo_debug(){
 # Cleanup on exit
 cleanup(){
     chroot_umount || true
-    umount ${_BLKDEV}* || true
+    umount ${_OUTPUT_BLOCK_DEVICE}* || true
     umount -l /mnt/cryptmypi || true
     umount -f /dev/mapper/${_ENCRYPTED_VOLUME_NAME} || true
     [ -d /mnt/cryptmypi ] && rm -r /mnt/cryptmypi || true
@@ -55,6 +55,11 @@ check_preconditions(){
         echo_error "This script must be run as root/sudo"
         exit 1
     fi
+    
+    #Fix for using mmcblk0pX devices, adds a p used later on
+    #TODO Change this so the prefix just gets appended to the block device?
+    echo ${_OUTPUT_BLOCK_DEVICE} | grep -qs 'mmcblk' && \
+      export _PARTITIONPREFIX="" ||  export _PARTITIONPREFIX='p';
 }
 
 # Image Preparation
@@ -87,7 +92,7 @@ write_to_disk(){
     echo_warn "CHECK DISK IS CORRECT"
     echo_info "$(lsblk)"
     echo_info ""
-    read -p "Type 'YES' if the selected device is correct:  ${_BLKDEV}" continue
+    read -p "Type 'YES' if the selected device is correct:  ${_OUTPUT_BLOCK_DEVICE}" continue
     if [ "${continue}" = 'YES' ] ; then
         call_hooks stage2
     fi
@@ -178,8 +183,8 @@ chroot_mkinitramfs(){
 
     #Point crypttab to the current physical device during mkinitramfs
     echo_debug "  Creating symbolic links from current physical device to crypttab device (if not using sd card mmcblk0p)";
-    test -e "/dev/mmcblk0p1" || (test -e "${_BLKDEV}1" && ln -s "${_BLKDEV}1" "/dev/mmcblk0p1");
-    test -e "/dev/mmcblk0p2" || (test -e "${_BLKDEV}2" && ln -s "${_BLKDEV}2" "/dev/mmcblk0p2");
+    test -e "/dev/mmcblk0p1" || (test -e "${_OUTPUT_BLOCK_DEVICE}1" && ln -s "${_OUTPUT_BLOCK_DEVICE}1" "/dev/mmcblk0p1");
+    test -e "/dev/mmcblk0p2" || (test -e "${_OUTPUT_BLOCK_DEVICE}2" && ln -s "${_OUTPUT_BLOCK_DEVICE}2" "/dev/mmcblk0p2");
 
     # determining the kernel
     kernel_version=$(ls ${_CHROOT_ROOT}/lib/modules/ | grep "${_KERNEL_VERSION_FILTER}" | tail -n 1);

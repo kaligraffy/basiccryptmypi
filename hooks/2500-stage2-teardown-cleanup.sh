@@ -4,12 +4,12 @@ set -u
 chroot_umount || true
 
 # Unmount boot partition
-echo_debug "Attempting to unmount ${_BLKDEV}${_PARTITIONPREFIX}1 "
-if umount ${_BLKDEV}${_PARTITIONPREFIX}1
+echo_debug "Attempting to unmount ${_OUTPUT_BLOCK_DEVICE}${_PARTITIONPREFIX}1 "
+if umount ${_OUTPUT_BLOCK_DEVICE}${_PARTITIONPREFIX}1
 then
-    echo_debug "- Unmounted ${_BLKDEV}${_PARTITIONPREFIX}1"
+    echo_debug "- Unmounted ${_OUTPUT_BLOCK_DEVICE}${_PARTITIONPREFIX}1"
 else
-    echo_error "- Aborting since we failed to unmount ${_BLKDEV}${_PARTITIONPREFIX}1"
+    echo_error "- Aborting since we failed to unmount ${_OUTPUT_BLOCK_DEVICE}${_PARTITIONPREFIX}1"
     exit 1
 fi
 echo
@@ -26,7 +26,7 @@ fi
 echo
 
 # Close LUKS
-echo_debug "Closing LUKS ${_BLKDEV}${_PARTITIONPREFIX}2"
+echo_debug "Closing LUKS ${_OUTPUT_BLOCK_DEVICE}${_PARTITIONPREFIX}2"
 cryptsetup -v luksClose "/dev/mapper/${_ENCRYPTED_VOLUME_NAME}"
 
 # Clean up
