@@ -11,12 +11,12 @@ echo_debug "Creating script bootHash.sh in ${_BUILDDIR}/usr/local/bin"
 cat << 'EOF' > "$BOOTHASHSCRIPT"
 #!/bin/bash
 #user to be mailed (kali, root)
-MAILUSER=kali 
+MAILUSER=kali
 #boot device mmcblk0p1 or /dev/sda1
 BOOTDRIVE=/dev/sdX
 LOGFILE="/var/log/$BOOTDRIVE-hashes"
 LASTHASH=$(tail -1 $LOGFILE)
-NEWHASH="$(sha256sum $BOOTDRIVE) $(date)" 
+NEWHASH="$(sha256sum $BOOTDRIVE) $(date)"
 echo $NEWHASH >> "$LOGFILE"
 
 LASTHASH=$(echo "$LASTHASH" | cut -d' ' -f 1)

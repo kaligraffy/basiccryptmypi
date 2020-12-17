@@ -4,7 +4,7 @@ set -e
 FS=$_FILESYSTEM_TYPE
 
 # Format
-echo_debug "Formatting /dev/mapper/${_ENCRYPTED_VOLUME_NAME}" 
+echo_debug "Formatting /dev/mapper/${_ENCRYPTED_VOLUME_NAME}"
 mkfs.$FS /dev/mapper/${_ENCRYPTED_VOLUME_NAME}
 echo_debug "- Formatted"
 

@@ -191,8 +191,8 @@ chmod +x "${_CHROOT_ROOT}/etc/initramfs-tools/scripts/local-bottom/kill_wireless
 
 
 # Adding modules to initramfs modules
-for driver in ${_INITRAMFS_WIFI_DRIVERS}; do 
-    echo ${driver} >> ${_CHROOT_ROOT}/etc/initramfs-tools/modules; 
+for driver in ${_INITRAMFS_WIFI_DRIVERS}; do
+    echo ${driver} >> ${_CHROOT_ROOT}/etc/initramfs-tools/modules;
 done
 
 echo_debug "initramfs wifi completed"

@@ -31,7 +31,7 @@ cleanup(){
     chroot_umount || true
     umount ${_BLKDEV}* || true
     umount -l /mnt/cryptmypi || true
-        umount -f /dev/mapper/${_ENCRYPTED_VOLUME_NAME} || true
+    umount -f /dev/mapper/${_ENCRYPTED_VOLUME_NAME} || true
     [ -d /mnt/cryptmypi ] && rm -r /mnt/cryptmypi || true
     cryptsetup luksClose $_ENCRYPTED_VOLUME_NAME || true
 }
@@ -52,8 +52,8 @@ check_preconditions(){
     echo_info "$FUNCNAME started at $(date)"
     # Precondition check for root powers
     if (( $EUID != 0 )); then
-      echo_error "This script must be run as root/sudo"
-      exit 1
+        echo_error "This script must be run as root/sudo"
+        exit 1
     fi
 }
 
@@ -82,7 +82,7 @@ write_to_disk(){
     echo_info "$FUNCNAME started at $(date) "
     # TODO(kaligraffy) - don't like this here.
     # Changes _CHROOT_ROOT from build/root to /mnt/cryptmypi for stage 2
-    export _CHROOT_ROOT=/mnt/cryptmypi 
+    export _CHROOT_ROOT=/mnt/cryptmypi
     local continue
     echo_warn "CHECK DISK IS CORRECT"
     echo_info "$(lsblk)"
@@ -117,7 +117,7 @@ chroot_umount(){
 chroot_update(){
     #Force https on initial use of apt for the main kali repo
     sed -i 's|http:|https:|g' ${_CHROOT_ROOT}/etc/apt/sources.list;
-    
+
     if [ ! -f "${_CHROOT_ROOT}/etc/resolv.conf" ]; then
         echo_warn "${_CHROOT_ROOT}/etc/resolv.conf does not exists.";
         echo_warn "Setting nameserver to $_DNS1 and $_DNS2 in ${_CHROOT_ROOT}/etc/resolv.conf";
@@ -131,13 +131,13 @@ chroot_update(){
 chroot_package_install(){
     echo_info "- Installing $1";
     chroot_execute apt-get -qq -y install ${1} ;
-}  
+}
 
 chroot_package_purge(){
     echo_info "- Purging $1";
     chroot_execute apt-get -qq -y purge ${1} ;
     chroot_execute apt-get -qq -y autoremove ;
-} 
+}
 
 chroot_execute(){
     chroot ${_CHROOT_ROOT} "$@";
@@ -148,7 +148,7 @@ assure_box_sshkey(){
     echo_debug "Make ssh keyfile:";
     test -f "${id_rsa}" && {
         echo_debug "- Keyfile ${id_rsa} already exists";
-    } || {
+        } || {
         echo_debug "- Keyfile ${id_rsa} does not exists. Generating ";
         ssh-keygen -b "${_SSH_BLOCK_SIZE}" -N "${_SSH_KEY_PASSPHRASE}" -f "${id_rsa}";
         chmod 600 "${id_rsa}";
@@ -168,7 +168,7 @@ backup_and_use_sshkey(){
     test -f "${temporary_keyname}" && {
         cp "${temporary_keyname}" "${temporary_keypath}";
         chmod 600 "${temporary_keypath}";
-    } || {
+        } || {
         cp "${temporary_keypath}" "${temporary_keyname}";
     }
 }
@@ -196,8 +196,8 @@ chroot_mkinitramfs(){
 }
 
 # EXIT trap
-trap_on_exit() { 
-cleanup ;
-echo_error "something went wrong. bye.";
+trap_on_exit() {
+    cleanup ;
+    echo_error "something went wrong. bye.";
 }
 trap "trap_on_exit" EXIT;

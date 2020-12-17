@@ -8,7 +8,8 @@ if [ -n "${_LUKSNUKEPASSWD}" ]; then
     chroot ${_CHROOT_ROOT} /bin/bash -c "debconf-set-selections <<END
 cryptsetup-nuke-password cryptsetup-nuke-password/password string ${_LUKSNUKEPASSWD}
 cryptsetup-nuke-password cryptsetup-nuke-password/password-again string ${_LUKSNUKEPASSWD}
-END"
+END
+    "
     chroot_execute dpkg-reconfigure -f noninteractive cryptsetup-nuke-password
 else
     echo_warn "SKIPPING Cryptsetup NUKE. Nuke password _LUKSNUKEPASSWD not set."

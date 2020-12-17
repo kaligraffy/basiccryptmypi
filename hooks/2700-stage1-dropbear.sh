@@ -4,8 +4,8 @@ set -u
 echo_debug "Installing dropbear"
 
 test -f "${_SSH_LOCAL_KEYFILE}" || {
-        echo_error "ERROR: Obligatory SSH keyfile '${_SSH_LOCAL_KEYFILE}' could not be found. Exiting"
-        exit 1
+    echo_error "ERROR: Obligatory SSH keyfile '${_SSH_LOCAL_KEYFILE}' could not be found. Exiting"
+    exit 1
 }
 
 # Installing packages

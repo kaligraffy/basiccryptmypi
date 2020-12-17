@@ -78,7 +78,7 @@ export PATH='/sbin:/bin/:/usr/sbin:/usr/bin'
 
 while true
 do
-    test -e /dev/mapper/${_ENCRYPTED_VOLUME_NAME} && break || cryptsetup luksOpen /dev/mmcblk0p2 
+    test -e /dev/mapper/${_ENCRYPTED_VOLUME_NAME} && break || cryptsetup luksOpen /dev/mmcblk0p2
 done
 
 /scripts/local-top/cryptroot
