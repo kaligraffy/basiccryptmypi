@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e 
+set -e
 set -u
 
 # Get the base path for this script
@@ -40,7 +40,7 @@ export _FILEDIR=${_BASEDIR}/files
 export _CHROOT_ROOT=${_BUILDDIR}/root
 #0 = debug messages and normal, 1 normal only
 export _LOG_LEVEL=0
-echo ${_BLKDEV} | grep -qs 'mmcblk' && export 
+echo ${_BLKDEV} | grep -qs 'mmcblk' && export
 _PARTITIONPREFIX="" ||  export _PARTITIONPREFIX='p';
 
 #Optional and experimental hooks

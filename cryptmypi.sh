@@ -10,10 +10,10 @@ set -e
 #Program logic
 execute()
 {
-  dependencies;
-  check_preconditions;   
-  prepare_image;
-  write_to_disk;
+    dependencies;
+    check_preconditions;
+    prepare_image;
+    write_to_disk;
 }
 
 # Run Program
