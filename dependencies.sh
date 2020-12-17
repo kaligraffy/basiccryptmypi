@@ -1,5 +1,5 @@
 #!/bin/bash
-dependencies() {
+install_dependencies() {
     echo_info "$FUNCNAME started at $(date)"
     apt-get -qq install \
         qemu-user-static \

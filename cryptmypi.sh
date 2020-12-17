@@ -10,8 +10,8 @@ set -e
 #Program logic
 execute()
 {
-    dependencies;
     check_preconditions;
+    install_dependencies;
     prepare_image;
     write_to_disk;
 }
@@ -19,7 +19,8 @@ execute()
 # Run Program
 main(){
     echo_info "starting $(basename $0) at $(date)";
-    execute | tee ${_BUILDDIR}/build.log;
+    log_file=${_BUILDDIR}'/build-'$(date '+%Y-%m-%d %H:%M:%S')'.log'
+    execute | tee "${log_file}"
     echo_info "starting $(basename $0) at $(date)";
 }
 main;

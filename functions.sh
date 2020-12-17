@@ -12,7 +12,7 @@ _COLOR_NORMAL='\033[0m' # No Color
 
 #Print messages
 echo_error(){
-    echo -e "${_COLOR_ERROR}ERROR: $*${_COLOR_NORMAL}" >&2
+    echo -e "${_COLOR_ERROR}ERROR: $*${_COLOR_NORMAL}"
 }
 echo_warn(){
     echo -e "${_COLOR_WARN}WARNING: $@${_COLOR_NORMAL}"
@@ -50,7 +50,11 @@ call_hooks(){
 # Check preconditions
 check_preconditions(){
     echo_info "$FUNCNAME started at $(date)"
-    call_hooks preconditions
+    # Precondition check for root powers
+    if (( $EUID != 0 )); then
+      echo_error "ERROR: This script must be run as root/sudo"
+      exit 1
+    fi
 }
 
 # Image Preparation
@@ -97,18 +101,18 @@ chroot_mount(){
     mount --bind /dev ${_CHROOT_ROOT}/dev/ || echo_error "mounting '${_CHROOT_ROOT}/dev/'"
     echo_debug "Mounting '${_CHROOT_ROOT}/dev/pts' "
     mount --bind /dev/pts ${_CHROOT_ROOT}/dev/pts || echo_error "mounting '${_CHROOT_ROOT}/dev/pts'"
-    echo_debug "Mounting '${_CHROOT_ROOT}/sys/' "
-    mount --bind /sys ${_CHROOT_ROOT}/sys/ || echo_error "mounting '${_CHROOT_ROOT}/sys/'"
-    echo_debug "Mounting '${_CHROOT_ROOT}/proc/' "
-    mount -t proc /proc ${_CHROOT_ROOT}/proc/ || echo_error "mounting '${_CHROOT_ROOT}/proc/'"
+    echo_debug "Mounting '${_CHROOT_ROOT}/sys/' ";
+    mount --bind /sys ${_CHROOT_ROOT}/sys/ || echo_error "mounting '${_CHROOT_ROOT}/sys/'";
+    echo_debug "Mounting '${_CHROOT_ROOT}/proc/' ";
+    mount -t proc /proc ${_CHROOT_ROOT}/proc/ || echo_error "mounting '${_CHROOT_ROOT}/proc/'";
 }
 
 chroot_umount(){
     echo_debug "Unmounting binds"
-    umount ${_CHROOT_ROOT}/dev/pts || true
-    umount ${_CHROOT_ROOT}/dev || true
-    umount ${_CHROOT_ROOT}/sys || true
-    umount ${_CHROOT_ROOT}/proc || true
+    umount ${_CHROOT_ROOT}/dev/pts || true;
+    umount ${_CHROOT_ROOT}/dev || true;
+    umount ${_CHROOT_ROOT}/sys || true;
+    umount ${_CHROOT_ROOT}/proc || true;
 }
 
 chroot_update(){
@@ -195,6 +199,6 @@ chroot_mkinitramfs(){
 # EXIT trap
 trap_on_exit() { 
 cleanup ;
-echo_error "something went wrong. bye."
+echo_error "something went wrong. bye.";
 }
 trap "trap_on_exit" EXIT;

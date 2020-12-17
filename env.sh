@@ -1,10 +1,9 @@
 #!/bin/bash
-set -e
-set -u
-
+set -e;
+set -u;
 # Get the base path for this script
 export _BASEDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )";
-export _USER_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
+export _USER_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6);
 export _DNS1='1.1.1.1'
 export _DNS2='8.8.8.8'
 export _CPU_GOVERNOR='ondemand' #can be 'performance'
