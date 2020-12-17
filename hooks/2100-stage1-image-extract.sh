@@ -65,7 +65,7 @@ extract_image() {
   --quiet \
   --info=progress2 "${_BUILDDIR}/boot" "${_CHROOT_ROOT}/"
 
-  echo_info "Starting copy of / to ${_CHROOT_ROOT} at $(date)"
+  echo_info "Starting copy of mount to ${_CHROOT_ROOT} at $(date)"
   rsync \
   --hard-links \
   --archive \

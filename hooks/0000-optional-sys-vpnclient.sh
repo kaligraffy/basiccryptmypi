@@ -7,7 +7,7 @@ _OPENVPN_CONFIG_ZIPFILE=${_OPENVPN_CONFIG_ZIP}
 _OPENVPN_CONFIG_ZIPPATH="${_FILEDIR}/${_OPENVPN_CONFIG_ZIPFILE}"
 
 echo_debug "Assuring openvpn installation and config dir"
-chroot_pkginstall openvpn
+chroot_package_install openvpn
 mkdir -p ${_CHROOT_ROOT}/etc/openvpn
 
 echo_debug "Unzipping provided files into configuraiton dir"

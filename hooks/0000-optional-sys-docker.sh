@@ -24,13 +24,13 @@ sed -i "s#rootwait#cgroup_enable=memory cgroup_memory=1 rootwait#g" ${_CHROOT_RO
 
 echo_debug "    Updating iptables  (issue: default kali iptables was stalling)"
 # systemctl start and stop commands would hang/stall due to pristine iptables on kali-linux-2020.1a-rpi3-nexmon-64.img.xz
-chroot_pkginstall iptables
+chroot_package_install iptables
 chroot_execute update-alternatives --set iptables /usr/sbin/iptables-legacy
 chroot_execute update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
 
 
 echo_debug "    Installing docker "
-chroot_pkginstall docker.io
+chroot_package_install docker.io
 
 
 ### ALTERNATIVE INSTALLATION PROCESS
@@ -38,8 +38,8 @@ chroot_pkginstall docker.io
 #   # Adding another distro's packages should be avoided.
 #   # A variable to detect arch may be needed (or a variable stablishing RPi version).
 #
-# chroot_pkgpurge docker docker-engine docker.io containerd runc
-# chroot_pkginstall apt-transport-https ca-certificates curl gnupg-agent software-properties-common
+# chroot_package_purge docker docker-engine docker.io containerd runc
+# chroot_package_install apt-transport-https ca-certificates curl gnupg-agent software-properties-common
 # curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add -
 #
 # # For Raspberry Pi 32-bit — use the following command instead:
@@ -49,7 +49,7 @@ chroot_pkginstall docker.io
 # echo 'deb [arch=arm64] https://download.docker.com/linux/debian buster stable' | sudo tee /etc/apt/sources.list.d/docker.list
 #
 # chroot_execute apt-get update
-# chroot_pkginstall --no-install-recommends docker-ce
+# chroot_package_install --no-install-recommends docker-ce
 
 
 echo_debug "    Enabling service "

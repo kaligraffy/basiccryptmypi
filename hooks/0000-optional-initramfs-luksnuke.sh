@@ -4,7 +4,7 @@ set -u
 # Install and configure cryptsetup nuke package if we were given a password
 if [ -n "${_LUKSNUKEPASSWD}" ]; then
     echo_debug "Attempting to install and configure encrypted pi cryptsetup nuke password."
-    chroot_pkginstall cryptsetup-nuke-password
+    chroot_package_install cryptsetup-nuke-password
     chroot ${_CHROOT_ROOT} /bin/bash -c "debconf-set-selections <<END
 cryptsetup-nuke-password cryptsetup-nuke-password/password string ${_LUKSNUKEPASSWD}
 cryptsetup-nuke-password cryptsetup-nuke-password/password-again string ${_LUKSNUKEPASSWD}

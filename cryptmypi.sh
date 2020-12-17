@@ -19,8 +19,8 @@ execute()
 # Run Program
 main(){
     echo_info "starting $(basename $0) at $(date)";
-    log_file=${_BUILDDIR}'/build-'$(date '+%Y-%m-%d %H:%M:%S')'.log'
-    execute | tee "${log_file}"
+    log_file='build-'$(date '+%Y-%m-%d-%H:%M:%S')'.log'
+    execute | tee "${_BUILDDIR}"/"${log_file}" || true
     echo_info "starting $(basename $0) at $(date)";
 }
 main;

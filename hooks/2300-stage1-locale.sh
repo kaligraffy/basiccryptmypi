@@ -12,7 +12,7 @@ LANG="${_LOCALE}"
 EOF
 
 echo_debug "Installing locales"
-chroot_pkginstall locales
+chroot_package_install locales
 
 echo_debug "Updating env variables"
 chroot "${_CHROOT_ROOT}" /bin/bash -x <<EOF

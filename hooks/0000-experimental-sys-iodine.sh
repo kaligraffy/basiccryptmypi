@@ -6,7 +6,7 @@ set -e
 
 echo_debug "Installing iodine "
 
-chroot_pkginstall install iodine
+chroot_package_install install iodine
 
 # Create iodine startup script (not initramfs)
     cat << EOF > ${_CHROOT_ROOT}/opt/iodine.sh

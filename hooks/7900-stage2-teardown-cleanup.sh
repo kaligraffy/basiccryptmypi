@@ -1,7 +1,0 @@
-#!/bin/bash
-set -e
-
-
-# Clean up
-rm -r /mnt/cryptmypi
-sync

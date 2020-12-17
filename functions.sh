@@ -52,7 +52,7 @@ check_preconditions(){
     echo_info "$FUNCNAME started at $(date)"
     # Precondition check for root powers
     if (( $EUID != 0 )); then
-      echo_error "ERROR: This script must be run as root/sudo"
+      echo_error "This script must be run as root/sudo"
       exit 1
     fi
 }
@@ -63,9 +63,8 @@ prepare_image(){
     if [  -d ${_BUILDDIR} ]; then
         echo_warn "Build directory already exists: ${_BUILDDIR}";
         local continue;
-        read -p "Rebuild? (y/N)" continue;
+        read -p "Clean old build and rebuild? (y/N)" continue;
         if [ "${continue}" = 'y' ] || [ "${continue}" = 'Y' ]; then
-            echo_warn "Cleaning old build";
             rm -rf ${_BUILDDIR} || true ;
         else
             return 0;
@@ -78,7 +77,7 @@ prepare_image(){
     chroot_umount || true
 }
 
-# STAGE 2 Encrypt & Write SD
+# Encrypt & Write SD
 write_to_disk(){
     echo_info "$FUNCNAME started at $(date) "
     # TODO(kaligraffy) - don't like this here.
@@ -129,12 +128,12 @@ chroot_update(){
     chroot ${_CHROOT_ROOT} apt-get -qq update;
 }
 
-chroot_pkginstall(){
+chroot_package_install(){
     echo_info "- Installing $1";
     chroot_execute apt-get -qq -y install ${1} ;
 }  
 
-chroot_pkgpurge(){
+chroot_package_purge(){
     echo_info "- Purging $1";
     chroot_execute apt-get -qq -y purge ${1} ;
     chroot_execute apt-get -qq -y autoremove ;

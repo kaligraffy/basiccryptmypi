@@ -14,7 +14,7 @@ chmod o+r ${_CHROOT_ROOT}/etc/resolv.conf
 
 
 #echo_debug "Installing resolvconf"
-#chroot_pkginstall resolvconf
+#chroot_package_install resolvconf
 #chroot_execute systemctl enable resolvconf.service
 #
 #
