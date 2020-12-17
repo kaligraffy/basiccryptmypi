@@ -1,12 +1,10 @@
 #!/bin/bash
 set -e
 
-
 # REFERENCE:
 #   https://davidhamann.de/2019/05/12/tunnel-traffic-over-dns-ssh/
 
-
-echo_debug "Attempting iodine "
+echo_debug "Installing iodine "
 
 chroot_pkginstall install iodine
 

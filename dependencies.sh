@@ -1,5 +1,6 @@
 #!/bin/bash
-echo_debug "Installing dependencies"
+dependencies() {
+echo_info "$FUNCNAME started at $(date)"
 apt-get -qq install \
 qemu-user-static \
 binfmt-support \
@@ -10,4 +11,5 @@ grep \
 rsync \
 xz-utils \
 pv \
-btrfs-progs 
+btrfs-progs; 
+}

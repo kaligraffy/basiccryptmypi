@@ -1,6 +1,5 @@
 #!/bin/bash
 set -e
-set -u
 
 # Create LUKS
 echo_debug "Attempting to create LUKS ${_BLKDEV}${_PARTITIONPREFIX}2 "

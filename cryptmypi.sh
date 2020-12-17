@@ -1,41 +1,25 @@
 #!/bin/bash
 set -e
+# Create a configurable kali pi build
 
-# Get the base path for this script
-export _BASEDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+# Load functions and environment variables and dependencies
+. env.sh;
+. functions.sh;
+. dependencies.sh;
 
-# Load functions and environment variables
-. ${_BASEDIR}/env.sh
-. ${_BASEDIR}/functions.sh
-. ${_BASEDIR}/dependencies.sh
-
-# EXIT Trap
-trap 'trapExit $? $LINENO' EXIT
-
-#Program Logic
+#Program logic
 execute()
 {
-    echo_info "Starting Cryptmypi at $(date)"
-    stagePreconditions    
-    if [ ! -d ${_BUILDDIR} ]; then
-        stage1
-    else
-        echo_debug "Build directory already exists: ${_BUILDDIR}"
-        local continue
-        read -p "Rebuild? (y/N)" continue
-        if [ "${continue}" = 'y' ] || [ "${continue}" = 'Y' ]; then
-            echo_warn "Cleaning old build"
-            rm -rf ${_BUILDDIR}
-        fi
-        stage1
-    fi
-    export _CHROOT_ROOT=/mnt/cryptmypi #NASTY, fix later.
-    stage2
-    exit 0
+  dependencies;
+  check_preconditions;   
+  prepare_image;
+  write_to_disk;
 }
 
 # Run Program
 main(){
-    execute | tee ${_BASEDIR}/build.log
+    echo_info "starting $(basename $0) at $(date)";
+    execute | tee ${_BUILDDIR}/build.log;
+    echo_info "starting $(basename $0) at $(date)";
 }
-main
+main;

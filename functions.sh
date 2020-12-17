@@ -1,51 +1,29 @@
 #!/bin/bash
 # shellcheck disable=SC2034
+# Hold all configuration
 set -e
 set -u
 
-_COLOR_BLACK='\033[0;30m'
-_COLOR_DARKGRAY='\033[1;30m'
-_COLOR_RED='\033[0;31m'
-_COLOR_LIGHTRED='\033[1;31m'
-_COLOR_GREEN='\033[0;32m'
-_COLOR_LIGHTGREEN='\033[1;32m'
-_COLOR_ORANGE='\033[0;33m'
-_COLOR_YELLOW='\033[1;33m'
-_COLOR_BLUE='\033[0;34m'
-_COLOR_LIGHTBLUE='\033[1;34m'
-_COLOR_PURPLE='\033[0;35m'
-_COLOR_LIGHTPURPLE='\033[1;35m'
-_COLOR_CYAN='\033[0;36m'
-_COLOR_LIGHTCYAN='\033[1;36m'
-_COLOR_LIGHTGRAY='\033[0;37m'
-_COLOR_WHITE='\033[1;37m'
+_COLOR_ERROR='\033[0;31m'
+_COLOR_WARN='\033[1;33m'
+_COLOR_INFO='\033[0;35m'
+_COLOR_DEBUG='\033[0;37m'
 _COLOR_NORMAL='\033[0m' # No Color
 
+#Print messages
 echo_error(){
-    echo -e "${_COLOR_RED}$@${_COLOR_NORMAL}"
+    echo -e "${_COLOR_ERROR}ERROR: $*${_COLOR_NORMAL}" >&2
 }
-
 echo_warn(){
-    echo -e "${_COLOR_YELLOW}$@${_COLOR_NORMAL}"
+    echo -e "${_COLOR_WARN}WARNING: $@${_COLOR_NORMAL}"
 }
-
 echo_info(){
-    echo -e "${_COLOR_PURPLE}$@${_COLOR_NORMAL}"
+    echo -e "${_COLOR_INFO}$@${_COLOR_NORMAL}"
 }
-
 echo_debug(){
     if [ $_LOG_LEVEL -lt 1 ]; then
-        echo -e "${_COLOR_LIGHTGRAY}$@${_COLOR_NORMAL}"
+        echo -e "${_COLOR_DEBUG}$@${_COLOR_NORMAL}"
     fi
-}
-
-# Message on exit
-exitMessage(){
-    if [ $1 -gt 0 ]; then
-        echo_error "Script failed with exit status $1 at line $2"
-    fi
-    echo_info "Script completed at $(date)"
-    
 }
 
 # Cleanup on exit
@@ -58,53 +36,57 @@ cleanup(){
     cryptsetup luksClose $_ENCRYPTED_VOLUME_NAME || true
 }
 
-trapExit () { exitMessage $1 $2 ; cleanup; }
-
-myhooks(){
-    _HOOKOP="${1}"
-    for _HOOK in ${_BASEDIR}/hooks/????-${_HOOKOP}*
+call_hooks(){
+    local hookop="${1}"
+    for hook in ${_BASEDIR}/hooks/????-${hookop}*
     do
-        if [ -e ${_HOOK} ]; then
-            echo_info "- Calling $(basename ${_HOOK}) "
-            . ${_HOOK}
-            echo_debug "- $(basename ${_HOOK}) completed"
+        if [ -e ${hook} ]; then
+            echo_info "- calling $(basename ${hook}) "
+            . ${hook}
         fi
     done
 }
 
-############################
-# Validate All Preconditions
-############################
-stagePreconditions(){
+# Check preconditions
+check_preconditions(){
     echo_info "$FUNCNAME started at $(date)"
-    myhooks preconditions
+    call_hooks preconditions
 }
 
-############################
-# STAGE 1 Image Preparation
-############################
-stage1(){
-    echo_info "$FUNCNAME started at $(date) "
+# Image Preparation
+prepare_image(){
+    echo_info "$FUNCNAME started at $(date)";
+    if [  -d ${_BUILDDIR} ]; then
+        echo_warn "Build directory already exists: ${_BUILDDIR}";
+        local continue;
+        read -p "Rebuild? (y/N)" continue;
+        if [ "${continue}" = 'y' ] || [ "${continue}" = 'Y' ]; then
+            echo_warn "Cleaning old build";
+            rm -rf ${_BUILDDIR} || true ;
+        else
+            return 0;
+        fi
+    fi
     mkdir -p "${_BUILDDIR}"
-    myhooks stage1
-    stage1-extra
+    call_hooks stage1
+    prepare_image_extra
     chroot_mkinitramfs
     chroot_umount || true
 }
 
-############################
 # STAGE 2 Encrypt & Write SD
-############################
-stage2(){
+write_to_disk(){
     echo_info "$FUNCNAME started at $(date) "
-
-    # Show Stage2 menu
+    # TODO(kaligraffy) - don't like this here.
+    # Changes _CHROOT_ROOT from build/root to /mnt/cryptmypi for stage 2
+    export _CHROOT_ROOT=/mnt/cryptmypi 
     local continue
-    echo_warn "WARNING: CHECK DISK IS CORRECT"
+    echo_warn "CHECK DISK IS CORRECT"
     echo_info "$(lsblk)"
+    echo_info ""
     read -p "Type 'YES' if the selected device is correct:  ${_BLKDEV}" continue
     if [ "${continue}" = 'YES' ] ; then
-        myhooks stage2
+        call_hooks stage2
     fi
 }
 
@@ -112,13 +94,13 @@ chroot_mount(){
     echo_debug "Preparing chroot mount structure at '${_CHROOT_ROOT}'."
     # mount binds
     echo_debug "Mounting '${_CHROOT_ROOT}/dev/' "
-    mount --bind /dev ${_CHROOT_ROOT}/dev/ || echo_error "ERROR while mounting '${_CHROOT_ROOT}/dev/'"
+    mount --bind /dev ${_CHROOT_ROOT}/dev/ || echo_error "mounting '${_CHROOT_ROOT}/dev/'"
     echo_debug "Mounting '${_CHROOT_ROOT}/dev/pts' "
-    mount --bind /dev/pts ${_CHROOT_ROOT}/dev/pts || echo_error "ERROR while mounting '${_CHROOT_ROOT}/dev/pts'"
+    mount --bind /dev/pts ${_CHROOT_ROOT}/dev/pts || echo_error "mounting '${_CHROOT_ROOT}/dev/pts'"
     echo_debug "Mounting '${_CHROOT_ROOT}/sys/' "
-    mount --bind /sys ${_CHROOT_ROOT}/sys/ || echo_error "ERROR while mounting '${_CHROOT_ROOT}/sys/'"
+    mount --bind /sys ${_CHROOT_ROOT}/sys/ || echo_error "mounting '${_CHROOT_ROOT}/sys/'"
     echo_debug "Mounting '${_CHROOT_ROOT}/proc/' "
-    mount -t proc /proc ${_CHROOT_ROOT}/proc/ || echo_error "ERROR while mounting '${_CHROOT_ROOT}/proc/'"
+    mount -t proc /proc ${_CHROOT_ROOT}/proc/ || echo_error "mounting '${_CHROOT_ROOT}/proc/'"
 }
 
 chroot_umount(){
@@ -131,95 +113,88 @@ chroot_umount(){
 
 chroot_update(){
     #Force https on initial use of apt for the main kali repo
-    sed -i 's|http:|https:|g' ${_CHROOT_ROOT}/etc/apt/sources.list
+    sed -i 's|http:|https:|g' ${_CHROOT_ROOT}/etc/apt/sources.list;
     
     if [ ! -f "${_CHROOT_ROOT}/etc/resolv.conf" ]; then
-        echo_warn "${_CHROOT_ROOT}/etc/resolv.conf does not exists."
-        echo_warn "Setting nameserver to $_DNS1 and $_DNS2 in ${_CHROOT_ROOT}/etc/resolv.conf"
-        echo -e "nameserver $_DNS1\nnameserver $_DNS2" > "${_CHROOT_ROOT}/etc/resolv.conf"
+        echo_warn "${_CHROOT_ROOT}/etc/resolv.conf does not exists.";
+        echo_warn "Setting nameserver to $_DNS1 and $_DNS2 in ${_CHROOT_ROOT}/etc/resolv.conf";
+        echo -e "nameserver $_DNS1\nnameserver $_DNS2" > "${_CHROOT_ROOT}/etc/resolv.conf";
     fi
 
-    echo_debug "Updating apt-get"
-    chroot ${_CHROOT_ROOT} apt-get update
+    echo_debug "Updating apt-get";
+    chroot ${_CHROOT_ROOT} apt-get -qq update;
 }
 
 chroot_pkginstall(){
-    if [ -n "$1" ]; then
-      for PACKAGE in "$@"; do
-        echo_info "- Installing ${PACKAGE}"
-        chroot ${_CHROOT_ROOT} apt-get -y install "${PACKAGE}" || {
-            echo_error "ERROR: Could not install ${PACKAGE}"
-        }
-      done
-    fi    
+    echo_info "- Installing $1";
+    chroot_execute apt-get -qq -y install ${1} ;
 }  
 
 chroot_pkgpurge(){
-    if [ -n "$1" ]; then
-      for PACKAGE in "$@"; do
-        echo_info "- Uninstalling ${PACKAGE}"
-        chroot ${_CHROOT_ROOT} apt-get -y purge "${PACKAGE}" || {
-            echo_error "ERROR: Could not remove ${PACKAGE}"
-        }
-      done
-    fi
-    chroot ${_CHROOT_ROOT} apt-get -y autoremove
+    echo_info "- Purging $1";
+    chroot_execute apt-get -qq -y purge ${1} ;
+    chroot_execute apt-get -qq -y autoremove ;
 } 
 
 chroot_execute(){
-    chroot ${_CHROOT_ROOT} "$@"
-}
-
-chroot_mkinitramfs(){
-    echo_debug "Building new initramfs (CHROOT is ${_CHROOT_ROOT})"
-
-    #Point crypttab to the current physical device during mkinitramfs
-    echo_debug "  Creating symbolic links from current physical device to crypttab device (if not using sd card mmcblk0p)"
-    test -e "/dev/mmcblk0p1" || (test -e "${_BLKDEV}1" && ln -s "${_BLKDEV}1" "/dev/mmcblk0p1")
-    test -e "/dev/mmcblk0p2" || (test -e "${_BLKDEV}2" && ln -s "${_BLKDEV}2" "/dev/mmcblk0p2")
-
-    # determining the kernel
-    _KERNEL_VERSION=$(ls ${_CHROOT_ROOT}/lib/modules/ | grep "${_KERNEL_VERSION_FILTER}" | tail -n 1)
-    echo_debug "  Using kernel '${_KERNEL_VERSION}'"
-    chroot_execute update-initramfs -u -k all
-    # Finally, Create the initramfs
-    echo_debug "  Building new initramfs "
-    chroot_execute mkinitramfs -o /boot/initramfs.gz -v ${_KERNEL_VERSION}
-
-    # cleanup
-    echo_debug "  Cleaning up symbolic links"
-    test -L "/dev/mmcblk0p1" && unlink "/dev/mmcblk0p1"
-    test -L "/dev/mmcblk0p2" && unlink "/dev/mmcblk0p2"
+    chroot ${_CHROOT_ROOT} "$@";
 }
 
 assure_box_sshkey(){
-    _KEYFILE="${_FILEDIR}/id_rsa"
-
-    echo_debug "    Asserting box ssh keyfile:"
-    test -f "${_KEYFILE}" && {
-        echo_debug "    - Keyfile ${_KEYFILE} already exists"
+    local id_rsa="${_FILEDIR}/id_rsa";
+    echo_debug "Make ssh keyfile:";
+    test -f "${id_rsa}" && {
+        echo_debug "- Keyfile ${id_rsa} already exists";
     } || {
-        echo_debug "    - Keyfile ${_KEYFILE} does not exists. Generating "
-        ssh-keygen -q -t rsa -N '' -f "${_KEYFILE}" 2>/dev/null <<< y >/dev/null
-        chmod 600 "${_KEYFILE}"
-        chmod 644 "${_KEYFILE}.pub"
+        echo_debug "- Keyfile ${id_rsa} does not exists. Generating ";
+        ssh-keygen -b "${_SSH_BLOCK_SIZE}" -N "${_SSH_KEY_PASSPHRASE}" -f "${id_rsa}";
+        chmod 600 "${id_rsa}";
+        chmod 644 "${id_rsa}.pub";
     }
-
-    echo_debug "    - Copying keyfile ${_KEYFILE} to box's default user .ssh directory "
-    cp "${_KEYFILE}" "${_CHROOT_ROOT}/.ssh/id_rsa"
-    cp "${_KEYFILE}.pub" "${_CHROOT_ROOT}/.ssh/id_rsa.pub"
-    chmod 600 "${_CHROOT_ROOT}/.ssh/id_rsa"
-    chmod 644 "${_CHROOT_ROOT}/.ssh/id_rsa.pub"
+    echo_debug "- Copying keyfile ${id_rsa} to box's default user .ssh directory";
+    cp "${id_rsa}" "${_CHROOT_ROOT}/.ssh/id_rsa";
+    cp "${id_rsa}.pub" "${_CHROOT_ROOT}/.ssh/id_rsa.pub";
+    chmod 600 "${_CHROOT_ROOT}/.ssh/id_rsa";
+    chmod 644 "${_CHROOT_ROOT}/.ssh/id_rsa.pub";
 }
 
 backup_and_use_sshkey(){
-    local _TMP_KEYPATH=$1
-    local _TMP_KEYNAME=$(basename ${_TMP_KEYPATH})
+    local temporary_keypath=${1};
+    local temporary_keyname="${_FILEDIR}"/"$(basename ${temporary_keypath})";
 
-    test -f "${_FILEDIR}/${_TMP_KEYNAME}" && {
-        cp "${_FILEDIR}/${_TMP_KEYNAME}" "${_TMP_KEYPATH}"
-        chmod 600 "${_TMP_KEYPATH}"
+    test -f "${temporary_keyname}" && {
+        cp "${temporary_keyname}" "${temporary_keypath}";
+        chmod 600 "${temporary_keypath}";
     } || {
-        cp "${_TMP_KEYPATH}" "${_FILEDIR}/${_TMP_KEYNAME}"
+        cp "${temporary_keypath}" "${temporary_keyname}";
     }
 }
+
+chroot_mkinitramfs(){
+    echo_debug "Building new initramfs (CHROOT is ${_CHROOT_ROOT})";
+
+    #Point crypttab to the current physical device during mkinitramfs
+    echo_debug "  Creating symbolic links from current physical device to crypttab device (if not using sd card mmcblk0p)";
+    test -e "/dev/mmcblk0p1" || (test -e "${_BLKDEV}1" && ln -s "${_BLKDEV}1" "/dev/mmcblk0p1");
+    test -e "/dev/mmcblk0p2" || (test -e "${_BLKDEV}2" && ln -s "${_BLKDEV}2" "/dev/mmcblk0p2");
+
+    # determining the kernel
+    kernel_version=$(ls ${_CHROOT_ROOT}/lib/modules/ | grep "${_KERNEL_VERSION_FILTER}" | tail -n 1);
+    echo_debug "Using kernel '${kernel_version}'";
+    chroot_execute update-initramfs -u -k all;
+    # Finally, Create the initramfs
+    echo_debug "  Building new initramfs ";
+    chroot_execute mkinitramfs -o /boot/initramfs.gz -v ${kernel_version};
+
+    # cleanup
+    echo_debug "Cleaning up symbolic links";
+    test -L "/dev/mmcblk0p1" && unlink "/dev/mmcblk0p1";
+    test -L "/dev/mmcblk0p2" && unlink "/dev/mmcblk0p2";
+}
+
+# EXIT trap
+trap_on_exit() { 
+cleanup ;
+echo_error "something went wrong. bye."
+}
+trap "trap_on_exit" EXIT;
