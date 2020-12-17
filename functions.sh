@@ -97,15 +97,13 @@ stage1(){
 ############################
 stage2(){
     echo_info "$FUNCNAME started at $(date) "
-    _PARTITIONPREFIX=""
-    echo ${_BLKDEV} | grep -qs "mmcblk" && _PARTITIONPREFIX=p   
-    
+
     # Show Stage2 menu
-    local CONTINUE
+    local continue
     echo_warn "WARNING: CHECK DISK IS CORRECT"
     echo_info "$(lsblk)"
-    read -p "Type 'YES' if the selected device is correct:  ${_BLKDEV}" CONTINUE
-    if [ "${CONTINUE}" = 'YES' ] ; then
+    read -p "Type 'YES' if the selected device is correct:  ${_BLKDEV}" continue
+    if [ "${continue}" = 'YES' ] ; then
         myhooks stage2
     fi
 }

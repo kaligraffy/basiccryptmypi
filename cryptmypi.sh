@@ -21,11 +21,11 @@ execute()
         stage1
     else
         echo_debug "Build directory already exists: ${_BUILDDIR}"
-        local CONTINUE
-        read -p "Rebuild? (y/N)" CONTINUE
-        if [ "${CONTINUE}" = 'y' ] || [ "${CONTINUE}" = 'Y' ]; then
+        local continue
+        read -p "Rebuild? (y/N)" continue
+        if [ "${continue}" = 'y' ] || [ "${continue}" = 'Y' ]; then
             echo_warn "Cleaning old build"
-            rm -Rf ${_BUILDDIR}
+            rm -rf ${_BUILDDIR}
         fi
         stage1
     fi

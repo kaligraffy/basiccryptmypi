@@ -9,4 +9,5 @@ zip \
 grep \
 rsync \
 xz-utils \
+pv \
 btrfs-progs 

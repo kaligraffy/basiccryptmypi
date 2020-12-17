@@ -20,12 +20,13 @@ export _KERNEL_VERSION_FILTER="l+"
 export _HOSTNAME="kali"
 export _BLKDEV="/dev/sda"
 export _FILESYSTEM_TYPE="btrfs"
-export _LUKSCIPHER="aes-xts-plain64 --key-size 512 --use-random --hash sha512 --pbkdf argon2i --iter-time 5000"
+export _LUKSCIPHER="aes-xts-plain64 --key-size 512 --use-random --hash sha512 \
+                    --pbkdf argon2i --iter-time 5000"
 export _PKGS_TO_PURGE=""
 export _PKGS_TO_INSTALL="tree htop ufw timeshift"
 export _LUKSPASSWD="CHANGEME"
-export _IMAGESHA="c6ceee472eb4dabf4ea895ef53c7bd28751feb44d46ce2fa3f51eb5469164c2c"
-export _IMAGEURL="https://images.kali.org/arm-images/kali-linux-2020.4-rpi4-nexmon-64.img.xz"
+export _IMAGE_SHA256="c6ceee472eb4dabf4ea895ef53c7bd28751feb44d46ce2fa3f51eb5469164c2c"
+export _IMAGE_URL="https://images.kali.org/arm-images/kali-linux-2020.4-rpi4-nexmon-64.img.xz"
 export _SSH_LOCAL_KEYFILE="$_USER_HOME/.ssh/id_rsa"
 export _SSH_PASSWORD_AUTHENTICATION="no"
 export _ENCRYPTED_VOLUME_NAME="crypt-1"
@@ -34,6 +35,8 @@ export _FILEDIR=${_BASEDIR}/files
 export _CHROOT_ROOT=${_BUILDDIR}/root
 #0 = debug messages and normal, 1 normal only
 export _LOG_LEVEL=0
+$(echo ${_BLKDEV} | grep -qs 'mmcblk') && \
+export _PARTITIONPREFIX="" ||  export _PARTITIONPREFIX='p'
 
 stage1extra(){
     myhooks 0000-experimental-boot-hash.sh

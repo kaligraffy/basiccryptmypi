@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-umountgracefully() {
+unmount_gracefully() {
     umount  "${_BUILDDIR}/mount" || true
     umount  "${_BUILDDIR}/boot" || true
     losetup -d "${loopdev}p1" || true
@@ -15,27 +15,27 @@ rollback()
 {
     echo_error "Rolling back!"
     rm -rf "${_CHROOT_ROOT}" || true;
-    umountgracefully
+    unmount_gracefully
 }
 
-IMAGENAME=$(basename ${_IMAGEURL})
-IMAGE="${_FILEDIR}/${IMAGENAME}"
-EXTRACTEDIMAGE="${_FILEDIR}/extracted.img"
+local image_name=$(basename ${_IMAGE_URL})
+local image="${_FILEDIR}/${image_name}"
+local extracted_image="${_FILEDIR}/extracted.img"
 
-if [ -e "$EXTRACTEDIMAGE" ]; then
-    echo_info "$EXTRACTEDIMAGE found, skipping extract"
+if [ -e "$extracted_image" ]; then
+    echo_info "$extracted_image found, skipping extract"
 else
     echo_info "Starting extract at $(date)"
-    case ${IMAGE} in
+    case ${image} in
         *.xz)
             echo_info "Extracting with xz"
-            trap "rm -f $EXTRACTEDIMAGE; exit 1" ERR SIGINT
-            xz --decompress --stdout ${IMAGE} > "$EXTRACTEDIMAGE"
+            trap "rm -f $extracted_image; exit 1" ERR SIGINT
+            pv ${image} | xz --decompress --stdout > "$extracted_image" 
             trap - ERR SIGINT 
             ;;
         *.zip)
             echo_info "Extracting with unzip"
-            unzip -p $IMAGE > "$EXTRACTEDIMAGE"
+            unzip -p $image > "$extracted_image"
             ;;
         *)
             echo_error "Unknown extension type on image: $IMAGE"
@@ -47,7 +47,7 @@ fi
 
 trap "rollback" ERR SIGINT
 echo_debug "Mounting loopback";
-loopdev=$(losetup -P -f --show "$EXTRACTEDIMAGE");
+loopdev=$(losetup -P -f --show "$extracted_image");
 partprobe ${loopdev};
 mkdir "${_BUILDDIR}/mount"
 mkdir "${_BUILDDIR}/boot"
@@ -72,4 +72,4 @@ rsync \
 --progress \
 --info=progress2 "${_BUILDDIR}/mount/"* "${_CHROOT_ROOT}"
 trap - ERR SIGINT
-unmountgracefully
+unmount_gracefully
