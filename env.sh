@@ -5,24 +5,24 @@ set -u
 export _USER_HOME=$(eval echo ~${SUDO_USER})
 export _DNS1='1.1.1.1'
 export _DNS2='8.8.8.8'
-export _CPU_GOVERNOR='performance' #can be 'ondemand' to be less power hungry
-export _WIFI_SSID='SKYNET'
-export _WIFI_PASS='JOHNCONNOR'
+export _CPU_GOVERNOR='ondemand' #can be 'performance'
+export _WIFI_SSID='WIFI'
+export _WIFI_PASS='CHANGEME'
 export _WIFI_INTERFACE='wlan0'
 export _INITRAMFS_WIFI_IP=":::::${_WIFI_INTERFACE}:dhcp:${_DNS1}:${_DNS2}"
 export _INITRAMFS_WIFI_DRIVERS='brcmfmac43455 brcmfmac brcmutil cfg80211 rfkill'
-export _ROOTPASSWD=''
+export _ROOTPASSWD='CHANGEME'
 export _LUKSNUKEPASSWD='BOOM'
 export _IODINE_DOMAIN=
 export _IODINE_PASSWORD=
-export _OPENVPN_CONFIG_ZIP="openvpn.zip"
+export _OPENVPN_CONFIG_ZIP=
 export _KERNEL_VERSION_FILTER="l+"
 export _HOSTNAME="kali"
 export _BLKDEV="/dev/sda"
 export _FILESYSTEM_TYPE="btrfs"
 export _LUKSCIPHER="aes-xts-plain64 --key-size 512 --use-random --hash sha512 --pbkdf argon2i --iter-time 5000"
 export _PKGS_TO_PURGE=""
-export _PKGS_TO_INSTALL="" #tree htop ufw timeshift"
+export _PKGS_TO_INSTALL="tree htop ufw timeshift"
 export _LUKSPASSWD="CHANGEME"
 export _IMAGESHA="c6ceee472eb4dabf4ea895ef53c7bd28751feb44d46ce2fa3f51eb5469164c2c"
 export _IMAGEURL="https://images.kali.org/arm-images/kali-linux-2020.4-rpi4-nexmon-64.img.xz"
@@ -48,7 +48,3 @@ stage1extra(){
     #myhooks 0000-optional-sys-vpnclient.sh
     #myhooks 0000-optional-sys-wifi.sh
 }
-
-# Optional, makes the copys/rsyncs less choppy on slow systems.
-echo $((16*1024*1024)) > /proc/sys/vm/dirty_background_bytes
-echo $((48*1024*1024)) > /proc/sys/vm/dirty_bytes
