@@ -4,7 +4,7 @@ set -u
 
 echo_debug "Setting OpenVPN up "
 _OPENVPN_CONFIG_ZIPFILE=${_OPENVPN_CONFIG_ZIP}
-_OPENVPN_CONFIG_ZIPPATH="${_FILEDIR}/${_OPENVPN_CONFIG_ZIPFILE}"
+_OPENVPN_CONFIG_ZIPPATH="${_FILE_DIR}/${_OPENVPN_CONFIG_ZIPFILE}"
 
 echo_debug "Assuring openvpn installation and config dir"
 chroot_package_install openvpn

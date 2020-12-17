@@ -28,18 +28,18 @@ echo "initramfs initramfs.gz followkernel" >> ${_CHROOT_ROOT}/boot/config.txt
 echo_debug "Making the cryptsetup settings "
 
 # Update /boot/cmdline.txt to boot crypt
-sed -i "s|root=/dev/mmcblk0p2|root=/dev/mapper/${_ENCRYPTED_VOLUME_NAME} cryptdevice=/dev/mmcblk0p2:${_ENCRYPTED_VOLUME_NAME}|g" ${_CHROOT_ROOT}/boot/cmdline.txt
+sed -i "s|root=/dev/mmcblk0p2|root=${_ENCRYPTED_VOLUME_PATH} cryptdevice=/dev/mmcblk0p2:${_ENCRYPTED_VOLUME_PATH}|g" ${_CHROOT_ROOT}/boot/cmdline.txt
 sed -i "s|rootfstype=ext3|rootfstype=${FS}|g" ${_CHROOT_ROOT}/boot/cmdline.txt
 
 # Enable cryptsetup when building initramfs
 echo "CRYPTSETUP=y" >> ${_CHROOT_ROOT}/etc/cryptsetup-initramfs/conf-hook
 
 # Update /etc/fstab
-sed -i "s|/dev/mmcblk0p2|/dev/mapper/${_ENCRYPTED_VOLUME_NAME}|g" ${_CHROOT_ROOT}/etc/fstab
+sed -i "s|/dev/mmcblk0p2|${_ENCRYPTED_VOLUME_PATH}|g" ${_CHROOT_ROOT}/etc/fstab
 sed -i "s#ext3#${FS}#g" ${_CHROOT_ROOT}/etc/fstab
 
 # Update /etc/crypttab
-echo "${_ENCRYPTED_VOLUME_NAME}    /dev/mmcblk0p2    none    luks" > ${_CHROOT_ROOT}/etc/crypttab
+echo "${_ENCRYPTED_VOLUME_PATH}    /dev/mmcblk0p2    none    luks" > ${_CHROOT_ROOT}/etc/crypttab
 
 # Create a hook to include our crypttab in the initramfs
 cat << EOF > ${_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-cryptsetup
@@ -78,7 +78,7 @@ export PATH='/sbin:/bin/:/usr/sbin:/usr/bin'
 
 while true
 do
-    test -e /dev/mapper/${_ENCRYPTED_VOLUME_NAME} && break || cryptsetup luksOpen /dev/mmcblk0p2
+    test -e ${_ENCRYPTED_VOLUME_PATH} && break || cryptsetup luksOpen /dev/mmcblk0p2
 done
 
 /scripts/local-top/cryptroot
