@@ -56,24 +56,9 @@ extract_image() {
     mount ${loopdev}p2 ${_BUILD_DIR}/mount
     mount ${loopdev}p1 ${_BUILD_DIR}/boot
     echo_info "Starting copy of boot to ${_CHROOT_ROOT}/boot at $(date)"
-    rsync \
-        --hard-links \
-        --archive \
-        --verbose \
-        --partial \
-        --progress \
-        --quiet \
-        --info=progress2 "${_BUILD_DIR}/boot" "${_CHROOT_ROOT}/"
-
+    rsync_local "${_BUILD_DIR}/boot" "${_CHROOT_ROOT}/"
     echo_info "Starting copy of mount to ${_CHROOT_ROOT} at $(date)"
-    rsync \
-        --hard-links \
-        --archive \
-        --verbose \
-        --partial \
-        --progress \
-        --quiet \
-        --info=progress2 "${_BUILD_DIR}/mount/"* "${_CHROOT_ROOT}"
+    rsync_local "${_BUILD_DIR}/mount/"* "${_CHROOT_ROOT}"
     trap - ERR SIGINT
     unmount_gracefully
 }
