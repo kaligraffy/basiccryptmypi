@@ -99,16 +99,13 @@ prepare_image(){
 # Encrypt & Write SD
 write_to_disk(){
     echo_info "$FUNCNAME started at $(date) "
-    # TODO(kaligraffy) - don't like this here.
-    # Changes _CHROOT_ROOT from build/root to /mnt/cryptmypi for stage 2
-    export _CHROOT_ROOT=/mnt/cryptmypi
     local continue
     echo_warn "CHECK DISK IS CORRECT"
     echo_info "$(lsblk)"
     echo_info ""
     read -p "Type 'YES' if the selected device is correct:  ${_OUTPUT_BLOCK_DEVICE}" continue
     if [ "${continue}" = 'YES' ] ; then
-        call_hooks stage2
+        . stage2.sh
     fi
 }
 
@@ -229,9 +226,38 @@ chroot_mkinitramfs(){
     test -L "/dev/mmcblk0p2" && unlink "/dev/mmcblk0p2";
 }
 
+#calls mkfs for a given filesystem
+# arguments: a filesystem type, e.g. btrfs, ext4 and a device
+make_filesystem(){
+    local fs_type=$1
+    local device=$2
+    case $fs_type in
+      "vfat") mkfs.vfat $device; echo_debug "created vfat partition on ${2}";;
+      "ext4") mkfs.ext4 $device; echo_debug "created ext4 partition on ${2}";;
+      "btrfs") mkfs.btrfs $device; echo_debug "created btrfs partition on ${2}";;
+      *) exit 1;;
+    esac
+}
+
+#rsync for local copy
+#arguments $1 - to $2 - from
+rsync_local(){
+    echo_info "Starting copy of $1 to $2 at $(date)"
+    rsync \
+        --hard-links \
+        --archive \
+        --verbose \
+        --partial \
+        --progress \
+        --quiet \
+        --info=progress2 "${1}" "${2}"
+    echo_info "Finished copy of $1 to $2 at $(date)"
+    sync;
+}
+
 # EXIT trap
 trap_on_exit() {
-    cleanup ;
+    cleanup;
     echo_error "something went wrong. bye.";
 }
 trap "trap_on_exit" EXIT;

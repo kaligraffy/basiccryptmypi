@@ -3,8 +3,8 @@ set -e
 set -u
 
 # Check if btrfs is the file system, if so install required packages
-FS=$_FILESYSTEM_TYPE
-if [ $FS = "btrfs" ]; then
+fs_type=$_FILESYSTEM_TYPE
+if [ $fs_type = "btrfs" ]; then
     echo_debug "- Setting up btrfs-progs on build machine"
     apt-get -qq install btrfs-progs
     echo_debug "- Setting up btrfs-progs in chroot"
@@ -36,7 +36,7 @@ echo "CRYPTSETUP=y" >> ${_CHROOT_ROOT}/etc/cryptsetup-initramfs/conf-hook
 
 # Update /etc/fstab
 sed -i "s|/dev/mmcblk0p2|${_ENCRYPTED_VOLUME_PATH}|g" ${_CHROOT_ROOT}/etc/fstab
-sed -i "s#ext3#${FS}#g" ${_CHROOT_ROOT}/etc/fstab
+sed -i "s#ext3#${fs_type}#g" ${_CHROOT_ROOT}/etc/fstab
 
 # Update /etc/crypttab
 echo "${_ENCRYPTED_VOLUME_PATH}    /dev/mmcblk0p2    none    luks" > ${_CHROOT_ROOT}/etc/crypttab
