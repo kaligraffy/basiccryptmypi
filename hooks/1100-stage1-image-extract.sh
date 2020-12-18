@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+set -u
 
 unmount_gracefully() {
     umount  "${_BUILD_DIR}/mount" || true
@@ -45,7 +46,9 @@ extract_image() {
         esac
         echo_info "Finished extract at $(date)"
     fi
+}
 
+copy_image(){
     trap "rollback" ERR SIGINT
     echo_debug "Mounting loopback";
     loopdev=$(losetup -P -f --show "$extracted_image");
@@ -62,4 +65,6 @@ extract_image() {
     trap - ERR SIGINT
     unmount_gracefully
 }
+
 extract_image
+copy_image
