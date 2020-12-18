@@ -3,17 +3,17 @@ set -e
 set -u
 fs_type=$_FILESYSTEM_TYPE
 
-# TODO(kaligraffy) - sort /mnt/cryptmypi issue with dupe code
+# TODO(kaligraffy) - variable duplication, needs sorting ideally
 export _CHROOT_ROOT=/mnt/cryptmypi
     
 echo_debug "Attempt to unmount just to be safe "
 umount ${_OUTPUT_BLOCK_DEVICE}* || true
-umount /mnt/cryptmypi || {
-    umount -l /mnt/cryptmypi || true
+umount ${_CHROOT_ROOT} || {
+    umount -l ${_CHROOT_ROOT} || true
     umount -f ${_ENCRYPTED_VOLUME_PATH} || true
 }
 
-[ -d /mnt/cryptmypi ] && rm -r /mnt/cryptmypi || true
+[ -d ${_CHROOT_ROOT} ] && rm -r ${_CHROOT_ROOT} || true
 cryptsetup luksClose ${_ENCRYPTED_VOLUME_PATH} || true
 echo_debug "Partitioning SD Card"
 parted ${_OUTPUT_BLOCK_DEVICE} --script -- mklabel msdos
@@ -34,15 +34,15 @@ make_filesystem "vfat" "${_BLOCK_DEVICE_BOOT}"
 make_filesystem "${fs_type}" "${_ENCRYPTED_VOLUME_PATH}"
 
 # Mount LUKS
-echo_debug "Mounting ${_ENCRYPTED_VOLUME_PATH} to /mnt/cryptmypi"
-mkdir /mnt/cryptmypi
-mount ${_ENCRYPTED_VOLUME_PATH} /mnt/cryptmypi && echo_debug "- Mounted ${_ENCRYPTED_VOLUME_PATH} to /mnt/cryptmypi"
+echo_debug "Mounting ${_ENCRYPTED_VOLUME_PATH} to ${_CHROOT_ROOT}"
+mkdir ${_CHROOT_ROOT}
+mount ${_ENCRYPTED_VOLUME_PATH} ${_CHROOT_ROOT} && echo_debug "- Mounted ${_ENCRYPTED_VOLUME_PATH} to ${_CHROOT_ROOT}"
 
 # Mount boot partition
-echo_debug "Attempting to mount ${_BLOCK_DEVICE_BOOT} to /mnt/cryptmypi/boot "
-mkdir /mnt/cryptmypi/boot
+echo_debug "Attempting to mount ${_BLOCK_DEVICE_BOOT} to ${_CHROOT_ROOT}/boot "
+mkdir ${_CHROOT_ROOT}/boot
 
-mount ${_BLOCK_DEVICE_BOOT} /mnt/cryptmypi/boot && echo_debug "- Mounted ${_BLOCK_DEVICE_BOOT} to /mnt/cryptmypi/boot"
+mount ${_BLOCK_DEVICE_BOOT} ${_CHROOT_ROOT}/boot && echo_debug "- Mounted ${_BLOCK_DEVICE_BOOT} to ${_CHROOT_ROOT}/boot"
 
 # Attempt to copy files from build to mounted device
 rsync_local "${_BUILD_DIR}/mount" "${_CHROOT_ROOT}"
@@ -56,5 +56,5 @@ unmount_block_device ${_BLOCK_DEVICE_ROOT} || true
 cryptsetup -v luksClose "${_ENCRYPTED_VOLUME_PATH}" | echo_debug "Closing LUKS ${_BLOCK_DEVICE_ROOT}"
 
 # Clean up
-rm -r /mnt/cryptmypi
+rm -r ${_CHROOT_ROOT}
 sync

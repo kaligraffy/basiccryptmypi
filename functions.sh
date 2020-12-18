@@ -1,5 +1,6 @@
 #!/bin/bash
 # shellcheck disable=SC2034
+# shellcheck disable=SC2145
 # Hold all configuration
 set -e
 set -u
@@ -30,15 +31,15 @@ echo_debug(){
 cleanup(){
     chroot_umount || true
     umount ${_OUTPUT_BLOCK_DEVICE}* || true
-    umount -l /mnt/cryptmypi || true
+    umount -l ${_CHROOT_ROOT} || true
     umount -f ${_ENCRYPTED_VOLUME_PATH} || true
-    [ -d /mnt/cryptmypi ] && rm -r /mnt/cryptmypi || true
-    cryptsetup luksClose $_ENCRYPTED_VOLUME_NAME || true
+    [ -d ${_CHROOT_ROOT} ] && rm -r ${_CHROOT_ROOT} || true
+    cryptsetup luksClose $_ENCRYPTED_VOLUME_PATH || true
 }
 
 call_hooks(){
     local hookop="${1}"
-    for hook in ${_BASEDIR}/hooks/????-${hookop}*
+    for hook in "${_BASEDIR}/hooks/????-${hookop}*"
     do
         if [ -e ${hook} ]; then
             echo_info "- calling $(basename ${hook}) "
@@ -232,9 +233,9 @@ make_filesystem(){
     local fs_type=$1
     local device=$2
     case $fs_type in
-      "vfat") mkfs.vfat $device; echo_debug "created vfat partition on ${2}";;
-      "ext4") mkfs.ext4 $device; echo_debug "created ext4 partition on ${2}";;
-      "btrfs") mkfs.btrfs $device; echo_debug "created btrfs partition on ${2}";;
+      "vfat") mkfs.vfat $device; echo_debug "created vfat partition on $device";;
+      "ext4") mkfs.ext4 $device; echo_debug "created ext4 partition on $device";;
+      "btrfs") mkfs.btrfs $device; echo_debug "created btrfs partition on $device";;
       *) exit 1;;
     esac
 }

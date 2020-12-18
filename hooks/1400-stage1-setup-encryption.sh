@@ -3,8 +3,8 @@ set -e
 set -u
 
 # Check if btrfs is the file system, if so install required packages
-fs_type=$_FILESYSTEM_TYPE
-if [ $fs_type = "btrfs" ]; then
+fs_type="$_FILESYSTEM_TYPE"
+if [ "$fs_type" = "btrfs" ]; then
     echo_debug "- Setting up btrfs-progs on build machine"
     apt-get -qq install btrfs-progs
     echo_debug "- Setting up btrfs-progs in chroot"

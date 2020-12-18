@@ -8,8 +8,8 @@ set -e
 #    http://retinal.dehy.de/docs/doku.php?id=technotes:raspberryrootnfs
 
 echo_debug "Attempting to set initramfs WIFI up "
-if [ -z "$_WIFI_SSID" ] || [ -z "$_WIFI_PASS" ]; then
-    echo_warn 'SKIPPING: _WIFI_PASSWORD and/or _WIFI_SSID are not set.'
+if [ -z "$_WIFI_SSID" ] || [ -z "$_WIFI_PASSWORD" ]; then
+    echo_warn 'SKIPPING: _WIFI_PASSWORDWORD and/or _WIFI_SSID are not set.'
     exit 1
 fi
 
@@ -38,8 +38,8 @@ fi
 sed -i "s#rootwait#ip=${_INITRAMFS_WIFI_IP} rootwait#g" ${_CHROOT_ROOT}/boot/cmdline.txt
 
 
-echo_debug "Generating PSK for '${_WIFI_SSID}' '${_WIFI_PASS}'"
-_WIFI_PSK=$(wpa_passphrase "${_WIFI_SSID}" "${_WIFI_PASS}" | grep "psk=" | grep -v "#psk")
+echo_debug "Generating PSK for '${_WIFI_SSID}' '${_WIFI_PASSWORD}'"
+_WIFI_PSK=$(wpa_passphrase "${_WIFI_SSID}" "${_WIFI_PASSWORD}" | grep "psk=" | grep -v "#psk")
 
 
 echo_debug "Creating hook to include firmware files for brcmfmac"

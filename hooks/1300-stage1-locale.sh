@@ -1,6 +1,7 @@
 #!/bin/bash
 set -e
 
+setup_locales(){
 echo_debug "Configuring system locale"
 
 echo_debug "Uncommenting locale "${_LOCALE}" for inclusion in generation"
@@ -32,3 +33,5 @@ export LC_ALL="${_LOCALE}"
 export LANG="${_LOCALE}"
 export LANGUAGE="${_LOCALE}"
 EOF
+}
+setup_locales

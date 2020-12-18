@@ -9,8 +9,8 @@ if [ -z "${_WIFI_INTERFACE}" ]; then
     echo_warn "_WIFI_INTERFACE is not set on config: Setting default value ${_WIFI_INTERFACE}"
 fi
 
-echo_debug "Generating PSK for '${_WIFI_SSID}' '${_WIFI_PASS}'"
-_WIFI_PSK=$(wpa_passphrase "${_WIFI_SSID}" "${_WIFI_PASS}" | grep "psk=" | grep -v "#psk")
+echo_debug "Generating PSK for '${_WIFI_SSID}' '${_WIFI_PASSWORD}'"
+_WIFI_PSK=$(wpa_passphrase "${_WIFI_SSID}" "${_WIFI_PASSWORD}" | grep "psk=" | grep -v "#psk")
 
 echo_debug "Creating wpa_supplicant file"
 cat <<EOT > ${_CHROOT_ROOT}/etc/wpa_supplicant.conf

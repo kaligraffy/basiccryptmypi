@@ -44,18 +44,11 @@ export _SSH_BLOCK_SIZE='4096'
 export _SSH_KEY_PASSPHRASE="CHANGEME"
 ###############################################
 export _WIFI_SSID='WIFI'
-export _WIFI_PASS='CHANGEME'
+export _WIFI_PASSWORD='CHANGEME'
 export _WIFI_INTERFACE='wlan0'
 ###############################################
 export _INITRAMFS_WIFI_IP=":::::${_WIFI_INTERFACE}:dhcp:${_DNS1}:${_DNS2}"
 export _INITRAMFS_WIFI_DRIVERS='brcmfmac43455 brcmfmac brcmutil cfg80211 rfkill'
-###############################################
-export _BUILD_DIR=${_BASEDIR}/build
-export _FILE_DIR=${_BASEDIR}/build
-export _CHROOT_ROOT=${_BUILD_DIR}/root
-#0 = debug messages and normal, 1 normal only
-export _LOG_LEVEL=0
-export _ENCRYPTED_VOLUME_PATH="/dev/mapper/crypt-1"
 ###############################################
 #Optional and experimental hooks
 prepare_image_extra(){
@@ -72,4 +65,9 @@ prepare_image_extra(){
     #call_hooks 0000-optional-sys-wifi.sh
 }
 
-
+#Leave alone
+export _BUILD_DIR=${_BASEDIR}/build
+export _FILE_DIR=${_BASEDIR}/build
+export _CHROOT_ROOT=${_BUILD_DIR}/root
+export _ENCRYPTED_VOLUME_PATH="/dev/mapper/crypt-1"
+###############################################

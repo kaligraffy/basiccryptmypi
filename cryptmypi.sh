@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+set -u
 # Create a configurable kali pi build
 
 # Load functions and environment variables and dependencies
