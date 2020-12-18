@@ -18,7 +18,7 @@ export _HOSTNAME="kali"
 export _KERNEL_VERSION_FILTER="l+"
 export _LOCALE='en_US.UTF-8'
 ###############################################
-export _OUTPUT_BLOCK_DEVICE="/dev/sdX"
+export _OUTPUT_BLOCK_DEVICE="/dev/sda"
 export _FILESYSTEM_TYPE="btrfs" #can also be ext4
 ###############################################
 #0 = debug messages and normal, 1 normal only
