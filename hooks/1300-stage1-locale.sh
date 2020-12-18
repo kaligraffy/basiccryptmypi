@@ -22,7 +22,7 @@ export LANG="${_LOCALE}"
 export LANGUAGE="${_LOCALE}"
 EOF
 
-echo_debug "(Re)Generating locale"
+echo_debug "Generating locale"
 chroot_execute locale-gen
 
 echo_debug "Updating .bashrc"

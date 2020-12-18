@@ -91,12 +91,82 @@ prepare_image(){
         fi
     fi
     mkdir -p "${_BUILD_DIR}"
-    call_hooks stage1
+    
+    prepare_image_standard
     prepare_image_extra
     chroot_mkinitramfs
     chroot_umount || true
 }
 
+#run the standard commands for preparing the image
+prepare_image_standard(){
+    download_image
+    extract_image
+    copy_image
+}
+unmount_gracefully() {
+    umount  "${_BUILD_DIR}/mount" || true
+    umount  "${_BUILD_DIR}/boot" || true
+    losetup -d "${loopdev}p1" || true
+    losetup -d "${loopdev}p2" || true
+    losetup -D || true
+    rm -rf ${_BUILD_DIR}/mount || true
+    rm -rf ${_BUILD_DIR}/boot || true
+}
+
+rollback()
+{
+    echo_error "Rolling back!"
+    rm -rf "${_CHROOT_ROOT}" || true;
+    unmount_gracefully
+}
+
+extract_image() {
+    local image_name=$(basename ${_IMAGE_URL})
+    local image="${_FILE_DIR}/${image_name}"
+    local extracted_image="${_FILE_DIR}/extracted.img"
+
+    if [ -e "$extracted_image" ]; then
+        echo_info "$extracted_image found, skipping extract"
+    else
+        echo_info "Starting extract at $(date)"
+        case ${image} in
+            *.xz)
+                echo_info "Extracting with xz"
+                trap "rm -f $extracted_image; exit 1" ERR SIGINT
+                pv ${image} | xz --decompress --stdout > "$extracted_image"
+                trap - ERR SIGINT
+                ;;
+            *.zip)
+                echo_info "Extracting with unzip"
+                unzip -p $image > "$extracted_image"
+                ;;
+            *)
+                echo_error "Unknown extension type on image: $IMAGE"
+                exit 1
+                ;;
+        esac
+        echo_info "Finished extract at $(date)"
+    fi
+}
+
+copy_image(){
+    trap "rollback" ERR SIGINT
+    echo_debug "Mounting loopback";
+    loopdev=$(losetup -P -f --show "$extracted_image");
+    partprobe ${loopdev};
+    mkdir "${_BUILD_DIR}/mount"
+    mkdir "${_BUILD_DIR}/boot"
+    mkdir "${_CHROOT_ROOT}"
+    mount ${loopdev}p2 ${_BUILD_DIR}/mount
+    mount ${loopdev}p1 ${_BUILD_DIR}/boot
+    echo_info "Starting copy of boot to ${_CHROOT_ROOT}/boot at $(date)"
+    rsync_local "${_BUILD_DIR}/boot" "${_CHROOT_ROOT}/"
+    echo_info "Starting copy of mount to ${_CHROOT_ROOT} at $(date)"
+    rsync_local "${_BUILD_DIR}/mount/"* "${_CHROOT_ROOT}"
+    trap - ERR SIGINT
+    unmount_gracefully
+}
 # Encrypt & Write SD
 write_to_disk(){
     echo_info "$FUNCNAME started at $(date) "
@@ -256,6 +326,17 @@ rsync_local(){
     sync;
 }
 
+download_image(){
+    local image_name=$(basename ${_IMAGE_URL})
+    mkdir -p "${_FILE_DIR}"
+    local image_out_file=${_FILE_DIR}/${image_name}
+    echo_info "Starting download at $(date)"
+    wget -nc "${_IMAGE_URL}" -O "${image_out_file}" || true
+    echo_info "Completed download at $(date)"
+    echo_info "Checking image checksum"
+    echo ${_IMAGE_SHA256}  $image_out_file | sha256sum --check --status
+    echo_info "- valid"
+}
 # EXIT trap
 trap_on_exit() {
     cleanup;
