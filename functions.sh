@@ -38,7 +38,8 @@ cleanup(){
 
 call_hooks(){
     local hookop="${1}"
-    for hook in "${_BASEDIR}/hooks/????-${hookop}*"
+    # shellcheck disable=SC2004
+    for hook in ${_BASEDIR}/hooks/????-${hookop}*
     do
         if [ -e ${hook} ]; then
             echo_info "- calling $(basename ${hook}) "
@@ -77,6 +78,7 @@ fix_block_device_names(){
 
 # Image Preparation
 prepare_image(){
+    # shellcheck disable=SC2128
     echo_info "$FUNCNAME started at $(date)";
     if [  -d ${_BUILD_DIR} ]; then
         echo_warn "Build directory already exists: ${_BUILD_DIR}";

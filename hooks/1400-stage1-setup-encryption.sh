@@ -68,7 +68,7 @@ setup_encryption(){
     cat /etc/crypttab >> \${DESTDIR}/etc/crypttab
     cat /etc/fstab >> \${DESTDIR}/etc/fstab
     copy_file config /etc/initramfs-tools/unlock.sh /etc/unlock.sh
-    EOF
+EOF
     chmod 755 ${_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-cryptsetup
 
     # Unlock Script
@@ -88,7 +88,7 @@ setup_encryption(){
     for i in \$(ps aux | grep 'ask-for-password' | grep -v 'grep' | awk '{print \$1}'); do kill -9 \$i; done
     for i in \$(ps aux | grep '\\-sh' | grep -v 'grep' | awk '{print \$1}'); do kill -9 \$i; done
     exit 0
-    EOF
+EOF
     chmod +x "${_CHROOT_ROOT}/etc/initramfs-tools/unlock.sh"
 
     # Adding dm_mod to initramfs modules
