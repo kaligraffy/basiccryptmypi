@@ -26,17 +26,17 @@ This includes:
 
 Extra functions (Uncomment in .env file)
 
-0000-experimental-boot-hash.sh - a small script which checks the hash of your boot directory on startup and mails the kali user if it changes
-0000-optional-initramfs-luksnuke.sh - nuke the luks key given a specific character on startup
-0000-optional-sys-cpu-governor.sh - sets the cpu governor to ondemand or performance (useful if you want to run off a battery)
-0000-optional-sys-dns.sh - sets dns as per env
-0000-optional-sys-rootpassword.sh - sets root password
-0000-experimental-initramfs-wifi.sh - TESTING IN PROGRESS, WIFI ON STARTUP TO ENABLE HEADLESS MODE
-0000-experimental-sys-iodine.sh - UNTESTED
-0000-experimental-initramfs-iodine.sh - UNTESTED
-0000-optional-sys-docker.sh - UNTESTED
-0000-optional-sys-vpnclient.sh - UNTESTED
-0000-optional-sys-wifi.sh - UNTESTED
+- 0000-experimental-boot-hash.sh - a small script which checks the hash of your boot directory on startup and mails the kali user if it changes
+- 0000-optional-initramfs-luksnuke.sh - nuke the luks key given a specific character on startup
+- 0000-optional-sys-cpu-governor.sh - sets the cpu governor to ondemand or performance (useful if you want to run off a battery)
+- 0000-optional-sys-dns.sh - sets dns as per env
+- 0000-optional-sys-rootpassword.sh - sets root password
+- 0000-experimental-initramfs-wifi.sh - TESTING IN PROGRESS, WIFI ON STARTUP TO ENABLE HEADLESS MODE
+- 0000-experimental-sys-iodine.sh - UNTESTED
+- 0000-experimental-initramfs-iodine.sh - UNTESTED
+- 0000-optional-sys-docker.sh - UNTESTED
+- 0000-optional-sys-vpnclient.sh - UNTESTED
+- 0000-optional-sys-wifi.sh - UNTESTED
 
 TESTING
 
