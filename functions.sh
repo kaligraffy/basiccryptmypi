@@ -18,6 +18,21 @@ export _WRITE_TO_DISK_STARTED=0;
 export _LOG_FILE_PATH=${_BUILD_DIR}
 export _LOG_FILE="build-$(date '+%Y-%m-%d-%H:%M:%S').log"
 
+# Runs on script exit, tidies up the mounts.
+trap_on_err() {
+  echo_error "Error on line $1";
+  exit 1;
+}
+trap 'trap_on_err $LINENO' ERR;
+# Runs on script exit, tidies up the mounts.
+
+trap_on_exit() {
+  if (( $_IMAGE_PREPARATION_STARTED > 0 )); then cleanup_image_prep; fi
+  if (( $_WRITE_TO_DISK_STARTED > 0 )); then cleanup_write_disk; fi
+  echo_info "stopping $(basename $0) at $(date)";
+}
+trap "trap_on_exit" EXIT;
+
 # Check preconditions
 check_preconditions(){
     echo_info "$FUNCNAME started at $(date)"
