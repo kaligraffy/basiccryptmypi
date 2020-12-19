@@ -1,36 +1,37 @@
 #!/bin/bash
 set -eu
 
+encryption_setup(){
+  echo_info "$FUNCNAME[0] started at $(date) ";
+  
+  # Check if btrfs is the file system, if so install required packages
+  fs_type="${_FILESYSTEM_TYPE}"
+  if [ "$fs_type" = "btrfs" ]; then
+      echo_debug "- Setting up btrfs-progs on build machine"
+      apt-get -qq install btrfs-progs
+      echo_debug "- Setting up btrfs-progs in chroot"
+      chroot_package_install "${_CHROOT_ROOT}" btrfs-progs
+      echo_debug "- Adding btrfs module to initramfs-tools/modules"
+      echo 'btrfs' >> ${_CHROOT_ROOT}/etc/initramfs-tools/modules
+  fi
 
-setup_encryption(){
-    # Check if btrfs is the file system, if so install required packages
-    fs_type="$_FILESYSTEM_TYPE"
-    if [ "$fs_type" = "btrfs" ]; then
-        echo_debug "- Setting up btrfs-progs on build machine"
-        apt-get -qq install btrfs-progs
-        echo_debug "- Setting up btrfs-progs in chroot"
-        chroot_package_install "${_CHROOT_ROOT}" btrfs-progs
-        echo_debug "- Adding btrfs module to initramfs-tools/modules"
-        echo 'btrfs' >> ${_CHROOT_ROOT}/etc/initramfs-tools/modules
-    fi
+  # Setup qemu emulator for aarch64
+  echo_debug "- Copying qemu emulator to chroot "
+  cp /usr/bin/qemu-aarch64-static ${_CHROOT_ROOT}/usr/bin/
+  chroot_package_install "${_CHROOT_ROOT}" cryptsetup busybox
 
-    # Setup qemu emulator for aarch64
-    echo_debug "- Copying qemu emulator to chroot "
-    cp /usr/bin/qemu-aarch64-static ${_CHROOT_ROOT}/usr/bin/
-    chroot_package_install "${_CHROOT_ROOT}" cryptsetup busybox
+  # Creating symbolic link to e2fsck
+  chroot ${_CHROOT_ROOT} /bin/bash -c "test -L /sbin/fsck.luks || ln -s /sbin/e2fsck /sbin/fsck.luks"
 
-    # Creating symbolic link to e2fsck
-    chroot ${_CHROOT_ROOT} /bin/bash -c "test -L /sbin/fsck.luks || ln -s /sbin/e2fsck /sbin/fsck.luks"
+  # Indicate kernel to use initramfs (facilitates loading drivers)
+  echo "initramfs initramfs.gz followkernel" >> ${_CHROOT_ROOT}/boot/config.txt
 
-    # Indicate kernel to use initramfs (facilitates loading drivers)
-    echo "initramfs initramfs.gz followkernel" >> ${_CHROOT_ROOT}/boot/config.txt
+  # Begin cryptsetup
+  echo_debug "Making the cryptsetup settings "
 
-    # Begin cryptsetup
-    echo_debug "Making the cryptsetup settings "
-
-    # Update /boot/cmdline.txt to boot crypt
-    sed -i "s|root=/dev/mmcblk0p2|root=${_ENCRYPTED_VOLUME_PATH} cryptdevice=/dev/mmcblk0p2:${_ENCRYPTED_VOLUME_PATH}|g" ${_CHROOT_ROOT}/boot/cmdline.txt
-    sed -i "s|rootfstype=ext3|rootfstype=${FS}|g" ${_CHROOT_ROOT}/boot/cmdline.txt
+  # Update /boot/cmdline.txt to boot crypt
+  sed -i "s|root=/dev/mmcblk0p2|root=${_ENCRYPTED_VOLUME_PATH} cryptdevice=/dev/mmcblk0p2:${_ENCRYPTED_VOLUME_PATH}|g" ${_CHROOT_ROOT}/boot/cmdline.txt
+    sed -i "s|rootfstype=ext3|rootfstype=${fs_type}|g" ${_CHROOT_ROOT}/boot/cmdline.txt
 
     # Enable cryptsetup when building initramfs
     echo "CRYPTSETUP=y" >> ${_CHROOT_ROOT}/etc/cryptsetup-initramfs/conf-hook
@@ -95,6 +96,6 @@ EOF
     echo 'dm_crypt' >> ${_CHROOT_ROOT}/etc/initramfs-tools/modules
 
     # Disable autoresize
-    chroot_execute systemctl disable rpiwiggle
+    chroot_execute "${_CHROOT_ROOT}" systemctl disable rpiwiggle
 }
-setup_encryption
+encryption_setup

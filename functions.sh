@@ -13,17 +13,16 @@ export _COLOR_WARN='\033[1;33m' #orange
 export _COLOR_INFO='\033[0;35m' #purple
 export _COLOR_DEBUG='\033[0;37m' #grey
 export _COLOR_NORMAL='\033[0m' # No Color
-export _IMAGE_PREPARATION_STARTED=false;
-export _WRITE_TO_DISK_STARTED=false;
+export _IMAGE_PREPARATION_STARTED=0;
+export _WRITE_TO_DISK_STARTED=0;
 export _LOG_FILE_PATH=${_BUILD_DIR}
-export _LOG_FILE="${_BUILD_DIR}/build-$(date '+%Y-%m-%d-%H:%M:%S').log"
+export _LOG_FILE="build-$(date '+%Y-%m-%d-%H:%M:%S').log"
 
 # Check preconditions
 check_preconditions(){
     echo_info "$FUNCNAME[0] started at $(date)"
     # Precondition check for root powers
     check_root;
-    fix_block_device_names;
 } 
 
 check_build_dir_exists(){

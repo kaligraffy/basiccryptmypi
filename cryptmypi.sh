@@ -10,11 +10,13 @@ set -eu
 #Program logic
 execute()
 {
-    #Stage 1
+    #Setup
     check_preconditions;
     install_dependencies;
     check_build_dir_exists;
     create_build_directory_structure;
+    
+    #Stage 1 - Unpack and modify the image
     _IMAGE_PREPARATION_STARTED=1;
     download_image;
     extract_image;
@@ -24,7 +26,9 @@ execute()
     prepare_image_extras;
     chroot_mkinitramfs "${_CHROOT_ROOT}";
     chroot_umount "${_CHROOT_ROOT}" 
-    #Stage 2
+    
+    #Stage 2 - Write to physical disk
+    fix_block_device_names;
     _WRITE_TO_DISK_STARTED=1;
     setup_filesystem_and_copy_to_disk;
 }
