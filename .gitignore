@@ -3,8 +3,7 @@ build/
 *build*/
 
 # File caches
-files/images/
-files/cache/
+files
 
 # Keyfiles
 id_rsa
@@ -14,13 +13,9 @@ dropbear_*_key
 # IDE configuration files
 .vscode/
 *.code-workspace
+*.kate
 
-# Personal directories
-personal/
-
-# Other genral files
+# Other general files
 *.zip
-
-# Experimental hooks
-hooks/0000-experimental-driver-rtl8188eu.hook
-hooks/0000-experimental-initramfs-v2wifi.hook
+*.img
+*.xz
