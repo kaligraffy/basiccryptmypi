@@ -15,7 +15,7 @@ execute()
     install_dependencies;
     check_build_dir_exists;
     create_build_directory_structure;
-    _IMAGE_PREPARATION_STARTED=true
+    _IMAGE_PREPARATION_STARTED=1;
     download_image;
     extract_image;
     copy_extracted_image_to_chroot_dir;
@@ -25,7 +25,7 @@ execute()
     chroot_mkinitramfs "${_CHROOT_ROOT}";
     chroot_umount "${_CHROOT_ROOT}" 
     #Stage 2
-    _WRITE_TO_DISK_STARTED=true;
+    _WRITE_TO_DISK_STARTED=1;
     setup_filesystem_and_copy_to_disk;
 }
 
@@ -39,8 +39,8 @@ main(){
 # Runs on script exit, tidies up the mounts.
 trap "trap_on_exit" EXIT;
 trap_on_exit() {
-  if $_IMAGE_PREPARATION_STARTED; then cleanup_image_prep; fi
-  if $_WRITE_TO_DISK_STARTED; then cleanup_write_disk; fi
+  if (( $_IMAGE_PREPARATION_STARTED > 0 )); then cleanup_image_prep; fi
+  if (( $_WRITE_TO_DISK_STARTED > 0 )); then cleanup_write_disk; fi
   echo_error "something went wrong. bye.";
 }
 main;

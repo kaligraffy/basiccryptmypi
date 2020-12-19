@@ -189,7 +189,6 @@ extract_image() {
 copy_extracted_image_to_chroot_dir(){
   echo_debug "Mounting loopback";
   local extracted_image="${EXTRACTED_IMAGE}"
-  trap "rollback_copying_files_to_chroot" ERR SIGINT
     loopdev=$(losetup -P -f --show "$extracted_image");
     partprobe ${loopdev};
     mount ${loopdev}p2 ${_BUILD_DIR}/mount
@@ -204,12 +203,6 @@ copy_extracted_image_to_chroot_dir(){
       echo_error 'rsync has failed'
       exit;
     fi
-  trap - ERR SIGINT
-}
-rollback_copying_files_to_chroot()
-{
-  echo_error "Attempting to unmount"
-  #cleanup_image_prep
 }
 
 check_disk_is_correct(){
@@ -354,16 +347,9 @@ make_filesystem(){
 #rsync for local copy
 #arguments $1 - to $2 - from
 rsync_local(){
-  echo_info "Starting copy of $1 to $2 at $(date)"
-  rsync \
-    --hard-links \
-    --archive \
-    --verbose \
-    --partial \
-    --progress \
-    --quiet \
-    --info=progress2 "${1}" "${2}"
-  echo_info "Finished copy of $1 to $2 at $(date)"
+  echo_info "Starting copy of "${@}" at $(date)"
+  rsync --hard-links --archive --verbose --partial --progress --quiet --info=progress2 "${@}"
+  echo_info "Finished copy of "${@}" at $(date)"
   sync;
 }
 
