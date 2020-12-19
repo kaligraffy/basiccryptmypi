@@ -1,8 +1,8 @@
 #!/bin/bash
-set -e
+set -eu
 
 #install mail package
-chroot_package_install mailutils
+chroot_package_install "${_CHROOT_ROOT}" mailutils
 
 BOOTDRIVE="${_BLOCK_DEVICE_BOOT}"
 BOOTHASHSCRIPT="${_CHROOT_ROOT}/usr/local/bin/bootHash.sh"
@@ -31,7 +31,7 @@ sed -i "s|/dev/sdX|${BOOTDRIVE}|g" "$BOOTHASHSCRIPT"
 chmod 700 "$BOOTHASHSCRIPT"
 
 #crontab run on startup
-cat << 'EOF' > ${_CHROOT_ROOT}/etc/cron.d/startBootHash
+cat << 'EOF' > "${_CHROOT_ROOT}/etc/cron.d/startBootHash"
 @reboot root /bin/bash /usr/local/bin/bootHash.sh
 EOF
-chmod 755 ${_CHROOT_ROOT}/etc/cron.d/startBootHash
+chmod 755 "${_CHROOT_ROOT}/etc/cron.d/startBootHash"

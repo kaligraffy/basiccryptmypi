@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -eu
 
 echo_debug "Attempting to set system's DNS settings"
 
@@ -14,7 +14,7 @@ chmod o+r ${_CHROOT_ROOT}/etc/resolv.conf
 
 
 #echo_debug "Installing resolvconf"
-#chroot_package_install resolvconf
+#chroot_package_install "${_CHROOT_ROOT}" resolvconf
 #chroot_execute systemctl enable resolvconf.service
 #
 #

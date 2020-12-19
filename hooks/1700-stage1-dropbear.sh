@@ -1,6 +1,6 @@
 #!/bin/bash
-set -e
-set -u
+set -eu
+
 echo_debug "Installing dropbear"
 
 test -f "${_SSH_LOCAL_KEYFILE}" || {
@@ -9,7 +9,7 @@ test -f "${_SSH_LOCAL_KEYFILE}" || {
 }
 
 # Installing packages
-chroot_package_install dropbear dropbear-initramfs cryptsetup-initramfs
+chroot_package_install "$_CHROOT_ROOT" dropbear dropbear-initramfs cryptsetup-initramfs
 
 echo "DROPBEAR_OPTIONS='-p 2222 -RFEjk -c /bin/cryptroot-unlock'" >> ${_CHROOT_ROOT}/etc/dropbear-initramfs/config
 

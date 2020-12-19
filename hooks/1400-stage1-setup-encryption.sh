@@ -1,6 +1,6 @@
 #!/bin/bash
-set -e
-set -u
+set -eu
+
 
 setup_encryption(){
     # Check if btrfs is the file system, if so install required packages
@@ -9,7 +9,7 @@ setup_encryption(){
         echo_debug "- Setting up btrfs-progs on build machine"
         apt-get -qq install btrfs-progs
         echo_debug "- Setting up btrfs-progs in chroot"
-        chroot_package_install btrfs-progs
+        chroot_package_install "${_CHROOT_ROOT}" btrfs-progs
         echo_debug "- Adding btrfs module to initramfs-tools/modules"
         echo 'btrfs' >> ${_CHROOT_ROOT}/etc/initramfs-tools/modules
     fi
@@ -17,7 +17,7 @@ setup_encryption(){
     # Setup qemu emulator for aarch64
     echo_debug "- Copying qemu emulator to chroot "
     cp /usr/bin/qemu-aarch64-static ${_CHROOT_ROOT}/usr/bin/
-    chroot_package_install cryptsetup busybox
+    chroot_package_install "${_CHROOT_ROOT}" cryptsetup busybox
 
     # Creating symbolic link to e2fsck
     chroot ${_CHROOT_ROOT} /bin/bash -c "test -L /sbin/fsck.luks || ln -s /sbin/e2fsck /sbin/fsck.luks"

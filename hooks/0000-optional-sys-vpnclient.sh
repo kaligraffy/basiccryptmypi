@@ -1,13 +1,13 @@
 #!/bin/bash
-set -e
-set -u
+set -eu
+
 
 echo_debug "Setting OpenVPN up "
 _OPENVPN_CONFIG_ZIPFILE=${_OPENVPN_CONFIG_ZIP}
 _OPENVPN_CONFIG_ZIPPATH="${_FILE_DIR}/${_OPENVPN_CONFIG_ZIPFILE}"
 
 echo_debug "Assuring openvpn installation and config dir"
-chroot_package_install openvpn
+chroot_package_install "$_CHROOT_ROOT" openvpn
 mkdir -p ${_CHROOT_ROOT}/etc/openvpn
 
 echo_debug "Unzipping provided files into configuraiton dir"

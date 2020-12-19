@@ -1,6 +1,6 @@
 #!/bin/bash
-set -e
-set -u
+set -eu
+
 
 sshd_config="${_CHROOT_ROOT}/etc/ssh/sshd_config"
 ssh_authorized_keys="${_CHROOT_ROOT}/.ssh/authorized_keys"

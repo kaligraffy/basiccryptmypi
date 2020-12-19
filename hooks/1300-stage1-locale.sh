@@ -1,10 +1,10 @@
 #!/bin/bash
-set -e
+set -eu
 
 setup_locales(){
 echo_debug "Configuring system locale"
 
-echo_debug "Uncommenting locale "${_LOCALE}" for inclusion in generation"
+echo_debug "Uncommenting locale ${_LOCALE} for inclusion in generation"
 sed -i 's/^# *\(en_US.UTF-8\)/\1/' "${_CHROOT_ROOT}"/etc/locale.gen
 
 echo_debug "Updating /etc/default/locale"
@@ -13,7 +13,7 @@ LANG="${_LOCALE}"
 EOF
 
 echo_debug "Installing locales"
-chroot_package_install locales
+chroot_package_install "${_CHROOT_ROOT}" locales
 
 echo_debug "Updating env variables"
 chroot "${_CHROOT_ROOT}" /bin/bash -x <<EOF

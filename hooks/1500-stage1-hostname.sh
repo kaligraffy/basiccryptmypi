@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -eu
 
 echo_debug "Setting hostname to ${_HOSTNAME}"
 # Overwrites /etc/hostname

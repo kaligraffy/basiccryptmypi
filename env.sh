@@ -1,6 +1,5 @@
 #!/bin/bash
-set -e;
-set -u;
+set -eu
 # Get the base path for this script
 export _BASEDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )";
 ###############################################
@@ -34,7 +33,8 @@ export _PKGS_TO_INSTALL=""
 #export _PKGS_TO_INSTALL="tree htop ufw timeshift"
 export _PKGS_TO_PURGE=""
 ###############################################
-export _IMAGE_SHA256="c6ceee472eb4dabf4ea895ef53c7bd28751feb44d46ce2fa3f51eb5469164c2c"
+#export _IMAGE_SHA256="c6ceee472eb4dabf4ea895ef53c7bd28751feb44d46ce2fa3f51eb5469164c2c"
+export _IMAGE_SHA256=""
 export _IMAGE_URL="https://images.kali.org/arm-images/kali-linux-2020.4-rpi4-nexmon-64.img.xz"
 ###############################################
 export _USER_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6);
@@ -51,7 +51,7 @@ export _INITRAMFS_WIFI_IP=":::::${_WIFI_INTERFACE}:dhcp:${_DNS1}:${_DNS2}"
 export _INITRAMFS_WIFI_DRIVERS='brcmfmac43455 brcmfmac brcmutil cfg80211 rfkill'
 ###############################################
 #Optional and experimental hooks
-prepare_image_extra(){
+prepare_image_extras(){
     call_hooks 0000-experimental-boot-hash.sh
     call_hooks 0000-optional-initramfs-luksnuke.sh
     call_hooks 0000-optional-sys-cpu-governor.sh
@@ -64,10 +64,3 @@ prepare_image_extra(){
     #call_hooks 0000-optional-sys-vpnclient.sh
     #call_hooks 0000-optional-sys-wifi.sh
 }
-
-#Leave alone
-export _BUILD_DIR=${_BASEDIR}/build
-export _FILE_DIR=${_BASEDIR}/build
-export _CHROOT_ROOT=${_BUILD_DIR}/root
-export _ENCRYPTED_VOLUME_PATH="/dev/mapper/crypt-1"
-###############################################

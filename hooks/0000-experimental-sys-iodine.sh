@@ -1,12 +1,12 @@
 #!/bin/bash
-set -e
+set -eu
 
 # REFERENCE:
 #   https://davidhamann.de/2019/05/12/tunnel-traffic-over-dns-ssh/
 
 echo_debug "Installing iodine "
 
-chroot_package_install install iodine
+chroot_package_install "$_CHROOT_ROOT" install iodine
 
 # Create iodine startup script (not initramfs)
 cat << EOF > ${_CHROOT_ROOT}/opt/iodine.sh

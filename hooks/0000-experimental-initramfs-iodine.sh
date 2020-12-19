@@ -1,11 +1,11 @@
 #!/bin/bash
-set -e
-set -u
+set -eu
+
 
 # REFERENCE:
 #   https://davidhamann.de/2019/05/12/tunnel-traffic-over-dns-ssh/
 echo_debug "Attempting iodine"
-chroot_package_install install iodine
+chroot_package_install "$_CHROOT_ROOT" install iodine
 
 # Create initramfs hook file for iodine
 cat << 'EOF2' > ${_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-iodine

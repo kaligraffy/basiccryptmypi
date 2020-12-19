@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -eu
 
-chroot_mount
-chroot_update
+chroot_mount "$_CHROOT_ROOT"
+chroot_update "$_CHROOT_ROOT"
