@@ -2,7 +2,7 @@
 set -eu
 
 encryption_setup(){
-  echo_info "$FUNCNAME[0] started at $(date) ";
+  echo_info "$FUNCNAME started at $(date) ";
   
   # Check if btrfs is the file system, if so install required packages
   fs_type="${_FILESYSTEM_TYPE}"

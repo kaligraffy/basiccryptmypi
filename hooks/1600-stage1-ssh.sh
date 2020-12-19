@@ -2,7 +2,7 @@
 set -eu
 
 ssh_setup(){
-  echo_info "$FUNCNAME[0] started at $(date) ";
+  echo_info "$FUNCNAME started at $(date) ";
   sshd_config="${_CHROOT_ROOT}/etc/ssh/sshd_config"
   ssh_authorized_keys="${_CHROOT_ROOT}/.ssh/authorized_keys"
 

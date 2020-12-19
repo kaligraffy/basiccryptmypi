@@ -2,7 +2,7 @@
 set -eu
 
 locale_setup(){
-  echo_info "$FUNCNAME[0] started at $(date) ";
+  echo_info "$FUNCNAME started at $(date) ";
 
   echo_debug "Uncommenting locale ${_LOCALE} for inclusion in generation"
   sed -i 's/^# *\(en_US.UTF-8\)/\1/' "${_CHROOT_ROOT}"/etc/locale.gen

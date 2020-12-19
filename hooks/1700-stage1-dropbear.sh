@@ -2,7 +2,7 @@
 set -eu
 
 dropbear_setup(){
-  echo_info "$FUNCNAME[0] started at $(date) ";
+  echo_info "$FUNCNAME started at $(date) ";
 
   test -f "${_SSH_LOCAL_KEYFILE}" || {
       echo_error "ERROR: Obligatory SSH keyfile '${_SSH_LOCAL_KEYFILE}' could not be found. Exiting"

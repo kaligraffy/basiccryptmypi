@@ -20,7 +20,7 @@ export _LOG_FILE="build-$(date '+%Y-%m-%d-%H:%M:%S').log"
 
 # Check preconditions
 check_preconditions(){
-    echo_info "$FUNCNAME[0] started at $(date)"
+    echo_info "$FUNCNAME started at $(date)"
     # Precondition check for root powers
     check_root;
 } 
@@ -41,7 +41,7 @@ check_build_dir_exists(){
 # Encrypt & Write SD
 setup_filesystem_and_copy_to_disk(){  
   
-  echo_info "$FUNCNAME[0] started at $(date) ";
+  echo_info "$FUNCNAME started at $(date) ";
   fs_type=$_FILESYSTEM_TYPE;
   check_disk_is_correct;
   cleanup_write_disk
