@@ -48,8 +48,13 @@ ISSUES
 
 Main issues is error handling and the unmount logic at the moment.
 
+Occasionally, the mounts don't get cleaned up properly, if this is the case run: losetup -D; umount /dev/loop/*; mount
+Then check if there are any other mounts to umount.
+
 Raise on here and I'll try and fix them as soon as I can, this is a refactor of an existing project, 
 I highly anticipate bugs, despite removing a large amount of code which *should* make this more predictable.
+
+
 
 TODO
 
