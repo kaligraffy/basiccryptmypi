@@ -30,7 +30,7 @@ encryption_setup(){
   echo_debug "Making the cryptsetup settings "
 
   # Update /boot/cmdline.txt to boot crypt
-  sed -i "s|root=/dev/mmcblk0p2|root=${_ENCRYPTED_VOLUME_PATH} cryptdevice=/dev/mmcblk0p2:${_ENCRYPTED_VOLUME_PATH}|g" ${_CHROOT_ROOT}/boot/cmdline.txt
+  sed -i "s|root=/dev/mmcblk0p2|root=${_ENCRYPTED_VOLUME_PATH} cryptdevice=/dev/mmcblk0p2:$(basename ${_ENCRYPTED_VOLUME_PATH})|g" ${_CHROOT_ROOT}/boot/cmdline.txt
     sed -i "s|rootfstype=ext3|rootfstype=${fs_type}|g" ${_CHROOT_ROOT}/boot/cmdline.txt
 
     # Enable cryptsetup when building initramfs
