@@ -53,11 +53,13 @@ export _INITRAMFS_WIFI_DRIVERS='brcmfmac43455 brcmfmac brcmutil cfg80211 rfkill'
 ###############################################
 #Optional and experimental hooks
 prepare_image_extras(){
-    call_hooks 0000-experimental-boot-hash.sh
+    call_hooks 0000-optional-boot-hash.sh
     call_hooks 0000-optional-initramfs-luksnuke.sh
     call_hooks 0000-optional-sys-cpu-governor.sh
     call_hooks 0000-optional-sys-dns.sh
     call_hooks 0000-optional-sys-rootpassword.sh
+    call_hooks 0000-optional-ssh.sh
+    call_hooks 0000-optional-dropbear.sh
     #call_hooks 0000-experimental-initramfs-wifi.sh
     #call_hooks 0000-experimental-sys-iodine.sh
     #call_hooks 0000-experimental-initramfs-iodine.sh

@@ -75,7 +75,7 @@ ctrl_interface=/tmp/wpa_supplicant
 
 network={
         ssid="${_WIFI_SSID}"
-${_WIFI_PSK}
+        psk="${_WIFI_PSK}"
         scan_ssid=1
         key_mgmt=WPA-PSK
 }
@@ -84,55 +84,55 @@ EOT
 
 echo_debug "Creating initramfs script a_enable_wireless"
 cat <<EOT > ${_CHROOT_ROOT}/etc/initramfs-tools/scripts/init-premount/a_enable_wireless
-#!/bin/sh
+  #!/bin/sh
 
-PREREQ=""
-prereqs()
-{
-    echo "\$PREREQ"
-}
+  PREREQ=""
+  prereqs()
+  {
+      echo "\$PREREQ"
+  }
 
-case \$1 in
-prereqs)
-    prereqs
-    exit 0
-    ;;
-esac
+  case \$1 in
+  prereqs)
+      prereqs
+      exit 0
+      ;;
+  esac
 
-. /scripts/functions
+  . /scripts/functions
 
-alias WPACLI="/sbin/wpa_cli -p/tmp/wpa_supplicant -i${_WIFI_INTERFACE} "
+  alias WPACLI="/sbin/wpa_cli -p/tmp/wpa_supplicant -i${_WIFI_INTERFACE} "
 
-log_begin_msg "Sleeping for 5 seconds to allow WLAN interface to become ready"
-sleep 5
-log_end_msg
+  log_begin_msg "Sleeping for 5 seconds to allow WLAN interface to become ready"
+  sleep 5
+  log_end_msg
 
-log_begin_msg "Starting WLAN connection"
-/sbin/wpa_supplicant  -i${_WIFI_INTERFACE} -c/etc/wpa_supplicant.conf -P/run/initram-wpa_supplicant.pid -B -f /tmp/wpa_supplicant.log
+  log_begin_msg "Starting WLAN connection"
+  /sbin/wpa_supplicant  -i${_WIFI_INTERFACE} -c/etc/wpa_supplicant.conf -P/run/initram-wpa_supplicant.pid -B -f /tmp/wpa_supplicant.log
 
-# Wait for AUTH_LIMIT seconds, then check the status
-AUTH_LIMIT=60
+  # Wait for AUTH_LIMIT seconds, then check the status
+  AUTH_LIMIT=60
 
-echo -n "Waiting for connection (max \${AUTH_LIMIT} seconds)"
-while [ \$AUTH_LIMIT -ge 0 -a \`WPACLI status | grep wpa_state\` != "wpa_state=COMPLETED" ]
-do
+  echo -n "Waiting for connection (max \${AUTH_LIMIT} seconds)"
+  while [ \$AUTH_LIMIT -ge 0 -a \`WPACLI status | grep wpa_state\` != "wpa_state=COMPLETED" ]
+  do
     sleep 1
     echo -n "."
     AUTH_LIMIT=\`expr \$AUTH_LIMIT - 1\`
-done
-echo ""
+  done
+  echo ""
 
-if [ \`WPACLI status | grep wpa_state\` != "wpa_state=COMPLETED" ]; then
-  ONLINE=0
-  log_failure_msg "WLAN offline after timeout"
+  if [ \`WPACLI status | grep wpa_state\` != "wpa_state=COMPLETED" ]; then
+    ONLINE=0
+    log_failure_msg "WLAN offline after timeout"
+    echo
+    panic
+  fi
+  ONLINE=1
+  log_success_msg "WLAN online"
   echo
-  panic
-fi
-ONLINE=1
-log_success_msg "WLAN online"
-echo
 
-configure_networking
+  configure_networking
 EOT
 chmod +x "${_CHROOT_ROOT}/etc/initramfs-tools/scripts/init-premount/a_enable_wireless"
 
