@@ -46,14 +46,15 @@ check_preconditions(){
 
 check_build_dir_exists(){
   if [  -d ${_BUILD_DIR} ]; then
-      echo_warn "Build directory already exists: ${_BUILD_DIR}";
-      local continue;
-      read -p "Clean old build and rebuild? (y/N)" continue;
-      if [ "${continue}" = 'y' ] || [ "${continue}" = 'Y' ]; then
-          rm -rf ${_BUILD_DIR} || true ;
-      else
-          return 0;
-      fi
+    local continue;
+    read -p "Build directory already exists: ${_BUILD_DIR}. Rebuild? (y/N)" continue;
+    if [ "${continue}" = 'y' ] || [ "${continue}" = 'Y' ]; then
+      echo '1';
+    else
+      echo '0'; 
+    fi
+  else
+    echo '1';
   fi
 }
 
@@ -68,8 +69,8 @@ setup_filesystem_and_copy_to_disk(){
   cryptsetup luksClose ${_ENCRYPTED_VOLUME_PATH} || true
   echo_debug "Partitioning SD Card"
   parted ${_OUTPUT_BLOCK_DEVICE} --script -- mklabel msdos
-  parted --align optimal ${_OUTPUT_BLOCK_DEVICE} --script -- mkpart primary fat32 0 256
-  parted --align optimal${_OUTPUT_BLOCK_DEVICE} --script -- mkpart primary 256 -1
+  parted  ${_OUTPUT_BLOCK_DEVICE} --script -- mkpart primary fat32 0 256
+  parted  ${_OUTPUT_BLOCK_DEVICE} --script -- mkpart primary 256 -1
   sync
 
   # Create LUKS
@@ -106,6 +107,7 @@ setup_filesystem_and_copy_to_disk(){
 cleanup_image_prep(){
   umount  "${_BUILD_DIR}/mount" || true
   umount  "${_BUILD_DIR}/boot" || true
+  umount /dev/loop* || true;
   losetup -D || true
   rm -rf ${_BUILD_DIR}/mount || true
   rm -rf ${_BUILD_DIR}/boot || true
@@ -113,14 +115,11 @@ cleanup_image_prep(){
 # Cleanup on exit
 cleanup_write_disk(){
   umount ${_OUTPUT_BLOCK_DEVICE}* || true
-  umount ${_DISK_CHROOT_ROOT} || true
+   true
   umount ${_ENCRYPTED_VOLUME_PATH} || true
-  
-  
   chroot_umount "${_DISK_CHROOT_ROOT}" || true
   cryptsetup -v luksClose "${_ENCRYPTED_VOLUME_PATH}" || true
-  
-  [ -d ${_DISK_CHROOT_ROOT} ] && rmdir ${_DISK_CHROOT_ROOT} || true
+  umount ${_DISK_CHROOT_ROOT} && test -d ${_DISK_CHROOT_ROOT} && rm -rf ${_DISK_CHROOT_ROOT} || true
 }
 
 call_hooks(){
@@ -175,7 +174,9 @@ extract_image() {
   if [ -e "$extracted_image" ]; then
     local continue="";
     read -p "$extracted_image found, re-extract? (y/N)" continue;
-    if [ "${continue}" != 'y' ] || [ "${continue}" != 'Y' ]; then
+    if [ "${continue}" = 'y' ] || [ "${continue}" = 'Y' ]; then
+      echo_info "continuing to extract...";
+    else
       return 0;
     fi
   fi
