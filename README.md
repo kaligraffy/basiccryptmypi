@@ -11,7 +11,9 @@ Modify .env with your settings.
 - Call any optional 'hooks' in prepare_image_extras
 - And the disk e.g /dev/sda or /dev/mmcblk1
 
-Run: sudo ./cryptmypi
+Run: 
+- change directory to cryptmypi directory
+- sudo ./cryptmypi
 
 PURPOSE
 
