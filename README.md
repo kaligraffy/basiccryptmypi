@@ -44,6 +44,8 @@ Testing is 'ad hoc' and only for the rpi 4. In theory it should still work with 
 
 ISSUES
 
+Main issues is error handling and the unmount logic at the moment.
+
 Raise on here and I'll try and fix them as soon as I can, this is a refactor of an existing project, 
 I highly anticipate bugs, despite removing a large amount of code which *should* make this more predictable.
 
