@@ -39,22 +39,22 @@ trap_on_exit() {
 
 # Check preconditions
 check_preconditions(){
-    echo_info "$FUNCNAME started at $(date)"
-    # Precondition check for root powers
-    check_root;
+  echo_info "$FUNCNAME started at $(date)"
+  # Precondition check for root powers
+  check_root;
 } 
 
 check_build_dir_exists(){
-    if [  -d ${_BUILD_DIR} ]; then
-        echo_warn "Build directory already exists: ${_BUILD_DIR}";
-        local continue;
-        read -p "Clean old build and rebuild? (y/N)" continue;
-        if [ "${continue}" = 'y' ] || [ "${continue}" = 'Y' ]; then
-            rm -rf ${_BUILD_DIR} || true ;
-        else
-            return 0;
-        fi
-    fi
+  if [  -d ${_BUILD_DIR} ]; then
+      echo_warn "Build directory already exists: ${_BUILD_DIR}";
+      local continue;
+      read -p "Clean old build and rebuild? (y/N)" continue;
+      if [ "${continue}" = 'y' ] || [ "${continue}" = 'Y' ]; then
+          rm -rf ${_BUILD_DIR} || true ;
+      else
+          return 0;
+      fi
+  fi
 }
 
 # Encrypt & Write SD
@@ -98,13 +98,7 @@ setup_filesystem_and_copy_to_disk(){
   rsync_local "${_CHROOT_ROOT}"/* "${_DISK_CHROOT_ROOT}"
   chroot_mount "${_DISK_CHROOT_ROOT}"
   chroot_mkinitramfs ${_DISK_CHROOT_ROOT}
-  chroot_umount "${_DISK_CHROOT_ROOT}" || true
 
-  # Close LUKS
-  cryptsetup -v luksClose "${_ENCRYPTED_VOLUME_PATH}" 
-
-  # Clean up
-  rmdir ${_DISK_CHROOT_ROOT}
   sync
 }
 
@@ -121,8 +115,12 @@ cleanup_write_disk(){
   umount ${_OUTPUT_BLOCK_DEVICE}* || true
   umount ${_DISK_CHROOT_ROOT} || true
   umount ${_ENCRYPTED_VOLUME_PATH} || true
+  
+  
+  chroot_umount "${_DISK_CHROOT_ROOT}" || true
+  cryptsetup -v luksClose "${_ENCRYPTED_VOLUME_PATH}" || true
+  
   [ -d ${_DISK_CHROOT_ROOT} ] && rmdir ${_DISK_CHROOT_ROOT} || true
-  cryptsetup luksClose $_ENCRYPTED_VOLUME_PATH || true
 }
 
 call_hooks(){
