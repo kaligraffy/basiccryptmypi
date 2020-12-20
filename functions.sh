@@ -19,19 +19,23 @@ export _LOG_FILE_PATH=${_BUILD_DIR}
 export _LOG_FILE="build-$(date '+%Y-%m-%d-%H:%M:%S').log"
 
 # Runs on script exit, tidies up the mounts.
-trap_on_err() {
-  echo_error "Error on line $1";
+trap_on_error() {
+  echo_error "error on line $1";
   exit 1;
 }
-trap 'trap_on_err $LINENO' ERR;
-# Runs on script exit, tidies up the mounts.
 
+# Runs on script exit, tidies up the mounts.
+trap_on_interrupt() {
+  echo_error "script interrupted by user";
+  exit 1;
+}
+
+# Runs on script exit, tidies up the mounts.
 trap_on_exit() {
   if (( $_IMAGE_PREPARATION_STARTED > 0 )); then cleanup_image_prep; fi
   if (( $_WRITE_TO_DISK_STARTED > 0 )); then cleanup_write_disk; fi
   echo_info "stopping $(basename $0) at $(date)";
 }
-trap "trap_on_exit" EXIT;
 
 # Check preconditions
 check_preconditions(){
@@ -64,8 +68,8 @@ setup_filesystem_and_copy_to_disk(){
   cryptsetup luksClose ${_ENCRYPTED_VOLUME_PATH} || true
   echo_debug "Partitioning SD Card"
   parted ${_OUTPUT_BLOCK_DEVICE} --script -- mklabel msdos
-  parted ${_OUTPUT_BLOCK_DEVICE} --script -- mkpart primary fat32 0 256
-  parted ${_OUTPUT_BLOCK_DEVICE} --script -- mkpart primary 256 -1
+  parted --align optimal ${_OUTPUT_BLOCK_DEVICE} --script -- mkpart primary fat32 0 256
+  parted --align optimal${_OUTPUT_BLOCK_DEVICE} --script -- mkpart primary 256 -1
   sync
 
   # Create LUKS
@@ -91,7 +95,7 @@ setup_filesystem_and_copy_to_disk(){
   mount ${_BLOCK_DEVICE_BOOT} ${_DISK_CHROOT_ROOT}/boot && echo_debug "- Mounted ${_BLOCK_DEVICE_BOOT} to ${_DISK_CHROOT_ROOT}/boot"
 
   # Attempt to copy files from build to mounted device
-  rsync_local "${_CHROOT_ROOT}" "${_DISK_CHROOT_ROOT}"
+  rsync_local "${_CHROOT_ROOT}"/* "${_DISK_CHROOT_ROOT}"
   chroot_mount "${_DISK_CHROOT_ROOT}"
   chroot_mkinitramfs ${_DISK_CHROOT_ROOT}
   chroot_umount "${_DISK_CHROOT_ROOT}" || true
@@ -115,8 +119,8 @@ cleanup_image_prep(){
 # Cleanup on exit
 cleanup_write_disk(){
   umount ${_OUTPUT_BLOCK_DEVICE}* || true
-  umount -l ${_DISK_CHROOT_ROOT} || true
-  umount -f ${_ENCRYPTED_VOLUME_PATH} || true
+  umount ${_DISK_CHROOT_ROOT} || true
+  umount ${_ENCRYPTED_VOLUME_PATH} || true
   [ -d ${_DISK_CHROOT_ROOT} ] && rmdir ${_DISK_CHROOT_ROOT} || true
   cryptsetup luksClose $_ENCRYPTED_VOLUME_PATH || true
 }
@@ -362,7 +366,7 @@ make_filesystem(){
 #arguments $1 - to $2 - from
 rsync_local(){
   echo_info "Starting copy of "${@}" at $(date)"
-  rsync --hard-links --archive --verbose --partial --progress --quiet --info=progress2 "${@}"
+  rsync --hard-links  --archive --partial --info=progress2 "${@}"
   echo_info "Finished copy of "${@}" at $(date)"
   sync;
 }

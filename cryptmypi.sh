@@ -6,10 +6,15 @@ set -eu
 . env.sh;
 . functions.sh;
 . dependencies.sh;
-
+ 
+  trap 'trap_on_exit' EXIT;
+  trap 'trap_on_error $LINENO' ERR;
+  trap 'trap_on_interrupt' SIGINT;
 #Program logic
 execute()
 {
+
+  
   echo_info "starting $(basename $0) at $(date)";
   #Setup
   check_preconditions;
