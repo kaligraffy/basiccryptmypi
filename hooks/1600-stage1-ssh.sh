@@ -24,7 +24,7 @@ ssh_setup(){
   cp -p "${sshd_config}" "${sshd_config}.bak"
 
   cat << EOF >> "${sshd_config}"
-  PasswordAuthentication $(_SSH_PASSWORD_AUTHENTICATION)
+  PasswordAuthentication $(echo $_SSH_PASSWORD_AUTHENTICATION)
   Port 2222
   ChallengeResponseAuthentication no
   PubkeyAuthentication yes
