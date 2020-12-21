@@ -9,11 +9,12 @@ Modify .env with your settings.
 - Change any password field 
 - Update the image url if it's changed, and you want the most recent kali pi image
 - Call any optional 'hooks' in prepare_image_extras
-- And the disk e.g /dev/sda or /dev/mmcblk1
+- And the disk e.g /dev/sdX or /dev/mmcblkX
 
 Run: 
 - change directory to cryptmypi directory
 - sudo ./cryptmypi
+- follow prompts
 
 PURPOSE
 
@@ -46,7 +47,7 @@ Testing is 'ad hoc' and only for the rpi 4. In theory it should still work with 
 
 ISSUES
 
-Main issues is error handling and the unmount logic at the moment.
+- unmount logic
 
 Occasionally, the mounts don't get cleaned up properly, if this is the case run: losetup -D; umount /dev/loop/*; mount
 Then check if there are any other mounts to umount.
@@ -54,7 +55,13 @@ Then check if there are any other mounts to umount.
 Raise on here and I'll try and fix them as soon as I can, this is a refactor of an existing project, 
 I highly anticipate bugs, despite removing a large amount of code which *should* make this more predictable.
 
+- duplicate entries in crypttab in the initramfs by script
 
+- incorrect fstab settings for btrfs (last digit should be 0 for no fsck (tbc)
+
+- no assessment of noload being taken out of cmdline.txt for ext4 filesystems (may cause additional writes
+
+- initramfs,ssh and dropbear are not tested yet (priority atm)
 
 TODO
 
@@ -63,6 +70,8 @@ In the future I want to:
 - provide a simple firewall script or configure UFW as default
 - re-comment the .env file for the less obvious environment variables
 - use BATS to test the script
+- make initramfs wifi, ssh and dropbear work together
+- 
 
 HOW DOES IT WORK
 
@@ -75,4 +84,4 @@ HOW DOES IT WORK
 
 LOGGING
 
-The script logs to the build directory, making a log of all actions to the file specified in the .env file.
+The script logs to the cryptmypi directory, making a log of all actions to the file specified in the .env file.
