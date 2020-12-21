@@ -1,7 +1,5 @@
 #!/bin/bash
 set -eu
-# Get the base path for this script
-export _BASEDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )";
 ###############################################
 export _DNS1='1.1.1.1'
 export _DNS2='8.8.8.8'
@@ -13,12 +11,11 @@ export _IODINE_PASSWORD=
 ###############################################
 export _OPENVPN_CONFIG_ZIP=
 ###############################################
-export _HOSTNAME="kali"
+export _HOSTNAME="computer"
 export _KERNEL_VERSION_FILTER="l+"
 export _LOCALE='en_US.UTF-8'
 ###############################################
-export _OUTPUT_BLOCK_DEVICE="/dev/sdX"
-export _OUTPUT_BLOCK_DEVICE="/dev/sda"
+export _OUTPUT_BLOCK_DEVICE=
 export _FILESYSTEM_TYPE="btrfs" #can also be ext4
 ###############################################
 #0 = debug messages and normal, 1 normal only
@@ -34,8 +31,9 @@ export _PKGS_TO_INSTALL=""
 #export _PKGS_TO_INSTALL="tree htop ufw timeshift"
 export _PKGS_TO_PURGE=""
 ###############################################
-#export _IMAGE_SHA256="c6ceee472eb4dabf4ea895ef53c7bd28751feb44d46ce2fa3f51eb5469164c2c"
-export _IMAGE_SHA256=""
+export _IMAGE_SHA256="c6ceee472eb4dabf4ea895ef53c7bd28751feb44d46ce2fa3f51eb5469164c2c"
+# Uncomment to skip check:
+#export _IMAGE_SHA256=
 export _IMAGE_URL="https://images.kali.org/arm-images/kali-linux-2020.4-rpi4-nexmon-64.img.xz"
 ###############################################
 export _USER_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6);
@@ -58,8 +56,8 @@ prepare_image_extras(){
     call_hooks 0000-optional-sys-cpu-governor.sh
     call_hooks 0000-optional-sys-dns.sh
     call_hooks 0000-optional-sys-rootpassword.sh
-    call_hooks 0000-optional-ssh.sh
-    call_hooks 0000-optional-dropbear.sh
+    #call_hooks 0000-optional-ssh.sh
+    #call_hooks 0000-optional-dropbear.sh
     #call_hooks 0000-experimental-initramfs-wifi.sh
     #call_hooks 0000-experimental-sys-iodine.sh
     #call_hooks 0000-experimental-initramfs-iodine.sh

@@ -9,7 +9,7 @@ set -eu
 
 echo_debug "Attempting to set initramfs WIFI up "
 if [ -z "$_WIFI_SSID" ] || [ -z "$_WIFI_PASSWORD" ]; then
-    echo_warn 'SKIPPING: _WIFI_PASSWORDWORD and/or _WIFI_SSID are not set.'
+    echo_warn 'SKIPPING: _WIFI_PASSWORD and/or _WIFI_SSID are not set.'
     exit 1
 fi
 

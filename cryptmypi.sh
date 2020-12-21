@@ -45,5 +45,6 @@ execute()
 # Run Program
 main(){
   execute | tee "${_LOG_FILE}" || true
+  exit;
 }
 main;

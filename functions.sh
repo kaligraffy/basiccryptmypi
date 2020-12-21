@@ -3,6 +3,8 @@
 # shellcheck disable=SC2145
 set -eu
 
+#Global variables
+export _BASEDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )";
 export _BUILD_DIR=${_BASEDIR}/build
 export _FILE_DIR=${_BASEDIR}/files
 export _CHROOT_ROOT=${_BUILD_DIR}/root
@@ -206,20 +208,20 @@ extract_image() {
 copy_extracted_image_to_chroot_dir(){
   echo_debug "Mounting loopback";
   local extracted_image="${EXTRACTED_IMAGE}"
-    loopdev=$(losetup -P -f --show "$extracted_image");
-    partprobe ${loopdev};
-    mount ${loopdev}p2 ${_BUILD_DIR}/mount
-    mount ${loopdev}p1 ${_BUILD_DIR}/boot
-    rsync_local "${_BUILD_DIR}/boot" "${_CHROOT_ROOT}/"
-    if [ ! -e  "${_CHROOT_ROOT}/boot" ]; then
-      echo_error 'rsync has failed'
-      exit;
-    fi
-    rsync_local "${_BUILD_DIR}/mount/"* "${_CHROOT_ROOT}"
-    if [ ! -e  "${_CHROOT_ROOT}/var" ]; then
-      echo_error 'rsync has failed'
-      exit;
-    fi
+  loopdev=$(losetup -P -f --show "$extracted_image");
+  partprobe ${loopdev};
+  mount ${loopdev}p2 ${_BUILD_DIR}/mount
+  mount ${loopdev}p1 ${_BUILD_DIR}/boot
+  rsync_local "${_BUILD_DIR}/boot" "${_CHROOT_ROOT}/"
+  if [ ! -e  "${_CHROOT_ROOT}/boot" ]; then
+    echo_error 'rsync has failed'
+    exit;
+  fi
+  rsync_local "${_BUILD_DIR}/mount/"* "${_CHROOT_ROOT}"
+  if [ ! -e  "${_CHROOT_ROOT}/var" ]; then
+    echo_error 'rsync has failed'
+    exit;
+  fi
 }
 
 check_disk_is_correct(){

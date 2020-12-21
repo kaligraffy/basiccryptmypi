@@ -31,71 +31,73 @@ encryption_setup(){
 
   # Update /boot/cmdline.txt to boot crypt
   sed -i "s|root=/dev/mmcblk0p2|root=${_ENCRYPTED_VOLUME_PATH} cryptdevice=/dev/mmcblk0p2:$(basename ${_ENCRYPTED_VOLUME_PATH})|g" ${_CHROOT_ROOT}/boot/cmdline.txt
-    sed -i "s|rootfstype=ext3|rootfstype=${fs_type}|g" ${_CHROOT_ROOT}/boot/cmdline.txt
+  sed -i "s|rootfstype=ext3|rootfstype=${fs_type}|g" ${_CHROOT_ROOT}/boot/cmdline.txt
+  
+  # Makes sure journalling is on, needed to use btrfs also
+  sed -i "s|rootflags=noload|""|g" ${_CHROOT_ROOT}/boot/cmdline.txt
+  # Enable cryptsetup when building initramfs
+  echo "CRYPTSETUP=y" >> ${_CHROOT_ROOT}/etc/cryptsetup-initramfs/conf-hook
 
-    # Enable cryptsetup when building initramfs
-    echo "CRYPTSETUP=y" >> ${_CHROOT_ROOT}/etc/cryptsetup-initramfs/conf-hook
+  # Update /etc/fstab
+  sed -i "s|/dev/mmcblk0p2|${_ENCRYPTED_VOLUME_PATH}|g" ${_CHROOT_ROOT}/etc/fstab
+  sed -i "s#ext3#${fs_type}#g" ${_CHROOT_ROOT}/etc/fstab
 
-    # Update /etc/fstab
-    sed -i "s|/dev/mmcblk0p2|${_ENCRYPTED_VOLUME_PATH}|g" ${_CHROOT_ROOT}/etc/fstab
-    sed -i "s#ext3#${fs_type}#g" ${_CHROOT_ROOT}/etc/fstab
+  # Update /etc/crypttab
+  echo "$(basename ${_ENCRYPTED_VOLUME_PATH})    /dev/mmcblk0p2    none    luks" > ${_CHROOT_ROOT}/etc/crypttab
 
-    # Update /etc/crypttab
-    echo "${_ENCRYPTED_VOLUME_PATH}    /dev/mmcblk0p2    none    luks" > ${_CHROOT_ROOT}/etc/crypttab
+  # Create a hook to include our crypttab in the initramfs
+  cat << EOF > ${_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-cryptsetup
+  # !/bin/sh
+  set -e
 
-    # Create a hook to include our crypttab in the initramfs
-    cat << EOF > ${_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-cryptsetup
-    # !/bin/sh
-    set -e
+  PREREQ=""
+  prereqs()
+  {
+      echo "\${PREREQ}"
+  }
 
-    PREREQ=""
-    prereqs()
-    {
-        echo "\${PREREQ}"
-    }
+  case "\${1}" in
+      prereqs)
+          prereqs
+          exit 0
+          ;;
+  esac
 
-    case "\${1}" in
-        prereqs)
-            prereqs
-            exit 0
-            ;;
-    esac
+  . /usr/share/initramfs-tools/hook-functions
 
-    . /usr/share/initramfs-tools/hook-functions
-
-    mkdir -p \${DESTDIR}/cryptroot || true
-    cat /etc/crypttab >> \${DESTDIR}/cryptroot/crypttab
-    cat /etc/fstab >> \${DESTDIR}/cryptroot/fstab
-    cat /etc/crypttab >> \${DESTDIR}/etc/crypttab
-    cat /etc/fstab >> \${DESTDIR}/etc/fstab
-    copy_file config /etc/initramfs-tools/unlock.sh /etc/unlock.sh
+  mkdir -p \${DESTDIR}/cryptroot || true
+  cat /etc/crypttab >> \${DESTDIR}/cryptroot/crypttab
+  cat /etc/fstab >> \${DESTDIR}/cryptroot/fstab
+  cat /etc/crypttab >> \${DESTDIR}/etc/crypttab
+  cat /etc/fstab >> \${DESTDIR}/etc/fstab
+  copy_file config /etc/initramfs-tools/unlock.sh /etc/unlock.sh
 EOF
-    chmod 755 ${_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-cryptsetup
+  chmod 755 ${_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-cryptsetup
 
-    # Unlock Script
-    cat << EOF > "${_CHROOT_ROOT}/etc/initramfs-tools/unlock.sh"
-    #!/bin/sh
+  # Unlock Script
+  cat << EOF > "${_CHROOT_ROOT}/etc/initramfs-tools/unlock.sh"
+  #!/bin/sh
 
-    export PATH='/sbin:/bin/:/usr/sbin:/usr/bin'
+  export PATH='/sbin:/bin/:/usr/sbin:/usr/bin'
 
-    while true
-    do
-        test -e ${_ENCRYPTED_VOLUME_PATH} && break || cryptsetup luksOpen /dev/mmcblk0p2
-    done
+  while true
+  do
+      test -e ${_ENCRYPTED_VOLUME_PATH} && break || cryptsetup luksOpen ${_ENCRYPTED_VOLUME_PATH}
+  done
 
-    /scripts/local-top/cryptroot
-    for i in \$(ps aux | grep 'cryptroot' | grep -v 'grep' | awk '{print \$1}'); do kill -9 \$i; done
-    for i in \$(ps aux | grep 'askpass' | grep -v 'grep' | awk '{print \$1}'); do kill -9 \$i; done
-    for i in \$(ps aux | grep 'ask-for-password' | grep -v 'grep' | awk '{print \$1}'); do kill -9 \$i; done
-    for i in \$(ps aux | grep '\\-sh' | grep -v 'grep' | awk '{print \$1}'); do kill -9 \$i; done
-    exit 0
+  /scripts/local-top/cryptroot
+  for i in \$(ps aux | grep 'cryptroot' | grep -v 'grep' | awk '{print \$1}'); do kill -9 \$i; done
+  for i in \$(ps aux | grep 'askpass' | grep -v 'grep' | awk '{print \$1}'); do kill -9 \$i; done
+  for i in \$(ps aux | grep 'ask-for-password' | grep -v 'grep' | awk '{print \$1}'); do kill -9 \$i; done
+  for i in \$(ps aux | grep '\\-sh' | grep -v 'grep' | awk '{print \$1}'); do kill -9 \$i; done
+  exit 0
 EOF
-    chmod +x "${_CHROOT_ROOT}/etc/initramfs-tools/unlock.sh"
+  chmod +x "${_CHROOT_ROOT}/etc/initramfs-tools/unlock.sh"
 
-    # Adding dm_mod to initramfs modules
-    echo 'dm_crypt' >> ${_CHROOT_ROOT}/etc/initramfs-tools/modules
+  # Adding dm_mod to initramfs modules
+  echo 'dm_crypt' >> ${_CHROOT_ROOT}/etc/initramfs-tools/modules
 
-    # Disable autoresize
-    chroot_execute "${_CHROOT_ROOT}" systemctl disable rpiwiggle
+  # Disable autoresize
+  chroot_execute "${_CHROOT_ROOT}" systemctl disable rpiwiggle
 }
 encryption_setup
