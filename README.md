@@ -63,6 +63,8 @@ I highly anticipate bugs, despite removing a large amount of code which *should*
 
 - initramfs,ssh and dropbear are not tested yet (priority atm)
 
+- clean up folders logic may not be working, sometimes the build folder remains if cleared
+
 TODO
 
 In the future I want to:
