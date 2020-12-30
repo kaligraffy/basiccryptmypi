@@ -55,20 +55,19 @@ export _INITRAMFS_WIFI_INTERFACE='wlan0'
 ###############################################
 #Optional and experimental hooks
 prepare_image_extras(){
-   call_hooks optional-disable-displaymanager
-   call_hooks optional-boot-hash
-   call_hooks optional-initramfs-luks-nuke
-   call_hooks optional-sys-cpu-governor
-   call_hooks optional-sys-dns
-   call_hooks optional-sys-root-password
-   call_hooks optional-sys-user-password
- #call_hooks optional-ssh
- #call_hooks optional-dropbear
- #call_hooks experimental-initramfs-wifi
-   call_hooks optional-ufw
- #call_hooks experimental-sys-iodine
- #call_hooks experimental-initramfs-iodine
- #call_hooks optional-sys-docker
- #call_hooks optional-sys-vpnclient
- #call_hooks optional-sys-wifi
+  iodine
+  initramfs-wifi
+  boot-hash
+  display_manager_setup
+  dropbear_setup
+  luks_nuke
+  ssh_setup
+  cpu_governor
+  dns
+  docker
+  root-password
+  user-password
+  vpn-client
+  wifi
+  ufw_setup
 }

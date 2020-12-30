@@ -6,10 +6,11 @@ set -eu
 . env.sh;
 . functions.sh;
 . dependencies.sh;
- 
-  trap 'trap_on_exit' EXIT;
-  trap 'trap_on_error $LINENO' ERR;
-  trap 'trap_on_interrupt' SIGINT;
+
+trap 'trap_on_exit' EXIT;
+trap 'trap_on_error $LINENO' ERR;
+trap 'trap_on_interrupt' SIGINT;
+
 #Program logic
 execute()
 {
@@ -32,7 +33,11 @@ execute()
     mount_loopback_image;
     copy_extracted_image_to_chroot_dir;
     cleanup_image_prep;
-    call_hooks "stage1";
+    setup_chroot;
+    locale_setup;
+    encryption_setup;
+    hostname_setup;
+    setup_packages;
     prepare_image_extras;
     chroot_mkinitramfs "${_CHROOT_ROOT}";
     chroot_umount "${_CHROOT_ROOT}" 
