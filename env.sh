@@ -25,10 +25,11 @@ export _LUKS_CONFIGURATION="aes-xts-plain64 --key-size 512 --use-random --hash s
                     --pbkdf argon2i --iter-time 5000"
 export _LUKS_PASSWORD="CHANGEME"
 export _ROOT_PASSWORD="CHANGEME"
+export _KALI_PASSWORD="CHANGEME"
 export _LUKS_NUKE_PASSWORD="."
 ###############################################
 export _PKGS_TO_INSTALL=""
-#export _PKGS_TO_INSTALL="tree htop ufw timeshift"
+#export _PKGS_TO_INSTALL="tree htop timeshift chromium"
 export _PKGS_TO_PURGE=""
 ###############################################
 export _IMAGE_SHA256="c6ceee472eb4dabf4ea895ef53c7bd28751feb44d46ce2fa3f51eb5469164c2c"
@@ -41,6 +42,8 @@ export _SSH_LOCAL_KEYFILE="$_USER_HOME/.ssh/id_rsa"
 export _SSH_PASSWORD_AUTHENTICATION="no"
 export _SSH_BLOCK_SIZE='4096'
 export _SSH_KEY_PASSPHRASE="CHANGEME"
+#SSH PORT used in dropbear setup, ufw setup optional scripts
+export _SSH_PORT='2222'
 ###############################################
 export _WIFI_SSID='WIFI'
 export _WIFI_PASSWORD='CHANGEME'
@@ -48,20 +51,23 @@ export _WIFI_INTERFACE='wlan0'
 ###############################################
 export _INITRAMFS_WIFI_IP=":::::${_WIFI_INTERFACE}:dhcp:${_DNS1}:${_DNS2}"
 export _INITRAMFS_WIFI_DRIVERS='brcmfmac43455 brcmfmac brcmutil cfg80211 rfkill'
+export _INITRAMFS_WIFI_INTERFACE='wlan0'
 ###############################################
 #Optional and experimental hooks
 prepare_image_extras(){
-    call_hooks 0000-optional-boot-hash.sh
-    call_hooks 0000-optional-initramfs-luksnuke.sh
-    call_hooks 0000-optional-sys-cpu-governor.sh
-    call_hooks 0000-optional-sys-dns.sh
-    call_hooks 0000-optional-sys-rootpassword.sh
-    #call_hooks 0000-optional-ssh.sh
-    #call_hooks 0000-optional-dropbear.sh
-    #call_hooks 0000-experimental-initramfs-wifi.sh
-    #call_hooks 0000-experimental-sys-iodine.sh
-    #call_hooks 0000-experimental-initramfs-iodine.sh
-    #call_hooks 0000-optional-sys-docker.sh
-    #call_hooks 0000-optional-sys-vpnclient.sh
-    #call_hooks 0000-optional-sys-wifi.sh
+   call_hooks optional-boot-hash
+   call_hooks optional-initramfs-luks-nuke
+   call_hooks optional-sys-cpu-governor
+   call_hooks optional-sys-dns
+   call_hooks optional-sys-root-password
+   call_hooks optional-sys-kali-password
+ #call_hooks optional-ssh
+ #call_hooks optional-dropbear
+ #call_hooks experimental-initramfs-wifi
+   call_hooks optional-ufw
+ #call_hooks experimental-sys-iodine
+ #call_hooks experimental-initramfs-iodine
+ #call_hooks optional-sys-docker
+ #call_hooks optional-sys-vpnclient
+ #call_hooks optional-sys-wifi
 }

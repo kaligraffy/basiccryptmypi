@@ -25,7 +25,7 @@ ssh_setup(){
 
   cat << EOF >> "${sshd_config}"
   PasswordAuthentication $(echo $_SSH_PASSWORD_AUTHENTICATION)
-  Port 2222
+  Port $(echo $_SSH_PORT)
   ChallengeResponseAuthentication no
   PubkeyAuthentication yes
   AuthorizedKeysFile .ssh/authorized_keys

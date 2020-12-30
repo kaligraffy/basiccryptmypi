@@ -7,6 +7,7 @@ set -eu
 export _BASEDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )";
 export _BUILD_DIR=${_BASEDIR}/build
 export _FILE_DIR=${_BASEDIR}/files
+export _EXTRACTED_IMAGE="${_FILE_DIR}/extracted.img"
 export _CHROOT_ROOT=${_BUILD_DIR}/root
 export _DISK_CHROOT_ROOT=/mnt/cryptmypi
 export _ENCRYPTED_VOLUME_PATH="/dev/mapper/crypt-1"
@@ -67,8 +68,7 @@ setup_filesystem_and_copy_to_disk(){
   fs_type=$_FILESYSTEM_TYPE;
   check_disk_is_correct;
   cleanup_write_disk
-  
-  cryptsetup luksClose ${_ENCRYPTED_VOLUME_PATH} || true
+
   echo_debug "Partitioning SD Card"
   parted ${_OUTPUT_BLOCK_DEVICE} --script -- mklabel msdos
   parted  ${_OUTPUT_BLOCK_DEVICE} --script -- mkpart primary fat32 0 256
@@ -116,12 +116,13 @@ cleanup_image_prep(){
 }
 # Cleanup on exit
 cleanup_write_disk(){
-  umount ${_OUTPUT_BLOCK_DEVICE}* || true
-   true
-  umount ${_ENCRYPTED_VOLUME_PATH} || true
   chroot_umount "${_DISK_CHROOT_ROOT}" || true
+  umount "${_BLOCK_DEVICE_BOOT}" || true
   cryptsetup -v luksClose "${_ENCRYPTED_VOLUME_PATH}" || true
-  umount ${_DISK_CHROOT_ROOT} && test -d ${_DISK_CHROOT_ROOT} && rm -rf ${_DISK_CHROOT_ROOT} || true
+  umount "${_ENCRYPTED_VOLUME_PATH}" || true
+  umount "${_BLOCK_DEVICE_ROOT}" || true
+  umount "${_OUTPUT_BLOCK_DEVICE}" || true
+  umount "${_DISK_CHROOT_ROOT}" && test -d "${_DISK_CHROOT_ROOT}" && rm -rf "${_DISK_CHROOT_ROOT}" || true
 }
 
 call_hooks(){
@@ -146,6 +147,12 @@ check_root(){
 
 #Fix for using mmcblk0pX devices, adds a p used later on
 fix_block_device_names(){
+
+  if [ -z "${_OUTPUT_BLOCK_DEVICE+x}" ] || [ -z "${_OUTPUT_BLOCK_DEVICE}"  ]; then
+    echo_error "No Output Block Device Set";
+    exit;
+  fi
+
   local prefix=""
   #if the device contains mmcblk, prefix is set to so the device name is picked up correctly
   if [[ "${_OUTPUT_BLOCK_DEVICE}" == *'mmcblk'* ]]; then
@@ -161,16 +168,15 @@ create_build_directory_structure(){
   mkdir "${_BUILD_DIR}" 
   mkdir -p "${_FILE_DIR}" #where images are downloaded, extracted image lives here too
   mkdir "${_BUILD_DIR}/mount" #where the extracted image's root directory is mounted
-  mkdir "${_BUILD_DIR}/boot"  #where the extracted image's root directory is mounted
+  mkdir "${_BUILD_DIR}/boot"  #where the extracted image's boot directory is mounted
   mkdir "${_CHROOT_ROOT}" #where the extracted image's files are copied to to be editted
 }
 
 extract_image() {
   local image_name=$(basename ${_IMAGE_URL})
   local image_path="${_FILE_DIR}/${image_name}"
-  local extracted_image="${_FILE_DIR}/extracted.img"
+  local extracted_image="${_EXTRACTED_IMAGE}"
   #export path to image file into the environment so other functions can use it later
-  export EXTRACTED_IMAGE="${extracted_image}"
   
   #Check if you want to re-extract the image you downloaded, if it exists
   if [ -e "$extracted_image" ]; then
@@ -205,13 +211,16 @@ extract_image() {
   echo_info "Finished extract at $(date)"
 }
 
-copy_extracted_image_to_chroot_dir(){
+mount_loopback_image(){
   echo_debug "Mounting loopback";
-  local extracted_image="${EXTRACTED_IMAGE}"
+  local extracted_image="${_EXTRACTED_IMAGE}"
   loopdev=$(losetup -P -f --show "$extracted_image");
   partprobe ${loopdev};
   mount ${loopdev}p2 ${_BUILD_DIR}/mount
   mount ${loopdev}p1 ${_BUILD_DIR}/boot
+}
+
+copy_extracted_image_to_chroot_dir(){
   rsync_local "${_BUILD_DIR}/boot" "${_CHROOT_ROOT}/"
   if [ ! -e  "${_CHROOT_ROOT}/boot" ]; then
     echo_error 'rsync has failed'

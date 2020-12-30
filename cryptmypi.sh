@@ -18,7 +18,8 @@ execute()
   #Setup
   check_preconditions;
   install_dependencies;
-  
+  fix_block_device_names;
+
   #Check for a build directory
   local rebuild=$(check_build_dir_exists);
   if (( $rebuild == 1 )); then
@@ -28,6 +29,7 @@ execute()
     export _IMAGE_PREPARATION_STARTED=1;
     download_image;
     extract_image;
+    mount_loopback_image;
     copy_extracted_image_to_chroot_dir;
     cleanup_image_prep;
     call_hooks "stage1";
@@ -37,7 +39,6 @@ execute()
   fi
   
   #Stage 2 - Write to physical disk
-  fix_block_device_names;
   export _WRITE_TO_DISK_STARTED=1;
   setup_filesystem_and_copy_to_disk;
 }

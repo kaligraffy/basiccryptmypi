@@ -30,20 +30,22 @@ This includes:
 Extra functions (Uncomment in .env file)
 
 - 0000-experimental-boot-hash.sh - a small script which checks the hash of your boot directory on startup and mails the kali user if it changes
-- 0000-optional-initramfs-luksnuke.sh - nuke the luks key given a specific character on startup
+- 0000-optional-initramfs-luks-nuke.sh - nuke the luks key given a specific character on startup
 - 0000-optional-sys-cpu-governor.sh - sets the cpu governor to ondemand or performance (useful if you want to run off a battery)
 - 0000-optional-sys-dns.sh - sets dns as per env
-- 0000-optional-sys-rootpassword.sh - sets root password
+- 0000-optional-sys-root-password.sh - sets root password
+- 0000-optional-sys-user-password.sh - sets user password
 - 0000-experimental-initramfs-wifi.sh - TESTING IN PROGRESS, WIFI ON STARTUP TO ENABLE HEADLESS MODE
 - 0000-experimental-sys-iodine.sh - UNTESTED
 - 0000-experimental-initramfs-iodine.sh - UNTESTED
 - 0000-optional-sys-docker.sh - UNTESTED
 - 0000-optional-sys-vpnclient.sh - UNTESTED
 - 0000-optional-sys-wifi.sh - UNTESTED
+- 0000-optional-sys-ufw.sh - BASIC FIREWALL UNTESTED
 
 TESTING
 
-Testing is 'ad hoc' and only for the rpi 4. In theory it should still work with rpi3 if you set the right kernel.
+Testing is 'ad hoc' and only for the rpi 4. In theory it should still work with rpi3 if you set the right kernel in env.sh
 
 ISSUES
 
@@ -53,7 +55,7 @@ Occasionally, the mounts don't get cleaned up properly, if this is the case run:
 Then check if there are any other mounts to umount.
 
 Raise on here and I'll try and fix them as soon as I can, this is a refactor of an existing project, 
-I highly anticipate bugs, despite removing a large amount of code which *should* make this more predictable.
+I highly anticipate bugs, despite removing a large amount of code which *should* make this slightly more streamlined
 
 - duplicate entries in crypttab in the initramfs by script
 
@@ -68,8 +70,7 @@ I highly anticipate bugs, despite removing a large amount of code which *should*
 TODO
 
 In the future I want to:
-- make this work with DNS over TLS or DNS over HTTPS 
-- provide a simple firewall script or configure UFW as default
+- make this work with DNS over TLS or DNS over HTTPS
 - re-comment the .env file for the less obvious environment variables
 - use BATS to test the script
 - make initramfs wifi, ssh and dropbear work together
