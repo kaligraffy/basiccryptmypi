@@ -70,7 +70,7 @@ setup_filesystem_and_copy_to_disk(){
   cleanup_write_disk
 
   echo_debug "Partitioning SD Card"
-  parted ${_OUTPUT_BLOCK_DEVICE} --script -- mklabel msdos
+  parted  ${_OUTPUT_BLOCK_DEVICE} --script -- mklabel msdos
   parted  ${_OUTPUT_BLOCK_DEVICE} --script -- mkpart primary fat32 0 256
   parted  ${_OUTPUT_BLOCK_DEVICE} --script -- mkpart primary 256 -1
   sync
@@ -147,8 +147,8 @@ check_root(){
 
 #Fix for using mmcblk0pX devices, adds a p used later on
 fix_block_device_names(){
-
-  if [ -z "${_OUTPUT_BLOCK_DEVICE+x}" ] || [ -z "${_OUTPUT_BLOCK_DEVICE}"  ]; then
+  # check device exists/folder exists
+  if [ ! -b "${_OUTPUT_BLOCK_DEVICE}" ] || [ -z "${_OUTPUT_BLOCK_DEVICE+x}" ] || [ -z "${_OUTPUT_BLOCK_DEVICE}"  ]; then
     echo_error "No Output Block Device Set";
     exit;
   fi

@@ -43,9 +43,10 @@ execute()
   setup_filesystem_and_copy_to_disk;
 }
 
-# Run Program
+# wrapper script for logging
 main(){
   execute | tee "${_LOG_FILE}" || true
   exit;
 }
+# Run program
 main;
