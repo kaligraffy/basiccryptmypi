@@ -54,20 +54,20 @@ export _INITRAMFS_WIFI_DRIVERS='brcmfmac43455 brcmfmac brcmutil cfg80211 rfkill'
 export _INITRAMFS_WIFI_INTERFACE='wlan0'
 ###############################################
 #Optional and experimental hooks
-prepare_image_extras(){
-  iodine
-  initramfs-wifi
-  boot-hash
+extra_setup(){
+#   iodine_setup
+#   initramfs_wifi_setup
+  boot_hash_setup
   display_manager_setup
-  dropbear_setup
-  luks_nuke
-  ssh_setup
-  cpu_governor
-  dns
-  docker
-  root-password
-  user-password
-  vpn-client
-  wifi
-  ufw_setup
+#   dropbear_setup
+  luks_nuke_setup
+#   ssh_setup
+  cpu_governor_setup
+  dns_setup
+#   docker_setup
+  root_password_setup
+  user_password_setup
+#   vpn_client_setup
+#   wifi_setup
+  firewall_setup
 }

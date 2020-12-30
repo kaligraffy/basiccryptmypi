@@ -2,9 +2,10 @@
 set -eu
 # Creates a configurable kali pi build
 
-# Load functions and environment variables and dependencies
+# Load functions, environment variables and dependencies
 . env.sh;
 . functions.sh;
+. options.sh;
 . dependencies.sh;
 
 trap 'trap_on_exit' EXIT;
@@ -24,7 +25,7 @@ execute()
   #Check for a build directory
   local rebuild=$(check_build_dir_exists);
   if (( $rebuild == 1 )); then
-    rm -rf ${_BUILD_DIR} || true ;
+    rm -rf "${_BUILD_DIR}" || true ;
     #Stage 1 - Unpack and modify the image
     create_build_directory_structure;
     export _IMAGE_PREPARATION_STARTED=1;
@@ -33,12 +34,12 @@ execute()
     mount_loopback_image;
     copy_extracted_image_to_chroot_dir;
     cleanup_image_prep;
-    setup_chroot;
+    chroot_setup;
     locale_setup;
     encryption_setup;
     hostname_setup;
-    setup_packages;
-    prepare_image_extras;
+    packages_setup;
+    extra_setup;
     chroot_mkinitramfs "${_CHROOT_ROOT}";
     chroot_umount "${_CHROOT_ROOT}" 
   fi

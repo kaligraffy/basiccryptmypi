@@ -1,6 +1,7 @@
 #!/bin/bash
 # shellcheck disable=SC2034
 # shellcheck disable=SC2145
+# shellcheck disable=SC2086
 set -eu
 
 #Global variables
@@ -50,7 +51,7 @@ check_preconditions(){
 check_build_dir_exists(){
   if [  -d ${_BUILD_DIR} ]; then
     local continue;
-    read -p "Build directory already exists: ${_BUILD_DIR}. Rebuild? (y/N)" continue;
+    read -p "Build directory already exists: ${_BUILD_DIR}. Rebuild? (y/N)  " continue;
     if [ "${continue}" = 'y' ] || [ "${continue}" = 'Y' ]; then
       echo '1';
     else
@@ -169,7 +170,7 @@ extract_image() {
   #Check if you want to re-extract the image you downloaded, if it exists
   if [ -e "$extracted_image" ]; then
     local continue="";
-    read -p "$extracted_image found, re-extract? (y/N)" continue;
+    read -p "$extracted_image found, re-extract? (y/N)  " continue;
     if [ "${continue}" = 'y' ] || [ "${continue}" = 'Y' ]; then
       echo_info "continuing to extract...";
     else
@@ -182,7 +183,7 @@ extract_image() {
     *.xz)
         echo_info "Extracting with xz"
         #If theres a problem extracting, delete the partially extracted file and exit
-        trap "rm $extracted_image; exit 1" ERR SIGINT
+        trap 'rm $(echo $extracted_image); exit 1' ERR SIGINT
         pv ${image_path} | xz --decompress --stdout > "$extracted_image"
         trap - ERR SIGINT
         ;;
@@ -226,7 +227,7 @@ check_disk_is_correct(){
   echo_warn "CHECK DISK IS CORRECT"
   echo_info "$(lsblk)"
   echo_info ""
-  read -p "Type 'YES' if the selected device is correct:  ${_OUTPUT_BLOCK_DEVICE}" continue
+  read -p "Type 'YES' if the selected device is correct:  ${_OUTPUT_BLOCK_DEVICE}  " continue
   if [ "${continue}" != 'YES' ] ; then
       exit 0
   fi
@@ -384,7 +385,7 @@ download_image(){
   echo_info "- valid"
 }
 
-setup_chroot(){
+chroot_setup(){
   chroot_mount "$_CHROOT_ROOT"
   chroot_update "$_CHROOT_ROOT"
 }
@@ -514,39 +515,45 @@ EOF
   for i in \$(ps aux | grep '\\-sh' | grep -v 'grep' | awk '{print \$1}'); do kill -9 \$i; done
   exit 0
 EOF
-  chmod +x "${_CHROOT_ROOT}/etc/initramfs-tools/unlock.sh"
+  chmod +x "${_CHROOT_ROOT}/etc/initramfs-tools/unlock.sh";
 
   # Adding dm_mod to initramfs modules
-  echo 'dm_crypt' >> ${_CHROOT_ROOT}/etc/initramfs-tools/modules
+  echo 'dm_crypt' >> ${_CHROOT_ROOT}/etc/initramfs-tools/modules;
 
   # Disable autoresize
   chroot_execute "${_CHROOT_ROOT}" systemctl disable rpiwiggle
 }
 
 hostname_setup(){
-  echo_debug "Setting hostname to ${_HOSTNAME}"
+  echo_debug "Setting hostname to ${_HOSTNAME}";
   # Overwrites /etc/hostname
-  echo "${_HOSTNAME}" > "${_CHROOT_ROOT}/etc/hostname"
+  echo "${_HOSTNAME}" > "${_CHROOT_ROOT}/etc/hostname";
   # Updates /etc/hosts
-  sed -i "s#^127.0.1.1\s*.*\$#127.0.1.1       ${_HOSTNAME}#" "${_CHROOT_ROOT}/etc/hosts"
+  sed -i "s#^127.0.1.1\s*.*\$#127.0.1.1       ${_HOSTNAME}#" "${_CHROOT_ROOT}/etc/hosts";
 }
 
-setup_packages(){
+packages_setup(){
   # Compose package actions
-  echo_debug "Removing ${_PKGS_TO_PURGE}"
-  chroot_package_purge "$_CHROOT_ROOT" "${_PKGS_TO_PURGE}"
-  echo_debug "Installing ${_PKGS_TO_INSTALL}"
-  chroot_package_install "$_CHROOT_ROOT" "${_PKGS_TO_INSTALL}"
+  echo_debug "Removing ${_PKGS_TO_PURGE}";
+  chroot_package_purge "$_CHROOT_ROOT" "${_PKGS_TO_PURGE}";
+  echo_debug "Installing ${_PKGS_TO_INSTALL}";
+  chroot_package_install "$_CHROOT_ROOT" "${_PKGS_TO_INSTALL}";
 }
 
 #Print messages
-echo_error(){  echo -e "${_COLOR_ERROR}ERROR: $*${_COLOR_NORMAL}" }
-echo_warn(){  echo -e "${_COLOR_WARN}WARNING: $@${_COLOR_NORMAL}" }
-echo_info(){  echo -e "${_COLOR_INFO}$@${_COLOR_NORMAL}" }
+echo_error(){ 
+  echo -e "${_COLOR_ERROR}ERROR: $*${_COLOR_NORMAL}";
+};
+echo_warn(){ 
+  echo -e "${_COLOR_WARN}WARNING: $@${_COLOR_NORMAL}";
+};
+echo_info(){
+  echo -e "${_COLOR_INFO}$@${_COLOR_NORMAL}";
+};
 echo_debug(){
   if [ $_LOG_LEVEL -lt 1 ]; then
-    echo -e "${_COLOR_DEBUG}$@${_COLOR_NORMAL}"
+    echo -e "${_COLOR_DEBUG}$@${_COLOR_NORMAL}";
   fi
   #even if output is suppressed by log level output it to the log file
-  echo "$@" >> "${_LOG_FILE}"
+  echo "$@" >> "${_LOG_FILE}";
 }

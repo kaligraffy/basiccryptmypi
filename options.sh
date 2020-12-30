@@ -1,11 +1,14 @@
 #!/bin/bash
+# shellcheck disable=SC2034
+# shellcheck disable=SC2145
+# shellcheck disable=SC2086
 set -eu
 
-iodine(){
+iodine_setup(){
   # REFERENCE:
   #   https://davidhamann.de/2019/05/12/tunnel-traffic-over-dns-ssh/
   echo_debug "Attempting iodine"
-  chroot_package_install "$_CHROOT_ROOT" install iodine
+  chroot_package_install "$_CHROOT_ROOT" iodine
 
   # Create initramfs hook file for iodine
   cat << 'EOF2' > ${_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-iodine
@@ -43,7 +46,7 @@ EOF
   chmod 755 ${DESTDIR}/start_iodine
 
   exit 0
-  EOF2
+EOF2
   chmod 755 ${_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-iodine
 
   # Replace variables in iodine hook file
@@ -65,7 +68,7 @@ EOF
   echo_debug "iodine call complete"
 }
 
-initramfs-wifi(){
+initramfs_wifi_setup(){
 # REFERENCE:
 #    http://www.marcfargas.com/posts/enable-wireless-debian-initramfs/
 #    https://wiki.archlinux.org/index.php/Dm-crypt/Specialties#Remote_unlock_via_wifi
@@ -258,7 +261,7 @@ EOT
   echo_debug "initramfs wifi completed"
 }
 
-boot-hash(){
+boot_hash_setup(){
 #install mail package
 chroot_package_install "${_CHROOT_ROOT}" mailutils
 
@@ -328,7 +331,7 @@ dropbear_setup(){
   backup_and_use_sshkey ${_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_rsa_host_key
 }
 
-luks_nuke(){
+luks_nuke_setup(){
 # Install and configure cryptsetup nuke package if we were given a password
   if [ -n "${_LUKS_NUKE_PASSWORD}" ]; then
     echo_debug "Attempting to install and configure encrypted pi cryptsetup nuke password."
@@ -338,7 +341,7 @@ cryptsetup-nuke-password cryptsetup-nuke-password/password string ${_LUKS_NUKE_P
 cryptsetup-nuke-password cryptsetup-nuke-password/password-again string ${_LUKS_NUKE_PASSWORD}
 END
 "
-      chroot_execute dpkg-reconfigure -f noninteractive cryptsetup-nuke-password
+      chroot_execute "$_CHROOT_ROOT" dpkg-reconfigure -f noninteractive cryptsetup-nuke-password
   else
       echo_warn "SKIPPING Cryptsetup NUKE. Nuke password _LUKS_NUKE_PASSWORD not set."
   fi
@@ -373,29 +376,30 @@ ssh_setup(){
   PubkeyAuthentication yes
   AuthorizedKeysFile .ssh/authorized_keys
 EOF
+
 }
 
-cpu_governor(){
-  echo_debug "Installing package cpufrequtils"
-  chroot_package_install "${_CHROOT_ROOT}" cpufrequtils
-  echo_info "Use cpufreq-info/systemctl status cpufrequtils to confirm the changes when the device is running"
-  chroot_execute echo "GOVERNOR=$(_CPU_GOVERNOR)" | sudo tee /etc/default/cpufrequtils
-  chroot_execute systemctl enable cpufrequtils
+cpu_governor_setup(){
+  echo_debug "Installing package cpufrequtils";
+  chroot_package_install "${_CHROOT_ROOT}" cpufrequtils;
+  echo_info "Use cpufreq-info/systemctl status cpufrequtils to confirm the changes when the device is running";
+  chroot_execute "$_CHROOT_ROOT" echo "GOVERNOR=$(_CPU_GOVERNOR)" | sudo tee /etc/default/cpufrequtils;
+  chroot_execute "$_CHROOT_ROOT" systemctl enable cpufrequtils;
 }
 
-dns(){
-  echo_debug "Attempting to set system's DNS settings"
-  echo_debug "Writing /etc/resolv.conf "
+dns_setup(){
+  echo_debug "Attempting to set system's DNS settings";
+  echo_debug "Writing /etc/resolv.conf ";
   cat <<EOT > ${_CHROOT_ROOT}/etc/resolv.conf
 # DNS (by optional-sys-dns)
-nameserver ${_DNS1}
-nameserver ${_DNS2}
+nameserver ${_DNS1};
+nameserver ${_DNS2};
 EOT
-  chmod o+r ${_CHROOT_ROOT}/etc/resolv.conf
+  chmod o+r ${_CHROOT_ROOT}/etc/resolv.conf;
 
 #echo_debug "Installing resolvconf"
 #chroot_package_install "${_CHROOT_ROOT}" resolvconf
-#chroot_execute systemctl enable resolvconf.service
+#chroot_execute "$_CHROOT_ROOT" systemctl enable resolvconf.service
 #
 #
 #echo_debug "Updating /etc/resolvconf/resolv.conf.d/head "
@@ -404,30 +408,24 @@ EOT
 #nameserver ${_DNS2}
 #EOT
 
-  echo_debug "Updating /etc/network/interfaces"
+  echo_debug "Updating /etc/network/interfaces";
   cat <<EOT >> ${_CHROOT_ROOT}/etc/network/interfaces
 # DNS (by optional-sys-dns)
-dns-nameservers ${_DNS1} ${_DNS2}
-EOT
-
-  test -e "${_CHROOT_ROOT}/etc/dhclient.conf" && {
-    echo_debug "Updating /etc/dhclient.conf"
-    cat <<EOT >> ${_CHROOT_ROOT}/etc/dhclient.conf
-# DNS (by optional-sys-dns)
-supersede domain-name-servers ${_DNS1}, ${_DNS2};
+dns-nameservers ${_DNS1} ${_DNS2};
 EOT
 
   test -e "${_CHROOT_ROOT}/etc/dhpc/dhclient.conf" && {
-    echo_debug "Uptading /etc/dhpc/dhclient.conf"
-    cat <<EOT >> ${_CHROOT_ROOT}/etc/dhpc/dhclient.conf
-  # DNS (by optional-sys-dns)
-  supersede domain-name-servers ${_DNS1}, ${_DNS2};
+   echo_debug "Updating /etc/dhpc/dhclient.conf"
+  
+  cat << EOT >> ${_CHROOT_ROOT}/etc/dhpc/dhclient.conf
+# DNS (by optional-sys-dns)
+supersede domain-name-servers ${_DNS1}, ${_DNS2};
 EOT
-
-  echo_debug " system's DNS settings configured."
+  }
+echo_debug "DNS configured";
 }
 
-docker(){
+docker_setup(){
 # REFERENCES
 #   https://www.docker.com/blog/happy-pi-day-docker-raspberry-pi/
 #   https://github.com/docker/docker.github.io/blob/595616145a53d68fb5be1d603e97666cefcb5293/install/linux/docker-ce/debian.md
@@ -456,23 +454,23 @@ docker(){
 
   echo_debug "    Enabling service "
   chroot_execute "$_CHROOT_ROOT" systemctl enable docker
-  # chroot_execute systemctl start docker
+  # chroot_execute "$_CHROOT_ROOT" systemctl start docker
   echo_debug " docker hook call completed"
 }
 
-root-password(){
+root_password_setup(){
   echo_debug "Changing root password"
   chroot ${_CHROOT_ROOT} /bin/bash -c "echo root:${_ROOT_PASSWORD} | /usr/sbin/chpasswd"
   echo_info "Root password set"
 }
 
-user-password(){
+user_password_setup(){
   echo_debug "Changing kali user password"
   chroot ${_CHROOT_ROOT} /bin/bash -c "echo kali:${_KALI_PASSWORD} | /usr/sbin/chpasswd"
   echo_info "Kali user password set"
 }
 
-vpn-client(){
+vpn_client_setup(){
   echo_debug "Setting OpenVPN up "
   _OPENVPN_CONFIG_ZIPFILE=${_OPENVPN_CONFIG_ZIP}
   _OPENVPN_CONFIG_ZIPPATH="${_FILE_DIR}/${_OPENVPN_CONFIG_ZIPFILE}"
@@ -489,11 +487,11 @@ vpn-client(){
   sed -i '/^#AUTOSTART="all"/s/^#//' ${_CHROOT_ROOT}/etc/default/openvpn
 
   echo_debug "Enabling service "
-  chroot_execute systemctl enable openvpn@client
-  #chroot_execute systemctl enable openvpn@client.service
+  chroot_execute "$_CHROOT_ROOT" systemctl enable openvpn@client
+  #chroot_execute "$_CHROOT_ROOT" systemctl enable openvpn@client.service
 }
 
-wifi(){
+wifi_setup(){
   echo_debug 'Setting WIFI up'
 
   # Checking if WIFI interface was provided
@@ -555,20 +553,20 @@ EOT
   #echo_debug "@reboot /root/sys-wifi-connect.sh" > ${_CHROOT_ROOT}/etc/cron.d/sys-wifi
 }
 
-ufw_setup(){
+firewall_setup(){
   echo_info "$FUNCNAME started at $(date) ";
 
   # Installing packages
-  chroot_package_install "$_CHROOT_ROOT" ufw
-  chroot_execute "$_CHROOT_ROOT" ufw logging on
-  chroot_execute "$_CHROOT_ROOT" ufw default deny outgoing
-  chroot_execute "$_CHROOT_ROOT" ufw default deny incoming
-  chroot_execute "$_CHROOT_ROOT" ufw default deny routed
-  chroot_execute "$_CHROOT_ROOT" ufw allow out 53/udp
-  chroot_execute "$_CHROOT_ROOT" ufw allow out 80/tcp
-  chroot_execute "$_CHROOT_ROOT" ufw allow out 443/tcp
-  chroot_execute "$_CHROOT_ROOT" ufw allow in "${_SSH_PORT}/tcp"
-  chroot_execute "$_CHROOT_ROOT" ufw enable
-  ufw status verbose
-  echo_warn "Firewall setup complete, please review setup and amend as necessary"
+  chroot_package_install "$_CHROOT_ROOT" ufw;
+  chroot_execute "$_CHROOT_ROOT" ufw logging on;
+  chroot_execute "$_CHROOT_ROOT" ufw default deny outgoing;
+  chroot_execute "$_CHROOT_ROOT" ufw default deny incoming;
+  chroot_execute "$_CHROOT_ROOT" ufw default deny routed;
+  chroot_execute "$_CHROOT_ROOT" ufw allow out 53/udp;
+  chroot_execute "$_CHROOT_ROOT" ufw allow out 80/tcp;
+  chroot_execute "$_CHROOT_ROOT" ufw allow out 443/tcp;
+  chroot_execute "$_CHROOT_ROOT" ufw allow in "${_SSH_PORT}/tcp";
+  chroot_execute "$_CHROOT_ROOT" ufw enable;
+  ufw status verbose;
+  echo_warn "Firewall setup complete, please review setup and amend as necessary";
 }
