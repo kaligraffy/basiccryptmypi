@@ -5,11 +5,35 @@ USAGE
 
 Leave aside about 30GB of disk space 
 
-Modify .env with your settings. 
-- Change any password field 
-- Update the image url if it's changed, and you want the most recent kali pi image
-- Call any optional 'hooks' in prepare_image_extras
-- And the disk e.g /dev/sdX or /dev/mmcblkX
+Modify .env with your settings. At the least change:
+export _OUTPUT_BLOCK_DEVICE="CHANGEME"
+export _LUKS_PASSWORD="CHANGEME"
+export _ROOT_PASSWORD="CHANGEME"
+export _KALI_PASSWORD="CHANGEME"
+export _SSH_KEY_PASSPHRASE="CHANGEME"
+export _WIFI_PASSWORD='CHANGEME'
+export _IMAGE_SHA256="c6ceee472eb4dabf4ea895ef53c7bd28751feb44d46ce2fa3f51eb5469164c2c"
+export _IMAGE_URL="https://images.kali.org/arm-images/kali-linux-2020.4-rpi4-nexmon-64.img.xz"
+
+Call any optional 'hooks' in prepare_image_extras (comment/uncomment as necessary):
+
+prepare_image_extras(){
+   call_hooks optional-boot-hash
+   call_hooks optional-initramfs-luks-nuke
+   call_hooks optional-sys-cpu-governor
+   call_hooks optional-sys-dns
+   call_hooks optional-sys-root-password
+   call_hooks optional-sys-kali-password
+ #call_hooks optional-ssh
+ #call_hooks optional-dropbear
+ #call_hooks experimental-initramfs-wifi
+   call_hooks optional-ufw
+ #call_hooks experimental-sys-iodine
+ #call_hooks experimental-initramfs-iodine
+ #call_hooks optional-sys-docker
+ #call_hooks optional-sys-vpnclient
+ #call_hooks optional-sys-wifi
+}
 
 Run: 
 - change directory to cryptmypi directory

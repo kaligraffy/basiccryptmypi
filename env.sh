@@ -15,7 +15,7 @@ export _HOSTNAME="computer"
 export _KERNEL_VERSION_FILTER="l+"
 export _LOCALE='en_US.UTF-8'
 ###############################################
-export _OUTPUT_BLOCK_DEVICE=
+export _OUTPUT_BLOCK_DEVICE="CHANGEME"
 export _FILESYSTEM_TYPE="btrfs" #can also be ext4
 ###############################################
 #0 = debug messages and normal, 1 normal only
