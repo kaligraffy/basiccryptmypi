@@ -60,7 +60,7 @@ prepare_image_extras(){
    call_hooks optional-sys-cpu-governor
    call_hooks optional-sys-dns
    call_hooks optional-sys-root-password
-   call_hooks optional-sys-kali-password
+   call_hooks optional-sys-user-password
  #call_hooks optional-ssh
  #call_hooks optional-dropbear
  #call_hooks experimental-initramfs-wifi

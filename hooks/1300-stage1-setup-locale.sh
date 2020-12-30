@@ -23,7 +23,7 @@ EOF
 EOF
 
   echo_debug "Generating locale"
-  chroot_execute locale-gen
+  chroot_execute "${_CHROOT_ROOT}" locale-gen
 
   echo_debug "Updating .bashrc"
   cat << EOF >> ${_CHROOT_ROOT}/.bashrc
