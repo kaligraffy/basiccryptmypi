@@ -55,6 +55,7 @@ export _INITRAMFS_WIFI_INTERFACE='wlan0'
 ###############################################
 #Optional and experimental hooks
 prepare_image_extras(){
+   call_hooks optional-disable-displaymanager
    call_hooks optional-boot-hash
    call_hooks optional-initramfs-luks-nuke
    call_hooks optional-sys-cpu-governor
