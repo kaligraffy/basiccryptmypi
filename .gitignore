@@ -3,7 +3,6 @@ build/
 *build*/
 
 # File caches
-files
 
 # Keyfiles
 id_rsa
