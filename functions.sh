@@ -278,7 +278,7 @@ chroot_package_install(){
   local chroot_dir=$1;
   shift;
   echo_info "- Installing $@";
-  chroot_execute "${chroot_dir}" apt-get -qq -y install ${1} ;
+  chroot_execute "${chroot_dir}" apt-get -qq -y install "$@" ;
 }
 
 #removes packages from build
@@ -287,7 +287,7 @@ chroot_package_purge(){
   local chroot_dir=$1;
   shift;
   echo_info "- Purging $@";
-  chroot_execute "${chroot_dir}" apt-get -qq -y purge ${1} ;
+  chroot_execute "${chroot_dir}" apt-get -qq -y purge "$@" ;
   chroot_execute "${chroot_dir}" apt-get -qq -y autoremove ;
 }
 

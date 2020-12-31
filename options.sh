@@ -302,7 +302,7 @@ EOF
 display_manager_setup(){
   echo_info "$FUNCNAME started at $(date) ";
   chroot_execute "$_CHROOT_ROOT" systemctl set-default multi-user
-  #to get a gui run startxfce4 on command line
+  echo_info "To get a gui run startxfce4 on command line"
 }
 
 dropbear_setup(){
@@ -552,8 +552,8 @@ EOT
 
   chmod +x ${_CHROOT_ROOT}/sys-wifi-connect.sh
 
-  #echo_debug "Add to cron to start at boot (before login)"
-  #echo_debug "@reboot /root/sys-wifi-connect.sh" > ${_CHROOT_ROOT}/etc/cron.d/sys-wifi
+  echo_debug "Add to cron to start at boot (before login)"
+  echo "@reboot /root/sys-wifi-connect.sh" > ${_CHROOT_ROOT}/etc/cron.d/sys-wifi
 }
 
 firewall_setup(){
