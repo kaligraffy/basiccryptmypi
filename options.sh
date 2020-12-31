@@ -7,7 +7,8 @@ set -eu
 iodine_setup(){
   # REFERENCE:
   #   https://davidhamann.de/2019/05/12/tunnel-traffic-over-dns-ssh/
-  echo_debug "Attempting iodine"
+  echo_info "$FUNCNAME started at $(date) ";
+
   chroot_package_install "$_CHROOT_ROOT" iodine
 
   # Create initramfs hook file for iodine
@@ -65,7 +66,7 @@ exit 0
 EOF
   chmod 755 ${_CHROOT_ROOT}/etc/initramfs-tools/scripts/init-premount/iodine
 
-  echo_debug "iodine call complete"
+  echo_debug "iodine setup complete";
 }
 
 initramfs_wifi_setup(){
@@ -73,7 +74,7 @@ initramfs_wifi_setup(){
 #    http://www.marcfargas.com/posts/enable-wireless-debian-initramfs/
 #    https://wiki.archlinux.org/index.php/Dm-crypt/Specialties#Remote_unlock_via_wifi
 #    http://retinal.dehy.de/docs/doku.php?id=technotes:raspberryrootnfs
-
+  echo_info "$FUNCNAME started at $(date) ";
   echo_debug "Attempting to set initramfs WIFI up "
   if [ -z "$_WIFI_SSID" ] || [ -z "$_WIFI_PASSWORD" ]; then
     echo_warn 'SKIPPING: _WIFI_PASSWORD and/or _WIFI_SSID are not set.'
@@ -85,7 +86,6 @@ initramfs_wifi_setup(){
     _INITRAMFS_WIFI_INTERFACE='wlan0'
     echo_warn "_INITRAMFS_WIFI_INTERFACE is not set on config: Setting default value ${_INITRAMFS_WIFI_INTERFACE}"
   fi
-
 
   # Checking if WIFI ip kernal param was provided
   if [ -z "${_INITRAMFS_WIFI_IP}" ]; then
@@ -262,12 +262,13 @@ EOT
 }
 
 boot_hash_setup(){
-#install mail package
-chroot_package_install "${_CHROOT_ROOT}" mailutils
+  echo_info "$FUNCNAME started at $(date) ";
+  #install mail package
+  chroot_package_install "${_CHROOT_ROOT}" mailutils
 
-BOOTDRIVE="${_BLOCK_DEVICE_BOOT}"
-BOOTHASHSCRIPT="${_CHROOT_ROOT}/usr/local/bin/bootHash.sh"
-echo_debug "Creating script bootHash.sh in ${_BUILD_DIR}/usr/local/bin"
+  BOOTDRIVE="${_BLOCK_DEVICE_BOOT}"
+  BOOTHASHSCRIPT="${_CHROOT_ROOT}/usr/local/bin/bootHash.sh"
+  echo_debug "Creating script bootHash.sh in ${_BUILD_DIR}/usr/local/bin"
 
 cat << 'EOF' > "$BOOTHASHSCRIPT"
 #!/bin/bash
@@ -288,18 +289,18 @@ if [ "$LASTHASH" != "$NEWHASH" ]; then
 fi
 EOF
 
-sed -i "s|/dev/sdX|${BOOTDRIVE}|g" "$BOOTHASHSCRIPT"
-chmod 700 "$BOOTHASHSCRIPT"
+  sed -i "s|/dev/sdX|${BOOTDRIVE}|g" "$BOOTHASHSCRIPT"
+  chmod 700 "$BOOTHASHSCRIPT"
 
-#crontab run on startup
-cat << 'EOF' > "${_CHROOT_ROOT}/etc/cron.d/startBootHash"
+  #crontab run on startup
+  cat << 'EOF' > "${_CHROOT_ROOT}/etc/cron.d/startBootHash"
 @reboot root /bin/bash /usr/local/bin/bootHash.sh
 EOF
   chmod 755 "${_CHROOT_ROOT}/etc/cron.d/startBootHash"
 }
 
 display_manager_setup(){
-  echo_debug "Disable the display manager"
+  echo_info "$FUNCNAME started at $(date) ";
   chroot_execute "$_CHROOT_ROOT" systemctl set-default multi-user
   #to get a gui run startxfce4 on command line
 }
@@ -332,6 +333,7 @@ dropbear_setup(){
 }
 
 luks_nuke_setup(){
+  echo_info "$FUNCNAME started at $(date) ";
 # Install and configure cryptsetup nuke package if we were given a password
   if [ -n "${_LUKS_NUKE_PASSWORD}" ]; then
     echo_debug "Attempting to install and configure encrypted pi cryptsetup nuke password."
@@ -380,15 +382,16 @@ EOF
 }
 
 cpu_governor_setup(){
+  echo_info "$FUNCNAME started at $(date) ";
   echo_debug "Installing package cpufrequtils";
   chroot_package_install "${_CHROOT_ROOT}" cpufrequtils;
   echo_info "Use cpufreq-info/systemctl status cpufrequtils to confirm the changes when the device is running";
-  chroot_execute "$_CHROOT_ROOT" echo "GOVERNOR=$(_CPU_GOVERNOR)" | sudo tee /etc/default/cpufrequtils;
+  echo "GOVERNOR=${_CPU_GOVERNOR}" | tee ${_CHROOT_ROOT}/etc/default/cpufrequtils;
   chroot_execute "$_CHROOT_ROOT" systemctl enable cpufrequtils;
 }
 
 dns_setup(){
-  echo_debug "Attempting to set system's DNS settings";
+  echo_info "$FUNCNAME started at $(date) ";
   echo_debug "Writing /etc/resolv.conf ";
   cat <<EOT > ${_CHROOT_ROOT}/etc/resolv.conf
 # DNS (by optional-sys-dns)
@@ -432,7 +435,7 @@ docker_setup(){
 #   https://docs.docker.com/engine/install/debian/
 #   https://gist.github.com/decidedlygray/1288c0265457e5f2426d4c3b768dfcef
 
-  echo_debug "Attempting to install docker "
+  echo_info "$FUNCNAME started at $(date) ";
   echo_warn "### Docker service may experience conflicts VPN services/connections ###"
 
   echo_debug "    Updating /boot/cmdline.txt to enable cgroup "
@@ -459,19 +462,19 @@ docker_setup(){
 }
 
 root_password_setup(){
-  echo_debug "Changing root password"
+  echo_info "$FUNCNAME started at $(date) ";
   chroot ${_CHROOT_ROOT} /bin/bash -c "echo root:${_ROOT_PASSWORD} | /usr/sbin/chpasswd"
   echo_info "Root password set"
 }
 
 user_password_setup(){
-  echo_debug "Changing kali user password"
+  echo_info "$FUNCNAME started at $(date) ";
   chroot ${_CHROOT_ROOT} /bin/bash -c "echo kali:${_KALI_PASSWORD} | /usr/sbin/chpasswd"
   echo_info "Kali user password set"
 }
 
 vpn_client_setup(){
-  echo_debug "Setting OpenVPN up "
+  echo_info "$FUNCNAME started at $(date) ";
   _OPENVPN_CONFIG_ZIPFILE=${_OPENVPN_CONFIG_ZIP}
   _OPENVPN_CONFIG_ZIPPATH="${_FILE_DIR}/${_OPENVPN_CONFIG_ZIPFILE}"
 
@@ -492,7 +495,7 @@ vpn_client_setup(){
 }
 
 wifi_setup(){
-  echo_debug 'Setting WIFI up'
+  echo_info "$FUNCNAME started at $(date) ";
 
   # Checking if WIFI interface was provided
   if [ -z "${_WIFI_INTERFACE}" ]; then
@@ -517,7 +520,7 @@ ${_WIFI_PSK}
 }
 EOT
 
-  echo_debug "Uptading /etc/network/interfaces file"
+  echo_debug "Updating /etc/network/interfaces file"
   cat <<EOT >> ${_CHROOT_ROOT}/etc/network/interfaces
 
 # The buildin wireless interface
@@ -567,6 +570,6 @@ firewall_setup(){
   chroot_execute "$_CHROOT_ROOT" ufw allow out 443/tcp;
   chroot_execute "$_CHROOT_ROOT" ufw allow in "${_SSH_PORT}/tcp";
   chroot_execute "$_CHROOT_ROOT" ufw enable;
-  ufw status verbose;
+  chroot_execute "$_CHROOT_ROOT" ufw status verbose;
   echo_warn "Firewall setup complete, please review setup and amend as necessary";
 }
