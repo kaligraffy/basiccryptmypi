@@ -22,7 +22,7 @@ export _FILESYSTEM_TYPE="btrfs" #can also be ext4
 export _LOG_LEVEL=1
 ###############################################
 export _LUKS_CONFIGURATION="aes-xts-plain64 --key-size 512 --use-random --hash sha512 \
-                    --pbkdf argon2i --iter-time 5000"
+ --pbkdf argon2i --iter-time 5000"
 export _LUKS_PASSWORD="CHANGEME"
 export _ROOT_PASSWORD="CHANGEME"
 export _KALI_PASSWORD="CHANGEME"
