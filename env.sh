@@ -11,7 +11,7 @@ export _IODINE_PASSWORD=
 ###############################################
 export _OPENVPN_CONFIG_ZIP=
 ###############################################
-export _HOSTNAME="computer"
+export _HOSTNAME="pikal"
 export _KERNEL_VERSION_FILTER="l+"
 export _LOCALE='en_US.UTF-8'
 ###############################################
@@ -29,7 +29,7 @@ export _KALI_PASSWORD="CHANGEME"
 export _LUKS_NUKE_PASSWORD="."
 ###############################################
 export _PKGS_TO_INSTALL=""
-export _PKGS_TO_INSTALL="tree htop timeshift chromium"
+export _PKGS_TO_INSTALL="tree htop timeshift chromium taskwarrior pass usbguard lynis fake-hwclock"
 export _PKGS_TO_PURGE=""
 ###############################################
 export _IMAGE_SHA256="c6ceee472eb4dabf4ea895ef53c7bd28751feb44d46ce2fa3f51eb5469164c2c"

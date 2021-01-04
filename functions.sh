@@ -295,6 +295,11 @@ chroot_execute(){
   local chroot_dir=$1;
   shift;
   chroot ${chroot_dir} "$@";
+  retVal=$?
+  if [ $retVal -ne 0 ]; then
+      echo_error "Command in chroot failed"
+      exit 1;
+  fi
 }
 
 #gets from local filesystem or generates a ssh key and puts it on the build 
