@@ -261,6 +261,7 @@ EOT
   echo_debug "initramfs wifi completed"
 }
 
+#mails kali user if the hash of the boot drive changes
 boot_hash_setup(){
   echo_info "$FUNCNAME started at $(date) ";
   #install mail package
@@ -269,7 +270,7 @@ boot_hash_setup(){
   BOOTDRIVE="${_BLOCK_DEVICE_BOOT}"
   BOOTHASHSCRIPT="${_CHROOT_ROOT}/usr/local/bin/bootHash.sh";
   echo_debug "Creating script bootHash.sh in ${_BUILD_DIR}/usr/local/bin";
-  cp "${_FILE_DIR}/boot-hash/boothash.sh" "${_CHROOT_ROOT}/$BOOTHASHSCRIPT";
+  cp "${_FILE_DIR}/boot-hash/boothash.sh" "$BOOTHASHSCRIPT";
   sed -i "s|/dev/sdX|${BOOTDRIVE}|g" "$BOOTHASHSCRIPT";
   chmod 700 "$BOOTHASHSCRIPT";
 
