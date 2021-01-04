@@ -2,6 +2,7 @@
 # shellcheck disable=SC2034
 # shellcheck disable=SC2145
 # shellcheck disable=SC2086
+# shellcheck disable=SC2068
 set -eu
 
 #Global variables
@@ -369,9 +370,9 @@ make_filesystem(){
 #rsync for local copy
 #arguments $1 - to $2 - from
 rsync_local(){
-  echo_info "Starting copy of "${@}" at $(date)"
+  echo_info "Starting copy of ${@} at $(date)";
   rsync --hard-links  --archive --partial --info=progress2 "${@}"
-  echo_info "Finished copy of "${@}" at $(date)"
+  echo_info "Finished copy of ${@} at $(date)";
   sync;
 }
 
