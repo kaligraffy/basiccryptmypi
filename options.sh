@@ -4,6 +4,8 @@
 # shellcheck disable=SC2086
 # shellcheck disable=SC2068
 # shellcheck disable=SC2128
+export _SSH_SETUP=0;
+
 set -eu
 
 iodine_setup(){
@@ -363,6 +365,9 @@ ssh_setup(){
   AuthorizedKeysFile .ssh/authorized_keys
 EOF
 
+#Used for firewall firewall_setup script
+_SSH_SETUP=1;
+
 }
 
 cpu_governor_setup(){
@@ -518,10 +523,11 @@ firewall_setup(){
   chroot_execute "$_CHROOT_ROOT" ufw allow out 80/tcp;
   chroot_execute "$_CHROOT_ROOT" ufw allow out 443/tcp;
   
-  #ntp
+  #ntp 
   chroot_execute "$_CHROOT_ROOT" ufw allow out 123/udp;
-  
-  chroot_execute "$_CHROOT_ROOT" ufw allow in "${_SSH_PORT}/tcp";
+  if (( ${_SSH_SETUP} == 1 )); then
+    chroot_execute "$_CHROOT_ROOT" ufw allow in "${_SSH_PORT}/tcp";
+  fi
   chroot_execute "$_CHROOT_ROOT" ufw enable;
   chroot_execute "$_CHROOT_ROOT" ufw status verbose;
   echo_warn "Firewall setup complete, please review setup and amend as necessary";
