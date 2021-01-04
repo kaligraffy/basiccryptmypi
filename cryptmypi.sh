@@ -49,8 +49,22 @@ execute()
   setup_filesystem_and_copy_to_disk;
 }
 
+#test code 
+test-execute(){
+  echo_info "$FUNCNAME started at $(date) ";
+  check_preconditions;
+  install_dependencies;
+  fix_block_device_names;
+  chroot_setup
+  packages_setup;
+#    extra_setup;
+  chroot_mkinitramfs "${_CHROOT_ROOT}";
+  chroot_umount "${_CHROOT_ROOT}" 
+}
+
 # wrapper script for logging
 main(){
+#  test-execute | tee "${_LOG_FILE}" || true
   execute | tee "${_LOG_FILE}" || true
   exit;
 }

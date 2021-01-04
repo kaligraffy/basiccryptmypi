@@ -267,36 +267,17 @@ boot_hash_setup(){
   chroot_package_install "${_CHROOT_ROOT}" mailutils
 
   BOOTDRIVE="${_BLOCK_DEVICE_BOOT}"
-  BOOTHASHSCRIPT="${_CHROOT_ROOT}/usr/local/bin/bootHash.sh"
-  echo_debug "Creating script bootHash.sh in ${_BUILD_DIR}/usr/local/bin"
-
-cat << 'EOF' > "$BOOTHASHSCRIPT"
-#!/bin/bash
-#user to be mailed (kali, root)
-MAILUSER=kali
-#boot device mmcblk0p1 or /dev/sda1
-BOOTDRIVE=/dev/sdX
-LOGFILE="/var/log/$BOOTDRIVE-hashes"
-LASTHASH=$(tail -1 $LOGFILE)
-NEWHASH="$(sha256sum $BOOTDRIVE) $(date)"
-echo $NEWHASH >> "$LOGFILE"
-
-LASTHASH=$(echo "$LASTHASH" | cut -d' ' -f 1)
-NEWHASH=$(echo "$NEWHASH" | cut -d' ' -f 1)
-
-if [ "$LASTHASH" != "$NEWHASH" ]; then
-    echo -e "${NEWHASH}\n${LASTHASH}" | mail -s "BOOT HASH CHANGE" $MAILUSER
-fi
-EOF
-
-  sed -i "s|/dev/sdX|${BOOTDRIVE}|g" "$BOOTHASHSCRIPT"
-  chmod 700 "$BOOTHASHSCRIPT"
+  BOOTHASHSCRIPT="${_CHROOT_ROOT}/usr/local/bin/bootHash.sh";
+  echo_debug "Creating script bootHash.sh in ${_BUILD_DIR}/usr/local/bin";
+  cp "${_FILE_DIR}/boot-hash/boothash.sh" "${_CHROOT_ROOT}/$BOOTHASHSCRIPT";
+  sed -i "s|/dev/sdX|${BOOTDRIVE}|g" "$BOOTHASHSCRIPT";
+  chmod 700 "$BOOTHASHSCRIPT";
 
   #crontab run on startup
   cat << 'EOF' > "${_CHROOT_ROOT}/etc/cron.d/startBootHash"
 @reboot root /bin/bash /usr/local/bin/bootHash.sh
 EOF
-  chmod 755 "${_CHROOT_ROOT}/etc/cron.d/startBootHash"
+  chmod 755 "${_CHROOT_ROOT}/etc/cron.d/startBootHash";
 }
 
 display_manager_setup(){
@@ -552,6 +533,7 @@ EOT
   echo "@reboot /root/sys-wifi-connect.sh" > ${_CHROOT_ROOT}/etc/cron.d/sys-wifi
 }
 
+#installs a basic firewall
 firewall_setup(){
   echo_info "$FUNCNAME started at $(date) ";
 
@@ -561,11 +543,38 @@ firewall_setup(){
   chroot_execute "$_CHROOT_ROOT" ufw default deny outgoing;
   chroot_execute "$_CHROOT_ROOT" ufw default deny incoming;
   chroot_execute "$_CHROOT_ROOT" ufw default deny routed;
+  
   chroot_execute "$_CHROOT_ROOT" ufw allow out 53/udp;
   chroot_execute "$_CHROOT_ROOT" ufw allow out 80/tcp;
   chroot_execute "$_CHROOT_ROOT" ufw allow out 443/tcp;
+  
+  #ntp
+  chroot_execute "$_CHROOT_ROOT" ufw allow out 123/udp;
+  
   chroot_execute "$_CHROOT_ROOT" ufw allow in "${_SSH_PORT}/tcp";
   chroot_execute "$_CHROOT_ROOT" ufw enable;
   chroot_execute "$_CHROOT_ROOT" ufw status verbose;
   echo_warn "Firewall setup complete, please review setup and amend as necessary";
+}
+
+#installs clamav and update/scanning daemons, updates to most recent definitions
+clamav_setup(){
+  echo_info "$FUNCNAME started at $(date) ";
+  chroot_package_install "$_CHROOT_ROOT" clamav clamav-daemon
+  chroot_execute "$_CHROOT_ROOT" systemctl enable clamav-freshclam.service
+  chroot_execute "$_CHROOT_ROOT" systemctl enable clamav-daemon.service
+  chroot_execute "$_CHROOT_ROOT" freshclam
+  echo_debug "clamav installed"
+}
+
+#simulates a hardware clock
+fake_hwclock_setup(){
+  echo_info "$FUNCNAME started at $(date) ";
+  chroot_package_install "$_CHROOT_ROOT" fake-hwclock
+  chroot_execute "$_CHROOT_ROOT" systemctl enable fake-hwclock
+}
+
+apt_upgrade(){
+  chroot_execute "$_CHROOT_ROOT" apt -qq -y update
+  chroot_execute "$_CHROOT_ROOT" apt -qq -y upgrade
 }

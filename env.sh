@@ -29,7 +29,8 @@ export _KALI_PASSWORD="CHANGEME"
 export _LUKS_NUKE_PASSWORD="."
 ###############################################
 export _PKGS_TO_INSTALL=""
-export _PKGS_TO_INSTALL="tree htop timeshift chromium taskwarrior pass usbguard lynis fake-hwclock"
+export _PKGS_TO_INSTALL="tree htop nethogs timeshift midori taskwarrior pass usbguard lynis apt-listbugs debsecan debsums aide fail2ban firejail lynx"
+#tripwire samhain
 export _PKGS_TO_PURGE=""
 ###############################################
 export _IMAGE_SHA256="c6ceee472eb4dabf4ea895ef53c7bd28751feb44d46ce2fa3f51eb5469164c2c"
@@ -61,13 +62,19 @@ extra_setup(){
   display_manager_setup
 #   dropbear_setup
   luks_nuke_setup
-#   ssh_setup
+#   ssh_setup #todo: sensible ssh default configuration
   cpu_governor_setup
-  dns_setup
+  dns_setup #reconfigure for https/tls over dns
 #   docker_setup
   root_password_setup
   user_password_setup
 #   vpn_client_setup
 #   wifi_setup
   firewall_setup
+  clamav_setup
+  fake_hwclock_setup
+# apparmor_setup - todo
+# firejail_setup - todo
+# sysctl_hardening_setup - todo
+  apt_upgrade
 }

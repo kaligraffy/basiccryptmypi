@@ -278,7 +278,7 @@ chroot_package_install(){
   local chroot_dir=$1;
   shift;
   echo_info "- Installing $@";
-  chroot_execute "${chroot_dir}" apt-get -qq -y install "$@" ;
+  chroot_execute "${chroot_dir}" apt-get -qq -y install $@ ;
 }
 
 #removes packages from build
@@ -287,7 +287,7 @@ chroot_package_purge(){
   local chroot_dir=$1;
   shift;
   echo_info "- Purging $@";
-  chroot_execute "${chroot_dir}" apt-get -qq -y purge "$@" ;
+  chroot_execute "${chroot_dir}" apt-get -qq -y purge $@ ;
   chroot_execute "${chroot_dir}" apt-get -qq -y autoremove ;
 }
 
@@ -444,8 +444,8 @@ encryption_setup(){
   fi
 
   # Setup qemu emulator for aarch64
-  echo_debug "- Copying qemu emulator to chroot "
-  cp /usr/bin/qemu-aarch64-static ${_CHROOT_ROOT}/usr/bin/
+#  echo_debug "- Copying qemu emulator to chroot "
+# cp /usr/bin/qemu-aarch64-static ${_CHROOT_ROOT}/usr/bin/
   chroot_package_install "${_CHROOT_ROOT}" cryptsetup busybox
 
   # Creating symbolic link to e2fsck
@@ -474,52 +474,12 @@ encryption_setup(){
   echo "$(basename ${_ENCRYPTED_VOLUME_PATH})    /dev/mmcblk0p2    none    luks" > ${_CHROOT_ROOT}/etc/crypttab
 
   # Create a hook to include our crypttab in the initramfs
-  cat << EOF > ${_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-cryptsetup
-  # !/bin/sh
-  set -e
-
-  PREREQ=""
-  prereqs()
-  {
-      echo "\${PREREQ}"
-  }
-
-  case "\${1}" in
-      prereqs)
-          prereqs
-          exit 0
-          ;;
-  esac
-
-  . /usr/share/initramfs-tools/hook-functions
-
-  mkdir -p \${DESTDIR}/cryptroot || true
-  cat /etc/crypttab >> \${DESTDIR}/cryptroot/crypttab
-  cat /etc/fstab >> \${DESTDIR}/cryptroot/fstab
-  cat /etc/crypttab >> \${DESTDIR}/etc/crypttab
-  cat /etc/fstab >> \${DESTDIR}/etc/fstab
-  copy_file config /etc/initramfs-tools/unlock.sh /etc/unlock.sh
-EOF
+  cp "${_FILE_DIR}/initramfs-scripts/zz-cryptsetup" "${_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-cryptsetup";
   chmod 755 ${_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-cryptsetup
 
   # Unlock Script
-  cat << EOF > "${_CHROOT_ROOT}/etc/initramfs-tools/unlock.sh"
-  #!/bin/sh
-
-  export PATH='/sbin:/bin/:/usr/sbin:/usr/bin'
-
-  while true
-  do
-      test -e ${_ENCRYPTED_VOLUME_PATH} && break || cryptsetup luksOpen ${_ENCRYPTED_VOLUME_PATH}
-  done
-
-  /scripts/local-top/cryptroot
-  for i in \$(ps aux | grep 'cryptroot' | grep -v 'grep' | awk '{print \$1}'); do kill -9 \$i; done
-  for i in \$(ps aux | grep 'askpass' | grep -v 'grep' | awk '{print \$1}'); do kill -9 \$i; done
-  for i in \$(ps aux | grep 'ask-for-password' | grep -v 'grep' | awk '{print \$1}'); do kill -9 \$i; done
-  for i in \$(ps aux | grep '\\-sh' | grep -v 'grep' | awk '{print \$1}'); do kill -9 \$i; done
-  exit 0
-EOF
+  cp "${_FILE_DIR}/initramfs-scripts/unlock.sh" "${_CHROOT_ROOT}/etc/initramfs-tools/unlock.sh";
+  sed -i "s#ENCRYPTED_VOLUME_PATH#${_ENCRYPTED_VOLUME_PATH}#" "${_CHROOT_ROOT}/etc/initramfs-tools/unlock.sh";
   chmod +x "${_CHROOT_ROOT}/etc/initramfs-tools/unlock.sh";
 
   # Adding dm_mod to initramfs modules
@@ -534,7 +494,7 @@ hostname_setup(){
   # Overwrites /etc/hostname
   echo "${_HOSTNAME}" > "${_CHROOT_ROOT}/etc/hostname";
   # Updates /etc/hosts
-  sed -i "s#^127.0.1.1\s*.*\$#127.0.1.1       ${_HOSTNAME}#" "${_CHROOT_ROOT}/etc/hosts";
+  sed -i "s#^127.0.0.1#127.0.0.1  ${_HOSTNAME}#" "${_CHROOT_ROOT}/etc/hosts";
 }
 
 packages_setup(){
