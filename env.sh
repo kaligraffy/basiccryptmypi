@@ -1,7 +1,7 @@
 #!/bin/bash
 set -eu
 
-export _NO_PROMPTS="1"; #1 or 0
+export _NO_PROMPTS="0"; #1 or 0
 export _LUKS_PASSWORD="CHANGEME"
 export _ROOT_PASSWORD="CHANGEME"
 export _KALI_PASSWORD="CHANGEME"
@@ -33,7 +33,7 @@ export _LUKS_CONFIGURATION="aes-xts-plain64 --key-size 512 --use-random --hash s
  --pbkdf argon2i --iter-time 5000"
 ###############################################
 export _PKGS_TO_INSTALL=""
-export _PKGS_TO_INSTALL="tree htop nethogs timeshift midori taskwarrior pass usbguard lynis debsecan debsums fail2ban firejail lynx"
+#export _PKGS_TO_INSTALL="tree htop nethogs timeshift midori taskwarrior pass usbguard lynis debsecan debsums fail2ban firejail lynx"
 #samhain apt-listbugs
 export _PKGS_TO_PURGE=""
 ###############################################
