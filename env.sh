@@ -55,6 +55,7 @@ export _WIFI_INTERFACE='wlan0'
 export _INITRAMFS_WIFI_IP=":::::${_WIFI_INTERFACE}:dhcp:${_DNS1}:${_DNS2}"
 export _INITRAMFS_WIFI_DRIVERS='brcmfmac43455 brcmfmac brcmutil cfg80211 rfkill'
 export _INITRAMFS_WIFI_INTERFACE='wlan0'
+export _BOOT_HASH_BLOCK_DEVICE='mmcblk0p1'
 ###############################################
 #Optional and experimental hooks
 extra_setup(){

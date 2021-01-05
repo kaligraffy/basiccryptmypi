@@ -4,7 +4,7 @@
 MAILUSER=kali;
 #boot device mmcblk0p1 or /dev/sda1
 BOOTDRIVE=/dev/sdX;
-LOGFILE="/var/log/$BOOTDRIVE-hashes";
+LOGFILE="/var/log/$(basename $BOOTDRIVE)-hashes";
 LASTHASH=$(tail -1 $LOGFILE);
 NEWHASH="$(sha256sum $BOOTDRIVE) $(date)";
 echo $NEWHASH >> "$LOGFILE";

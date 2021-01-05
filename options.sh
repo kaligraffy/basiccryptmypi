@@ -271,7 +271,7 @@ boot_hash_setup(){
   #install mail package
   chroot_package_install "${_CHROOT_ROOT}" mailutils
 
-  BOOTDRIVE="${_BLOCK_DEVICE_BOOT}"
+  BOOTDRIVE="${_BOOT_HASH_BLOCK_DEVICE}"
   BOOTHASHSCRIPT="${_CHROOT_ROOT}/usr/local/bin/bootHash.sh";
   echo_debug "Creating script bootHash.sh in ${_BUILD_DIR}/usr/local/bin";
   cp "${_FILE_DIR}/boot-hash/boothash.sh" "$BOOTHASHSCRIPT";

@@ -505,7 +505,7 @@ encryption_setup(){
   echo 'dm_crypt' >> ${_CHROOT_ROOT}/etc/initramfs-tools/modules;
 
   # Disable autoresize
-  chroot_execute "${_CHROOT_ROOT}" systemctl disable rpiwiggle
+  chroot_execute "${_CHROOT_ROOT}" systemctl disable rpi-resizerootfs.service
 }
 
 
