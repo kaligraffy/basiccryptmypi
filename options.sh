@@ -615,3 +615,8 @@ aide_setup(){
 EOF
   chmod 755 "${_CHROOT_ROOT}/etc/cron.d/aideCheck";
 }
+
+passwordless_login_setup(){
+  sed -i "s|^#  AutomaticLogin = root|AutomaticLogin =${_PASSWORDLESS_LOGIN_USER}|" "${_CHROOT_ROOT}/etc/gdm3/daemon.conf";
+  sed -i "s|^#  AutomaticLoginEnable = true|AutomaticLoginEnable = true" "${_CHROOT_ROOT}/etc/gdm3/daemon.conf";
+}

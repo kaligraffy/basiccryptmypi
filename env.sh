@@ -23,7 +23,7 @@ export _HOSTNAME="pikal"
 export _KERNEL_VERSION_FILTER="l+"
 export _LOCALE='en_US.UTF-8'
 ###############################################
-export _OUTPUT_BLOCK_DEVICE="/dev/sda"
+export _OUTPUT_BLOCK_DEVICE="/dev/sdX"
 export _FILESYSTEM_TYPE="btrfs" #can also be ext4
 ###############################################
 #0 = debug messages and normal, 1 normal only
@@ -33,7 +33,7 @@ export _LUKS_CONFIGURATION="aes-xts-plain64 --key-size 512 --use-random --hash s
  --pbkdf argon2i --iter-time 5000"
 ###############################################
 export _PKGS_TO_INSTALL=""
-export _PKGS_TO_INSTALL="tree htop nethogs timeshift midori pass usbguard lynis debsecan debsums fail2ban firejail lynx taskwarrior"
+export _PKGS_TO_INSTALL="tree htop nethogs timeshift midori pass usbguard lynis debsecan debsums fail2ban firejail lynx taskwarrior screen"
 #samhain apt-listbugs
 export _PKGS_TO_PURGE=""
 ###############################################
@@ -56,6 +56,7 @@ export _INITRAMFS_WIFI_IP=":::::${_WIFI_INTERFACE}:dhcp:${_DNS1}:${_DNS2}"
 export _INITRAMFS_WIFI_DRIVERS='brcmfmac43455 brcmfmac brcmutil cfg80211 rfkill'
 export _INITRAMFS_WIFI_INTERFACE='wlan0'
 export _BOOT_HASH_BLOCK_DEVICE='mmcblk0p1'
+export _PASSWORDLESS_LOGIN_USER='kali'
 ###############################################
 #Optional and experimental hooks
 extra_setup(){
@@ -64,6 +65,7 @@ extra_setup(){
   hostname_setup;
   boot_hash_setup;
   display_manager_setup;
+  passwordless_login_setup; #does not work when display manager setup is called (wip)
 #  dropbear_setup
   luks_nuke_setup;
 #  ssh_setup #todo: sensible ssh default configuration
@@ -72,6 +74,7 @@ extra_setup(){
 #  docker_setup
   root_password_setup;
   user_password_setup;
+  ntpsec_setup; #todo
 #  vpn_client_setup
 #  wifi_setup
   firewall_setup;

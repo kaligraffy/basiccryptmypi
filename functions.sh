@@ -379,7 +379,7 @@ make_filesystem(){
   case $fs_type in
     "vfat") mkfs.vfat $device; echo_debug "created vfat partition on $device";;
     "ext4") mkfs.ext4 $device; echo_debug "created ext4 partition on $device";;
-    "btrfs") mkfs.btrfs $device; echo_debug "created btrfs partition on $device";;
+    "btrfs") mkfs.btrfs -f -L btrfs $device; echo_debug "created btrfs partition on $device";;
     *) exit 1;;
   esac
 }
