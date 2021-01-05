@@ -366,7 +366,7 @@ ssh_setup(){
 EOF
 
 #Used for firewall firewall_setup script
-_SSH_SETUP=1;
+export _SSH_SETUP=1;
 
 }
 
@@ -609,9 +609,9 @@ aide_setup(){
   chroot_package_install "${_CHROOT_ROOT}" aide
   chroot_execute "$_CHROOT_ROOT" aideinit
   chroot_execute "$_CHROOT_ROOT" mv /var/lib/aide/aide.db.new /var/lib/aide/aide.db
-  chroot_execute "$_CHROOT_ROOT" aide --check
+
   cat << 'EOF' > "${_CHROOT_ROOT}/etc/cron.d/aideCheck"
-0 0 * * * root /usr/sbin/aide --check
+0 0 * * * root /usr/sbin/aide --check --config=/etc/aide/aide.conf
 EOF
   chmod 755 "${_CHROOT_ROOT}/etc/cron.d/aideCheck";
 }

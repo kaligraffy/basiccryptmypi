@@ -47,8 +47,13 @@ execute()
   setup_filesystem_and_copy_to_disk;
 }
 
+test-execute()
+{
+
+}
 # wrapper script for logging
 main(){
+  #test-execute | tee "${_LOG_FILE}" || true
   execute | tee "${_LOG_FILE}" || true
   exit;
 }

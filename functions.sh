@@ -291,7 +291,11 @@ chroot_package_install(){
   local chroot_dir=$1;
   shift;
   echo_info "- Installing $@";
-  chroot_execute "${chroot_dir}" apt-get -qq -y install $@ ;
+  PACKAGES="$@"
+  for package in $PACKAGES
+  do
+      chroot_execute "${chroot_dir}" apt-get -qq -y install $package 
+  done
 }
 
 #removes packages from build

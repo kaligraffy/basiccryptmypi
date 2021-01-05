@@ -33,7 +33,7 @@ export _LUKS_CONFIGURATION="aes-xts-plain64 --key-size 512 --use-random --hash s
  --pbkdf argon2i --iter-time 5000"
 ###############################################
 export _PKGS_TO_INSTALL=""
-#export _PKGS_TO_INSTALL="tree htop nethogs timeshift midori taskwarrior pass usbguard lynis debsecan debsums fail2ban firejail lynx"
+export _PKGS_TO_INSTALL="tree htop nethogs timeshift midori pass usbguard lynis debsecan debsums fail2ban firejail lynx taskwarrior"
 #samhain apt-listbugs
 export _PKGS_TO_PURGE=""
 ###############################################
@@ -58,28 +58,28 @@ export _INITRAMFS_WIFI_INTERFACE='wlan0'
 ###############################################
 #Optional and experimental hooks
 extra_setup(){
-#   iodine_setup
-#   initramfs_wifi_setup
+#  iodine_setup
+#  initramfs_wifi_setup
   hostname_setup;
-  boot_hash_setup
-  display_manager_setup
-#   dropbear_setup
-  luks_nuke_setup
-#   ssh_setup #todo: sensible ssh default configuration
-  cpu_governor_setup
-  dns_setup #reconfigure for https/tls over dns
-#   docker_setup
-  root_password_setup
-  user_password_setup
-#   vpn_client_setup
-#   wifi_setup
-  firewall_setup
-  clamav_setup
-  fake_hwclock_setup
-  aide_setup
+  boot_hash_setup;
+  display_manager_setup;
+#  dropbear_setup
+  luks_nuke_setup;
+#  ssh_setup #todo: sensible ssh default configuration
+  cpu_governor_setup;
+  dns_setup; #reconfigure for https/tls over dns
+#  docker_setup
+  root_password_setup;
+  user_password_setup;
+#  vpn_client_setup
+#  wifi_setup
+  firewall_setup;
+  clamav_setup;
+  fake_hwclock_setup;
 # apparmor_setup - todo
 # firejail_setup - todo
 # sysctl_hardening_setup - todo
   packages_setup;
-  apt_upgrade
+  apt_upgrade;
+  aide_setup;
 }
