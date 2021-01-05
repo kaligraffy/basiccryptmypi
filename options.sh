@@ -379,6 +379,14 @@ cpu_governor_setup(){
   chroot_execute "$_CHROOT_ROOT" systemctl enable cpufrequtils;
 }
 
+hostname_setup(){
+  echo_debug "Setting hostname to ${_HOSTNAME}";
+  # Overwrites /etc/hostname
+  echo "${_HOSTNAME}" > "${_CHROOT_ROOT}/etc/hostname";
+  # Updates /etc/hosts
+  sed -i "s#^127.0.0.1#127.0.0.1  ${_HOSTNAME}#" "${_CHROOT_ROOT}/etc/hosts";
+}
+
 dns_setup(){
   echo_info "$FUNCNAME started at $(date) ";
   echo_debug "Writing /etc/resolv.conf ";
@@ -525,7 +533,7 @@ firewall_setup(){
   
   #ntp 
   chroot_execute "$_CHROOT_ROOT" ufw allow out 123/udp;
-  if (( ${_SSH_SETUP} == 1 )); then
+  if [ "${_SSH_SETUP}" = "1" ]; then
     chroot_execute "$_CHROOT_ROOT" ufw allow in "${_SSH_PORT}/tcp";
   fi
   chroot_execute "$_CHROOT_ROOT" ufw enable;
@@ -551,6 +559,7 @@ fake_hwclock_setup(){
 }
 
 apt_upgrade(){
+  echo_info "$FUNCNAME started at $(date) ";
   chroot_execute "$_CHROOT_ROOT" apt -qq -y update
   chroot_execute "$_CHROOT_ROOT" apt -qq -y upgrade
 }
@@ -586,4 +595,23 @@ docker_setup(){
   chroot_execute "$_CHROOT_ROOT" systemctl enable docker
   # chroot_execute "$_CHROOT_ROOT" systemctl start docker
   echo_debug " docker hook call completed"
+}
+
+packages_setup(){
+  # Compose package actions
+  echo_info "$FUNCNAME started at $(date) ";
+  chroot_package_purge "$_CHROOT_ROOT" "${_PKGS_TO_PURGE}";
+  chroot_package_install "$_CHROOT_ROOT" "${_PKGS_TO_INSTALL}";
+}
+
+#sets up aide to run at midnight each night
+aide_setup(){
+  chroot_package_install "${_CHROOT_ROOT}" aide
+  chroot_execute "$_CHROOT_ROOT" aideinit
+  chroot_execute "$_CHROOT_ROOT" mv /var/lib/aide/aide.db.new /var/lib/aide/aide.db
+  chroot_execute "$_CHROOT_ROOT" aide --check
+  cat << 'EOF' > "${_CHROOT_ROOT}/etc/cron.d/aideCheck"
+0 0 * * * root /usr/sbin/aide --check
+EOF
+  chmod 755 "${_CHROOT_ROOT}/etc/cron.d/aideCheck";
 }

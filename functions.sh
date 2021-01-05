@@ -50,7 +50,12 @@ check_preconditions(){
 } 
 
 check_build_dir_exists(){
-  if [  -d ${_BUILD_DIR} ]; then
+  if [ "${_NO_PROMPTS}" = "1" ] ; then
+    echo '1';
+    return;
+  fi
+  
+  if [ -d ${_BUILD_DIR} ]; then
     local continue;
     read -p "Build directory already exists: ${_BUILD_DIR}. Rebuild? (y/N)  " continue;
     if [ "${continue}" = 'y' ] || [ "${continue}" = 'Y' ]; then
@@ -65,7 +70,6 @@ check_build_dir_exists(){
 
 # Encrypt & Write SD
 setup_filesystem_and_copy_to_disk(){  
-  
   echo_info "$FUNCNAME started at $(date) ";
   fs_type=$_FILESYSTEM_TYPE;
   check_disk_is_correct;
@@ -109,6 +113,7 @@ setup_filesystem_and_copy_to_disk(){
 
 # Cleanup on exit
 cleanup_image_prep(){
+  echo_info "$FUNCNAME started at $(date) ";
   umount  "${_BUILD_DIR}/mount" || true
   umount  "${_BUILD_DIR}/boot" || true
   umount /dev/loop* || true;
@@ -118,6 +123,7 @@ cleanup_image_prep(){
 }
 # Cleanup on exit
 cleanup_write_disk(){
+  echo_info "$FUNCNAME started at $(date) ";
   chroot_umount "${_DISK_CHROOT_ROOT}" || true
   umount "${_BLOCK_DEVICE_BOOT}" || true
   cryptsetup -v luksClose "${_ENCRYPTED_VOLUME_PATH}" || true
@@ -155,82 +161,88 @@ fix_block_device_names(){
 }
 
 create_build_directory_structure(){
-  mkdir "${_BUILD_DIR}" 
-  mkdir -p "${_FILE_DIR}" #where images are downloaded, extracted image lives here too
-  mkdir "${_BUILD_DIR}/mount" #where the extracted image's root directory is mounted
-  mkdir "${_BUILD_DIR}/boot"  #where the extracted image's boot directory is mounted
-  mkdir "${_CHROOT_ROOT}" #where the extracted image's files are copied to to be editted
+  mkdir "${_BUILD_DIR}"; 
+  mkdir -p "${_FILE_DIR}"; #where images are downloaded, extracted image lives here too
+  mkdir "${_BUILD_DIR}/mount"; #where the extracted image's root directory is mounted
+  mkdir "${_BUILD_DIR}/boot";  #where the extracted image's boot directory is mounted
+  mkdir "${_CHROOT_ROOT}"; #where the extracted image's files are copied to to be editted
 }
 
 extract_image() {
-  local image_name=$(basename ${_IMAGE_URL})
-  local image_path="${_FILE_DIR}/${image_name}"
-  local extracted_image="${_EXTRACTED_IMAGE}"
-  #export path to image file into the environment so other functions can use it later
-  
-  #Check if you want to re-extract the image you downloaded, if it exists
-  if [ -e "$extracted_image" ]; then
-    local continue="";
-    read -p "$extracted_image found, re-extract? (y/N)  " continue;
-    if [ "${continue}" = 'y' ] || [ "${continue}" = 'Y' ]; then
-      echo_info "continuing to extract...";
-    else
-      return 0;
-    fi
+  echo_info "$FUNCNAME started at $(date) ";
+  local image_name="$(basename ${_IMAGE_URL})";
+  local image_path="${_FILE_DIR}/${image_name}";
+  local extracted_image="${_EXTRACTED_IMAGE}";
+
+  #If no prompts is set and extracted image exists then continue to extract
+  if [ "${_NO_PROMPTS}" = "1" ]; then
+      if [ -e "${extracted_image}" ]; then
+        return 0;
+      fi
+  elif [ -e "${extracted_image}" ]; then
+      local continue="";
+      read -p "${extracted_image} found, re-extract? (y/N)  " continue;
+      if [ "${continue}" = 'y' ] || [ "${continue}" = 'Y' ]; then
+        echo_info "continuing to extract...";
+      else
+        return 0;
+      fi
   fi
 
-  echo_info "Starting extract at $(date)"
+  echo_info "Starting extract at $(date)";
+  #If theres a problem extracting, delete the partially extracted file and exit
+  trap 'rm $(echo $extracted_image); exit 1' ERR SIGINT;
   case ${image_path} in
     *.xz)
-        echo_info "Extracting with xz"
-        #If theres a problem extracting, delete the partially extracted file and exit
-        trap 'rm $(echo $extracted_image); exit 1' ERR SIGINT
-        pv ${image_path} | xz --decompress --stdout > "$extracted_image"
-        trap - ERR SIGINT
+        echo_info "Extracting with xz";
+        pv ${image_path} | xz --decompress --stdout > "$extracted_image";
         ;;
     *.zip)
-        echo_info "Extracting with unzip"
-        unzip -p $image_path > "$extracted_image"
+        echo_info "Extracting with unzip";
+        unzip -p $image_path > "$extracted_image";
         ;;
     *)
-        echo_error "Unknown extension type on image: $image_path"
-        exit 1
+        echo_error "Unknown extension type on image: $image_path";
+        exit 1;
         ;;
   esac
-  
-  echo_info "Finished extract at $(date)"
+  trap - ERR SIGINT;
+  echo_info "Finished extract at $(date)";
 }
 
 mount_loopback_image(){
-  echo_debug "Mounting loopback";
-  local extracted_image="${_EXTRACTED_IMAGE}"
+  echo_info "$FUNCNAME started at $(date) ";
+  local extracted_image="${_EXTRACTED_IMAGE}";
   loopdev=$(losetup -P -f --show "$extracted_image");
   partprobe ${loopdev};
-  mount ${loopdev}p2 ${_BUILD_DIR}/mount
-  mount ${loopdev}p1 ${_BUILD_DIR}/boot
+  mount ${loopdev}p2 ${_BUILD_DIR}/mount;
+  mount ${loopdev}p1 ${_BUILD_DIR}/boot;
 }
 
 copy_extracted_image_to_chroot_dir(){
+  echo_info "$FUNCNAME started at $(date) ";
   rsync_local "${_BUILD_DIR}/boot" "${_CHROOT_ROOT}/"
   if [ ! -e  "${_CHROOT_ROOT}/boot" ]; then
     echo_error 'rsync has failed'
-    exit;
+    exit 1;
   fi
   rsync_local "${_BUILD_DIR}/mount/"* "${_CHROOT_ROOT}"
   if [ ! -e  "${_CHROOT_ROOT}/var" ]; then
     echo_error 'rsync has failed'
-    exit;
+    exit 1;
   fi
 }
 
 check_disk_is_correct(){
-  local continue
-  echo_warn "CHECK DISK IS CORRECT"
-  echo_info "$(lsblk)"
-  echo_info ""
-  read -p "Type 'YES' if the selected device is correct:  ${_OUTPUT_BLOCK_DEVICE}  " continue
-  if [ "${continue}" != 'YES' ] ; then
-      exit 0
+  if [ "${_NO_PROMPTS}" != "1" ]; then
+        local continue
+        echo_warn "CHECK DISK IS CORRECT"
+        echo_info "$(lsblk)"
+        echo_info ""
+        read -p "Type 'YES' if the selected device is correct:  ${_OUTPUT_BLOCK_DEVICE}  " continue
+        if [ "${continue}" != 'YES' ] ; then
+            exit 0
+        fi
   fi
 }
 
@@ -336,6 +348,7 @@ backup_and_use_sshkey(){
 
 chroot_mkinitramfs(){
   local chroot_dir="$1"
+  echo_info "$FUNCNAME started at $(date) ";
   echo_debug "Building new initramfs (CHROOT is ${chroot_dir})";
 
   #Point crypttab to the current physical device during mkinitramfs
@@ -378,6 +391,7 @@ rsync_local(){
 
 #Download an image file to the file directory
 download_image(){
+  echo_info "$FUNCNAME started at $(date) ";
   local image_name=$(basename ${_IMAGE_URL})
   local image_out_file=${_FILE_DIR}/${image_name}
   echo_info "Starting download at $(date)"
@@ -490,21 +504,6 @@ encryption_setup(){
   chroot_execute "${_CHROOT_ROOT}" systemctl disable rpiwiggle
 }
 
-hostname_setup(){
-  echo_debug "Setting hostname to ${_HOSTNAME}";
-  # Overwrites /etc/hostname
-  echo "${_HOSTNAME}" > "${_CHROOT_ROOT}/etc/hostname";
-  # Updates /etc/hosts
-  sed -i "s#^127.0.0.1#127.0.0.1  ${_HOSTNAME}#" "${_CHROOT_ROOT}/etc/hosts";
-}
-
-packages_setup(){
-  # Compose package actions
-  echo_debug "Removing ${_PKGS_TO_PURGE}";
-  chroot_package_purge "$_CHROOT_ROOT" "${_PKGS_TO_PURGE}";
-  echo_debug "Installing ${_PKGS_TO_INSTALL}";
-  chroot_package_install "$_CHROOT_ROOT" "${_PKGS_TO_INSTALL}";
-}
 
 #Print messages
 echo_error(){ 
