@@ -70,7 +70,7 @@ extra_setup(){
   luks_nuke_setup;
 #  ssh_setup #todo: sensible ssh default configuration
   cpu_governor_setup;
-  dns_setup; #reconfigure for https/tls over dns
+  dns_setup;
 #  docker_setup
   root_password_setup;
   user_password_setup;
@@ -87,4 +87,5 @@ extra_setup(){
   packages_setup;
   apt_upgrade;
   aide_setup;
+  mount_boot_readonly_setup; #todo
 }

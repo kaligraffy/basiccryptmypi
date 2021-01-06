@@ -5,6 +5,7 @@
 # shellcheck disable=SC2068
 # shellcheck disable=SC2128
 export _SSH_SETUP=0;
+export _DNS_SETUP=0;
 
 set -eu
 
@@ -370,9 +371,9 @@ export _SSH_SETUP=1;
 
 }
 
+#sets cpu performance mode (useful for running off battery)
 cpu_governor_setup(){
   echo_info "$FUNCNAME started at $(date) ";
-  echo_debug "Installing package cpufrequtils";
   chroot_package_install "${_CHROOT_ROOT}" cpufrequtils;
   echo_info "Use cpufreq-info/systemctl status cpufrequtils to confirm the changes when the device is running";
   echo "GOVERNOR=${_CPU_GOVERNOR}" | tee ${_CHROOT_ROOT}/etc/default/cpufrequtils;
@@ -384,41 +385,70 @@ hostname_setup(){
   # Overwrites /etc/hostname
   echo "${_HOSTNAME}" > "${_CHROOT_ROOT}/etc/hostname";
   # Updates /etc/hosts
-  sed -i "s#^127.0.0.1#127.0.0.1  ${_HOSTNAME}#" "${_CHROOT_ROOT}/etc/hosts";
+  sed -i "s#^127.0.0.1       kali#127.0.0.1  ${_HOSTNAME}#" "${_CHROOT_ROOT}/etc/hosts";
 }
 
+#configures two ipv4 ip addresses as your global dns
+#enables dnssec and DNSOverTLS
+#disables mdns, llmnr
+#credits: https://andrea.corbellini.name/2020/04/28/ubuntu-global-dns/
 dns_setup(){
   echo_info "$FUNCNAME started at $(date) ";
-  echo_debug "Writing /etc/resolv.conf ";
-  cat <<EOT > ${_CHROOT_ROOT}/etc/resolv.conf
-nameserver ${_DNS1}
-nameserver ${_DNS2}
-EOT
-  chmod o+r ${_CHROOT_ROOT}/etc/resolv.conf;
-
-  echo_debug "Installing resolvconf"
-  chroot_package_install "${_CHROOT_ROOT}" resolvconf
-  chroot_execute "$_CHROOT_ROOT" systemctl enable resolvconf.service
-
-  echo_debug "Updating /etc/resolvconf/resolv.conf.d/head "
-  cat <<EOT > ${_CHROOT_ROOT}/etc/resolvconf/resolv.conf.d/head
-nameserver ${_DNS1}
-nameserver ${_DNS2}
-EOT
-
-  echo_debug "Updating /etc/network/interfaces";
-  cat <<EOT >> ${_CHROOT_ROOT}/etc/network/interfaces
-dns-nameservers ${_DNS1} ${_DNS2}
-EOT
-
-  test -e "${_CHROOT_ROOT}/etc/dhpc/dhclient.conf" && {
-   echo_debug "Updating /etc/dhpc/dhclient.conf"
+#   echo_debug "Writing /etc/resolv.conf ";
+#   cat <<EOT > ${_CHROOT_ROOT}/etc/resolv.conf
+# nameserver ${_DNS1}
+# nameserver ${_DNS2}
+# EOT
+#   chmod o+r ${_CHROOT_ROOT}/etc/resolv.conf;
+# 
+#   echo_debug "Installing resolvconf"
+#   chroot_package_install "${_CHROOT_ROOT}" resolvconf
+#   chroot_execute "$_CHROOT_ROOT" systemctl enable resolvconf.service
+# 
+#   echo_debug "Updating /etc/resolvconf/resolv.conf.d/head "
+#   cat <<EOT > ${_CHROOT_ROOT}/etc/resolvconf/resolv.conf.d/head
+# nameserver ${_DNS1}
+# nameserver ${_DNS2}
+# EOT
+# 
+#TODO CHECK THIS ISN'T REQUIRED ON NEXT TEST RUN
+#   echo_debug "Updating /etc/network/interfaces";
+#   cat <<EOT >> ${_CHROOT_ROOT}/etc/network/interfaces
+# dns-nameservers ${_DNS1} ${_DNS2}
+# EOT
+# 
+#   test -e "${_CHROOT_ROOT}/etc/dhpc/dhclient.conf" && {
+#    echo_debug "Updating /etc/dhpc/dhclient.conf"
+#   
+#     cat <<EOT >> ${_CHROOT_ROOT}/etc/dhpc/dhclient.conf
+# supersede domain-name-servers ${_DNS1}, ${_DNS2};
+# EOT
+#   }
   
-    cat <<EOT >> ${_CHROOT_ROOT}/etc/dhpc/dhclient.conf
-supersede domain-name-servers ${_DNS1}, ${_DNS2};
+  chroot_execute "$_CHROOT_ROOT" systemctl enable systemd-resolved
+  sed -i "s|^#DNS=|DNS=${_DNS1}|" "${_CHROOT_ROOT}/etc/systemd/resolved.conf";
+  sed -i "s|^#FallbackDNS=|FallbackDNS=${_DNS2}|" "${_CHROOT_ROOT}/etc/systemd/resolved.conf";
+  sed -i "s|^#DNSSEC=no|DNSSEC=true|" "${_CHROOT_ROOT}/etc/systemd/resolved.conf";
+  sed -i "s|^#DNSOverTLS=no|DNSOverTLS=yes|" "${_CHROOT_ROOT}/etc/systemd/resolved.conf";
+  sed -i "s|^#MulticastDNS=yes|MulticastDNS=no|" "${_CHROOT_ROOT}/etc/systemd/resolved.conf";
+  sed -i "s|^#LLMNR=yes|LLMNR=no|" "${_CHROOT_ROOT}/etc/systemd/resolved.conf";
+  
+  cat <<EOT > ${_CHROOT_ROOT}/etc/NetworkManager/conf.d/dns.conf
+  [main]
+  dns=none
+  systemd-resolved=false
 EOT
-  }
+
+  #add resolved dns to top of /etc/systemd/resolved.conf for use with NetworkManager:
+  echo -e "nameserver 127.0.0.53\n$(cat "${_CHROOT_ROOT}/etc/systemd/resolved.conf")" > "${_CHROOT_ROOT}/etc/systemd/resolved.conf"
+
+  #symlink
+  mv "${_CHROOT_ROOT}/etc/resolv.conf" "${_CHROOT_ROOT}/etc/resolv.conf.backup";
+  ln -s  "${_CHROOT_ROOT}/etc/resolv.conf";
+  
   echo_debug "DNS configured";
+  export _DNS_SETUP='1';
+  #needs: 853/tcp, doesn't need as we disable llmnr and mdns: 5353/udp,5355/udp
 }
 
 root_password_setup(){
@@ -522,7 +552,7 @@ firewall_setup(){
 
   # Installing packages
   chroot_package_install "$_CHROOT_ROOT" ufw;
-  chroot_execute "$_CHROOT_ROOT" ufw logging on;
+  chroot_execute "$_CHROOT_ROOT" ufw logging high;
   chroot_execute "$_CHROOT_ROOT" ufw default deny outgoing;
   chroot_execute "$_CHROOT_ROOT" ufw default deny incoming;
   chroot_execute "$_CHROOT_ROOT" ufw default deny routed;
@@ -533,9 +563,17 @@ firewall_setup(){
   
   #ntp 
   chroot_execute "$_CHROOT_ROOT" ufw allow out 123/udp;
+  
+  #OPENS UP YOUR SSH PORT
   if [ "${_SSH_SETUP}" = "1" ]; then
     chroot_execute "$_CHROOT_ROOT" ufw allow in "${_SSH_PORT}/tcp";
   fi
+  
+  #OPENS UP DNSOverTLS PORT
+  if [ "${_DNS_SETUP}" = "1" ]; then
+    chroot_execute "$_CHROOT_ROOT" ufw allow out 853/tcp;
+  fi
+  
   chroot_execute "$_CHROOT_ROOT" ufw enable;
   chroot_execute "$_CHROOT_ROOT" ufw status verbose;
   echo_warn "Firewall setup complete, please review setup and amend as necessary";
