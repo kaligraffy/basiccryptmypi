@@ -620,3 +620,10 @@ passwordless_login_setup(){
   sed -i "s|^#  AutomaticLogin = root|AutomaticLogin =${_PASSWORDLESS_LOGIN_USER}|" "${_CHROOT_ROOT}/etc/gdm3/daemon.conf";
   sed -i "s|^#  AutomaticLoginEnable = true|AutomaticLoginEnable = true" "${_CHROOT_ROOT}/etc/gdm3/daemon.conf";
 }
+
+#basic snapper install for use with btrfs, snapshots root directory in its entirety with default settings,
+snapper_setup(){
+  echo_info "$FUNCNAME started at $(date) ";
+  chroot_package_install "${_CHROOT_ROOT}" snapper snapper-gui
+  chroot_execute "$_CHROOT_ROOT" snapper create-config /
+}

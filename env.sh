@@ -33,7 +33,7 @@ export _LUKS_CONFIGURATION="aes-xts-plain64 --key-size 512 --use-random --hash s
  --pbkdf argon2i --iter-time 5000"
 ###############################################
 export _PKGS_TO_INSTALL=""
-export _PKGS_TO_INSTALL="tree htop nethogs timeshift midori pass usbguard lynis debsecan debsums fail2ban firejail lynx taskwarrior screen"
+export _PKGS_TO_INSTALL="tree htop nethogs midori pass usbguard lynis debsecan debsums fail2ban firejail lynx taskwarrior screen kate"
 #samhain apt-listbugs
 export _PKGS_TO_PURGE=""
 ###############################################
@@ -80,6 +80,7 @@ extra_setup(){
   firewall_setup;
   clamav_setup;
   fake_hwclock_setup;
+  snapper_setup;
 # apparmor_setup - todo
 # firejail_setup - todo
 # sysctl_hardening_setup - todo
