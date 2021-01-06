@@ -20,8 +20,7 @@ export _COLOR_DEBUG='\033[0;37m' #grey
 export _COLOR_NORMAL='\033[0m' # No Color
 export _IMAGE_PREPARATION_STARTED=0;
 export _WRITE_TO_DISK_STARTED=0;
-export _LOG_FILE_PATH=${_BUILD_DIR}
-export _LOG_FILE="build-$(date '+%Y-%m-%d-%H:%M:%S').log"
+export _LOG_FILE="${_BASEDIR}/build-$(date '+%Y-%m-%d-%H:%M:%S').log"
 
 # Runs on script exit, tidies up the mounts.
 trap_on_error() {
@@ -37,78 +36,9 @@ trap_on_interrupt() {
 
 # Runs on script exit, tidies up the mounts.
 trap_on_exit() {
-  if (( $_IMAGE_PREPARATION_STARTED > 0 )); then cleanup_image_prep; fi
-  if (( $_WRITE_TO_DISK_STARTED > 0 )); then cleanup_write_disk; fi
+  if [ $_IMAGE_PREPARATION_STARTED -gt '0' ]; then cleanup_image_prep; fi
+  if [ $_WRITE_TO_DISK_STARTED -gt '0' ]; then cleanup_write_disk; fi
   echo_info "stopping $(basename $0) at $(date)";
-}
-
-# Check preconditions
-check_preconditions(){
-  echo_info "$FUNCNAME started at $(date)"
-  # Precondition check for root powers
-  check_root;
-} 
-
-check_build_dir_exists(){
-  if [ "${_NO_PROMPTS}" = "1" ] ; then
-    echo '1';
-    return;
-  fi
-  
-  if [ -d ${_BUILD_DIR} ]; then
-    local continue;
-    read -p "Build directory already exists: ${_BUILD_DIR}. Rebuild? (y/N)  " continue;
-    if [ "${continue}" = 'y' ] || [ "${continue}" = 'Y' ]; then
-      echo '1';
-    else
-      echo '0'; 
-    fi
-  else
-    echo '1';
-  fi
-}
-
-# Encrypt & Write SD
-setup_filesystem_and_copy_to_disk(){  
-  echo_info "$FUNCNAME started at $(date) ";
-  fs_type=$_FILESYSTEM_TYPE;
-  check_disk_is_correct;
-  cleanup_write_disk
-
-  echo_debug "Partitioning SD Card"
-  parted  ${_OUTPUT_BLOCK_DEVICE} --script -- mklabel msdos
-  parted  ${_OUTPUT_BLOCK_DEVICE} --script -- mkpart primary fat32 0 256
-  parted  ${_OUTPUT_BLOCK_DEVICE} --script -- mkpart primary 256 -1
-  sync
-
-  # Create LUKS
-  echo_debug "Attempting to create LUKS ${_BLOCK_DEVICE_ROOT} "
-  echo "${_LUKS_PASSWORD}" | cryptsetup -v --cipher ${_LUKS_CONFIGURATION} luksFormat ${_BLOCK_DEVICE_ROOT}
-  echo_debug "LUKS created ${_BLOCK_DEVICE_ROOT} "
-
-  echo_debug "Attempting to open LUKS ${_BLOCK_DEVICE_ROOT} "
-  echo "${_LUKS_PASSWORD}" | cryptsetup -v luksOpen ${_BLOCK_DEVICE_ROOT} $(basename ${_ENCRYPTED_VOLUME_PATH})
-  echo_debug "- LUKS open"
-
-  make_filesystem "vfat" "${_BLOCK_DEVICE_BOOT}"
-  make_filesystem "${fs_type}" "${_ENCRYPTED_VOLUME_PATH}"
-
-  # Mount LUKS
-  echo_debug "Mounting ${_ENCRYPTED_VOLUME_PATH} to ${_DISK_CHROOT_ROOT}"
-  mkdir ${_DISK_CHROOT_ROOT}
-  mount ${_ENCRYPTED_VOLUME_PATH} ${_DISK_CHROOT_ROOT} && echo_debug "- Mounted ${_ENCRYPTED_VOLUME_PATH} to ${_DISK_CHROOT_ROOT}"
-
-  # Mount boot partition
-  echo_debug "Attempting to mount ${_BLOCK_DEVICE_BOOT} to ${_DISK_CHROOT_ROOT}/boot "
-  mkdir ${_DISK_CHROOT_ROOT}/boot
-  mount ${_BLOCK_DEVICE_BOOT} ${_DISK_CHROOT_ROOT}/boot && echo_debug "- Mounted ${_BLOCK_DEVICE_BOOT} to ${_DISK_CHROOT_ROOT}/boot"
-
-  # Attempt to copy files from build to mounted device
-  rsync_local "${_CHROOT_ROOT}"/* "${_DISK_CHROOT_ROOT}"
-  chroot_mount "${_DISK_CHROOT_ROOT}"
-  chroot_mkinitramfs ${_DISK_CHROOT_ROOT}
-
-  sync
 }
 
 # Cleanup on exit
@@ -133,8 +63,28 @@ cleanup_write_disk(){
   umount "${_DISK_CHROOT_ROOT}" && test -d "${_DISK_CHROOT_ROOT}" && rm -rf "${_DISK_CHROOT_ROOT}" || true
 }
 
+check_build_dir_exists(){
+  if [ "${_NO_PROMPTS}" = "1" ] ; then
+    echo '1';
+    return;
+  fi
+  
+  if [ -d ${_BUILD_DIR} ]; then
+    local continue;
+    read -p "Build directory already exists: ${_BUILD_DIR}. Rebuild? (y/N)  " continue;
+    if [ "${continue}" = 'y' ] || [ "${continue}" = 'Y' ]; then
+      echo '1';
+    else
+      echo '0'; 
+    fi
+  else
+    echo '1';
+  fi
+}
+
 #checks if script was run with root
-check_root(){
+check_run_as_root(){
+  echo_info "$FUNCNAME started at $(date)"
   if (( $EUID != 0 )); then
     echo_error "This script must be run as root/sudo"
     exit 1
@@ -161,6 +111,8 @@ fix_block_device_names(){
 }
 
 create_build_directory_structure(){
+  #deletes only build directory first if it exists
+  rm -rf "${_BUILD_DIR}" || true ;
   mkdir "${_BUILD_DIR}"; 
   mkdir -p "${_FILE_DIR}"; #where images are downloaded, extracted image lives here too
   mkdir "${_BUILD_DIR}/mount"; #where the extracted image's root directory is mounted
@@ -246,153 +198,6 @@ check_disk_is_correct(){
   fi
 }
 
-chroot_mount(){
-  local chroot_dir=$1
-  echo_debug "Preparing chroot mount structure at '${chroot_dir}'."
-  # mount binds
-  echo_debug "Mounting '${chroot_dir}/dev/' "
-  mount --bind /dev ${chroot_dir}/dev/ || echo_error "mounting '${chroot_dir}/dev/'"
-  echo_debug "Mounting '${chroot_dir}/dev/pts' "
-  mount --bind /dev/pts ${chroot_dir}/dev/pts || echo_error "mounting '${chroot_dir}/dev/pts'"
-  echo_debug "Mounting '${chroot_dir}/sys/' ";
-  mount --bind /sys ${chroot_dir}/sys/ || echo_error "mounting '${chroot_dir}/sys/'";
-  echo_debug "Mounting '${chroot_dir}/proc/' ";
-  mount -t proc /proc ${chroot_dir}/proc/ || echo_error "mounting '${chroot_dir}/proc/'";
-}
-
-chroot_umount(){
-  local chroot_dir="$1"
-  echo_debug "Unmounting binds"
-  umount ${chroot_dir}/dev/pts || true;
-  umount ${chroot_dir}/dev || true;
-  umount ${chroot_dir}/sys || true;
-  umount ${chroot_dir}/proc || true;
-}
-
-#run apt update
-chroot_update(){
-  #Force https on initial use of apt for the main kali repo
-  local chroot_root="$1"
-  sed -i 's|http:|https:|g' ${chroot_root}/etc/apt/sources.list;
-
-  if [ ! -f "${chroot_root}/etc/resolv.conf" ]; then
-      echo_warn "${chroot_root}/etc/resolv.conf does not exist";
-      echo_warn "Setting nameserver to $_DNS1 and $_DNS2 in ${chroot_root}/etc/resolv.conf";
-      echo -e "nameserver $_DNS1\nnameserver $_DNS2" > "${chroot_root}/etc/resolv.conf";
-  fi
-
-  echo_debug "Updating apt-get";
-  chroot_execute ${chroot_root} apt-get -qq update;
-}
-
-#installs packages from build
-#arguments: a list of packages
-chroot_package_install(){
-  local chroot_dir=$1;
-  shift;
-  echo_info "- Installing $@";
-  PACKAGES="$@"
-  for package in $PACKAGES
-  do
-      chroot_execute "${chroot_dir}" apt-get -qq -y install $package 
-  done
-}
-
-#removes packages from build
-#arguments: a list of packages
-chroot_package_purge(){
-  local chroot_dir=$1;
-  shift;
-  echo_info "- Purging $@";
-  chroot_execute "${chroot_dir}" apt-get -qq -y purge $@ ;
-  chroot_execute "${chroot_dir}" apt-get -qq -y autoremove ;
-}
-
-chroot_execute(){
-  local chroot_dir=$1;
-  shift;
-  chroot ${chroot_dir} "$@";
-  retVal=$?
-  if [ $retVal -ne 0 ]; then
-      echo_error "Command in chroot failed"
-      exit 1;
-  fi
-}
-
-#gets from local filesystem or generates a ssh key and puts it on the build 
-assure_box_sshkey(){
-  local id_rsa="${_FILE_DIR}/id_rsa";
-  echo_debug "Make ssh keyfile:";
-  test -f "${id_rsa}" && {
-    echo_debug "- Keyfile ${id_rsa} already exists";
-    } || {
-    echo_debug "- Keyfile ${id_rsa} does not exists. Generating ";
-    ssh-keygen -b "${_SSH_BLOCK_SIZE}" -N "${_SSH_KEY_PASSPHRASE}" -f "${id_rsa}";
-    chmod 600 "${id_rsa}";
-    chmod 644 "${id_rsa}.pub";
-  }
-  echo_debug "- Copying keyfile ${id_rsa} to box's default user .ssh directory";
-  cp "${id_rsa}" "${_CHROOT_ROOT}/.ssh/id_rsa";
-  cp "${id_rsa}.pub" "${_CHROOT_ROOT}/.ssh/id_rsa.pub";
-  chmod 600 "${_CHROOT_ROOT}/.ssh/id_rsa";
-  chmod 644 "${_CHROOT_ROOT}/.ssh/id_rsa.pub";
-}
-
-backup_and_use_sshkey(){
-  local temporary_keypath=${1};
-  local temporary_keyname="${_FILE_DIR}"/"$(basename ${temporary_keypath})";
-
-  test -f "${temporary_keyname}" && {
-    cp "${temporary_keyname}" "${temporary_keypath}";
-    chmod 600 "${temporary_keypath}";
-    } || {
-    cp "${temporary_keypath}" "${temporary_keyname}";
-  }
-}
-
-chroot_mkinitramfs(){
-  local chroot_dir="$1"
-  echo_info "$FUNCNAME started at $(date) ";
-  echo_debug "Building new initramfs (CHROOT is ${chroot_dir})";
-
-  #Point crypttab to the current physical device during mkinitramfs
-  echo_debug "  Creating symbolic links from current physical device to crypttab device (if not using sd card mmcblk0p)";
-  test -e "/dev/mmcblk0p1" || (test -e "${_BLOCK_DEVICE_BOOT}" && ln -s "${_BLOCK_DEVICE_BOOT}" "/dev/mmcblk0p1");
-  test -e "/dev/mmcblk0p2" || (test -e "${_BLOCK_DEVICE_ROOT}" && ln -s "${_BLOCK_DEVICE_ROOT}" "/dev/mmcblk0p2");
-  # determining the kernel
-  local kernel_version=$(ls ${chroot_dir}/lib/modules/ | grep "${_KERNEL_VERSION_FILTER}" | tail -n 1);
-  echo_debug "kernel is '${kernel_version}'";
-  chroot_execute "${chroot_dir}" update-initramfs -u -k all;
-  chroot_execute "${chroot_dir}" mkinitramfs -o /boot/initramfs.gz -v ${kernel_version};
-
-  # cleanup
-  echo_debug "Cleaning up symbolic links";
-  test -L "/dev/mmcblk0p1" && unlink "/dev/mmcblk0p1";
-  test -L "/dev/mmcblk0p2" && unlink "/dev/mmcblk0p2";
-}
-
-#calls mkfs for a given filesystem
-# arguments: a filesystem type, e.g. btrfs, ext4 and a device
-make_filesystem(){
-  local fs_type=$1
-  local device=$2
-  case $fs_type in
-    "vfat") mkfs.vfat $device; echo_debug "created vfat partition on $device";;
-    "ext4") mkfs.ext4 $device; echo_debug "created ext4 partition on $device";;
-    "btrfs") mkfs.btrfs -f -L btrfs $device; echo_debug "created btrfs partition on $device";;
-    *) exit 1;;
-  esac
-}
-
-#rsync for local copy
-#arguments $1 - to $2 - from
-rsync_local(){
-  echo_info "Starting copy of ${@} at $(date)";
-  rsync --hard-links  --archive --partial --info=progress2 "${@}"
-  echo_info "Finished copy of ${@} at $(date)";
-  sync;
-}
-
 #Download an image file to the file directory
 download_image(){
   echo_info "$FUNCNAME started at $(date) ";
@@ -407,11 +212,6 @@ download_image(){
   echo_info "Checking image checksum"
   echo ${_IMAGE_SHA256}  $image_out_file | sha256sum --check --status
   echo_info "- valid"
-}
-
-chroot_setup(){
-  chroot_mount "$_CHROOT_ROOT"
-  chroot_update "$_CHROOT_ROOT"
 }
 
 locale_setup(){
@@ -508,8 +308,205 @@ encryption_setup(){
   chroot_execute "${_CHROOT_ROOT}" systemctl disable rpi-resizerootfs.service
 }
 
+# Encrypt & Write SD
+copy_to_disk(){  
+  echo_info "$FUNCNAME started at $(date) ";
+  fs_type=$_FILESYSTEM_TYPE;
+  
+  echo_debug "Partitioning SD Card"
+  parted  ${_OUTPUT_BLOCK_DEVICE} --script -- mklabel msdos
+  parted  ${_OUTPUT_BLOCK_DEVICE} --script -- mkpart primary fat32 0 256
+  parted  ${_OUTPUT_BLOCK_DEVICE} --script -- mkpart primary 256 -1
+  sync
 
-#Print messages
+  # Create LUKS
+  echo_debug "Attempting to create LUKS ${_BLOCK_DEVICE_ROOT} "
+  echo "${_LUKS_PASSWORD}" | cryptsetup -v --cipher ${_LUKS_CONFIGURATION} luksFormat ${_BLOCK_DEVICE_ROOT}
+  echo "${_LUKS_PASSWORD}" | cryptsetup -v luksOpen ${_BLOCK_DEVICE_ROOT} $(basename ${_ENCRYPTED_VOLUME_PATH})
+
+  make_filesystem "vfat" "${_BLOCK_DEVICE_BOOT}"
+  make_filesystem "${fs_type}" "${_ENCRYPTED_VOLUME_PATH}"
+
+  # Mount LUKS
+  echo_debug "Mounting ${_ENCRYPTED_VOLUME_PATH} to ${_DISK_CHROOT_ROOT}"
+  mkdir ${_DISK_CHROOT_ROOT}
+  mount ${_ENCRYPTED_VOLUME_PATH} ${_DISK_CHROOT_ROOT} && echo_debug "- Mounted ${_ENCRYPTED_VOLUME_PATH} to ${_DISK_CHROOT_ROOT}"
+
+  # Mount boot partition
+  echo_debug "Attempting to mount ${_BLOCK_DEVICE_BOOT} to ${_DISK_CHROOT_ROOT}/boot "
+  mkdir ${_DISK_CHROOT_ROOT}/boot
+  mount ${_BLOCK_DEVICE_BOOT} ${_DISK_CHROOT_ROOT}/boot && echo_debug "- Mounted ${_BLOCK_DEVICE_BOOT} to ${_DISK_CHROOT_ROOT}/boot"
+
+  # Attempt to copy files from build to mounted device
+  rsync_local "${_CHROOT_ROOT}"/* "${_DISK_CHROOT_ROOT}"
+  chroot_mount "${_DISK_CHROOT_ROOT}"
+  chroot_mkinitramfs ${_DISK_CHROOT_ROOT}
+
+  sync
+}
+
+#### MISC FUNCTIONS####
+#gets from local filesystem or generates a ssh key and puts it on the build 
+assure_box_sshkey(){
+  local id_rsa="${_FILE_DIR}/id_rsa";
+  echo_debug "Make ssh keyfile:";
+  test -f "${id_rsa}" && {
+    echo_debug "- Keyfile ${id_rsa} already exists";
+    } || {
+    echo_debug "- Keyfile ${id_rsa} does not exists. Generating ";
+    ssh-keygen -b "${_SSH_BLOCK_SIZE}" -N "${_SSH_KEY_PASSPHRASE}" -f "${id_rsa}";
+    chmod 600 "${id_rsa}";
+    chmod 644 "${id_rsa}.pub";
+  }
+  echo_debug "- Copying keyfile ${id_rsa} to box's default user .ssh directory";
+  cp "${id_rsa}" "${_CHROOT_ROOT}/.ssh/id_rsa";
+  cp "${id_rsa}.pub" "${_CHROOT_ROOT}/.ssh/id_rsa.pub";
+  chmod 600 "${_CHROOT_ROOT}/.ssh/id_rsa";
+  chmod 644 "${_CHROOT_ROOT}/.ssh/id_rsa.pub";
+}
+
+backup_and_use_sshkey(){
+  local temporary_keypath=${1};
+  local temporary_keyname="${_FILE_DIR}"/"$(basename ${temporary_keypath})";
+
+  test -f "${temporary_keyname}" && {
+    cp "${temporary_keyname}" "${temporary_keypath}";
+    chmod 600 "${temporary_keypath}";
+    } || {
+    cp "${temporary_keypath}" "${temporary_keyname}";
+  }
+}
+
+#calls mkfs for a given filesystem
+# arguments: a filesystem type, e.g. btrfs, ext4 and a device
+make_filesystem(){
+  local fs_type=$1
+  local device=$2
+  case $fs_type in
+    "vfat") mkfs.vfat $device; echo_debug "created vfat partition on $device";;
+    "ext4") mkfs.ext4 $device; echo_debug "created ext4 partition on $device";;
+    "btrfs") mkfs.btrfs -f -L btrfs $device; echo_debug "created btrfs partition on $device";;
+    *) exit 1;;
+  esac
+}
+
+#rsync for local copy
+#arguments $1 - to $2 - from
+rsync_local(){
+  echo_info "Starting copy of ${@} at $(date)";
+  rsync --hard-links  --archive --partial --info=progress2 "${@}"
+  echo_info "Finished copy of ${@} at $(date)";
+  sync;
+}
+
+####CHROOT FUNCTIONS####
+
+chroot_setup(){
+  chroot_mount "$_CHROOT_ROOT"
+  chroot_update "$_CHROOT_ROOT"
+}
+
+chroot_teardown(){
+  chroot_mkinitramfs "${_CHROOT_ROOT}";
+  chroot_umount "${_CHROOT_ROOT}";
+}
+
+
+chroot_mount(){
+  local chroot_dir=$1
+  echo_debug "Preparing chroot mount structure at '${chroot_dir}'."
+  # mount binds
+  echo_debug "Mounting '${chroot_dir}/dev/' "
+  mount --bind /dev ${chroot_dir}/dev/ || echo_error "mounting '${chroot_dir}/dev/'"
+  echo_debug "Mounting '${chroot_dir}/dev/pts' "
+  mount --bind /dev/pts ${chroot_dir}/dev/pts || echo_error "mounting '${chroot_dir}/dev/pts'"
+  echo_debug "Mounting '${chroot_dir}/sys/' ";
+  mount --bind /sys ${chroot_dir}/sys/ || echo_error "mounting '${chroot_dir}/sys/'";
+  echo_debug "Mounting '${chroot_dir}/proc/' ";
+  mount -t proc /proc ${chroot_dir}/proc/ || echo_error "mounting '${chroot_dir}/proc/'";
+}
+
+chroot_umount(){
+  local chroot_dir="$1"
+  echo_debug "Unmounting binds"
+  umount ${chroot_dir}/dev/pts || true;
+  umount ${chroot_dir}/dev || true;
+  umount ${chroot_dir}/sys || true;
+  umount ${chroot_dir}/proc || true;
+}
+
+#run apt update
+chroot_update(){
+  #Force https on initial use of apt for the main kali repo
+  local chroot_root="$1"
+  sed -i 's|http:|https:|g' ${chroot_root}/etc/apt/sources.list;
+
+  if [ ! -f "${chroot_root}/etc/resolv.conf" ]; then
+      echo_warn "${chroot_root}/etc/resolv.conf does not exist";
+      echo_warn "Setting nameserver to $_DNS1 and $_DNS2 in ${chroot_root}/etc/resolv.conf";
+      echo -e "nameserver $_DNS1\nnameserver $_DNS2" > "${chroot_root}/etc/resolv.conf";
+  fi
+
+  echo_debug "Updating apt-get";
+  chroot_execute ${chroot_root} apt-get -qq update;
+}
+
+#installs packages from build
+#arguments: a list of packages
+chroot_package_install(){
+  local chroot_dir=$1;
+  shift;
+  echo_info "- Installing $@";
+  PACKAGES="$@"
+  for package in $PACKAGES
+  do
+      chroot_execute "${chroot_dir}" apt-get -qq -y install $package 
+  done
+}
+
+#removes packages from build
+#arguments: a list of packages
+chroot_package_purge(){
+  local chroot_dir=$1;
+  shift;
+  echo_info "- Purging $@";
+  chroot_execute "${chroot_dir}" apt-get -qq -y purge $@ ;
+  chroot_execute "${chroot_dir}" apt-get -qq -y autoremove ;
+}
+
+chroot_execute(){
+  local chroot_dir=$1;
+  shift;
+  chroot ${chroot_dir} "$@";
+  retVal=$?
+  if [ $retVal -ne 0 ]; then
+      echo_error "Command in chroot failed"
+      exit 1;
+  fi
+}
+
+chroot_mkinitramfs(){
+  local chroot_dir="$1"
+  echo_info "$FUNCNAME started at $(date) ";
+  echo_debug "Building new initramfs (CHROOT is ${chroot_dir})";
+
+  #Point crypttab to the current physical device during mkinitramfs
+  echo_debug "  Creating symbolic links from current physical device to crypttab device (if not using sd card mmcblk0p)";
+  test -e "/dev/mmcblk0p1" || (test -e "${_BLOCK_DEVICE_BOOT}" && ln -s "${_BLOCK_DEVICE_BOOT}" "/dev/mmcblk0p1");
+  test -e "/dev/mmcblk0p2" || (test -e "${_BLOCK_DEVICE_ROOT}" && ln -s "${_BLOCK_DEVICE_ROOT}" "/dev/mmcblk0p2");
+  # determining the kernel
+  local kernel_version=$(ls ${chroot_dir}/lib/modules/ | grep "${_KERNEL_VERSION_FILTER}" | tail -n 1);
+  echo_debug "kernel is '${kernel_version}'";
+  chroot_execute "${chroot_dir}" update-initramfs -u -k all;
+  chroot_execute "${chroot_dir}" mkinitramfs -o /boot/initramfs.gz -v ${kernel_version};
+
+  # cleanup
+  echo_debug "Cleaning up symbolic links";
+  test -L "/dev/mmcblk0p1" && unlink "/dev/mmcblk0p1";
+  test -L "/dev/mmcblk0p2" && unlink "/dev/mmcblk0p2";
+}
+
+####PRINT FUNCTIONS####
 echo_error(){ 
   echo -e "${_COLOR_ERROR}ERROR: $*${_COLOR_NORMAL}";
 };

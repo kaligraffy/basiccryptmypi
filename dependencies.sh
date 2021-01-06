@@ -11,5 +11,4 @@ install_dependencies() {
         rsync \
         xz-utils \
         pv ;
-        #        qemu-user-static \
 }

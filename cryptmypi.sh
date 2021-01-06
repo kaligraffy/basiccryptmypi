@@ -13,19 +13,16 @@ trap 'trap_on_error $LINENO' ERR;
 trap 'trap_on_interrupt' SIGINT;
 
 #Program logic
-execute()
-{
+main(){
   echo_info "starting $(basename $0) at $(date)";
-  
   #Setup
-  check_preconditions;
+  check_run_as_root;
   install_dependencies;
   fix_block_device_names;
 
   #Check for a build directory
   local rebuild=$(check_build_dir_exists);
   if (( $rebuild == 1 )); then
-    rm -rf "${_BUILD_DIR}" || true ;
     #Stage 1 - Unpack and modify the image
     create_build_directory_structure;
     export _IMAGE_PREPARATION_STARTED=1;
@@ -33,29 +30,18 @@ execute()
     extract_image;
     mount_loopback_image;
     copy_extracted_image_to_chroot_dir;
-    cleanup_image_prep;
     chroot_setup;
     locale_setup;
     encryption_setup;
     extra_setup;
-    chroot_mkinitramfs "${_CHROOT_ROOT}";
-    chroot_umount "${_CHROOT_ROOT}" 
+    chroot_teardown;
   fi
   
   #Stage 2 - Write to physical disk
   export _WRITE_TO_DISK_STARTED=1;
-  setup_filesystem_and_copy_to_disk;
-}
-
-test-execute()
-{
-
-}
-# wrapper script for logging
-main(){
-  #test-execute | tee "${_LOG_FILE}" || true
-  execute | tee "${_LOG_FILE}" || true
+  check_disk_is_correct;
+  copy_to_disk;
   exit;
 }
 # Run program
-main;
+main | tee "${_LOG_FILE}" || true;

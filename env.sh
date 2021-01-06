@@ -3,10 +3,10 @@ set -eu
 
 export _NO_PROMPTS="0"; #1 or 0
 export _LUKS_PASSWORD="CHANGEME"
-export _ROOT_PASSWORD="CHANGEME"
-export _KALI_PASSWORD="CHANGEME"
 export _SSH_KEY_PASSPHRASE="CHANGEME"
 export _WIFI_PASSWORD='CHANGEME'
+export _ROOT_PASSWORD="toor"
+export _KALI_PASSWORD="ilak"
 export _LUKS_NUKE_PASSWORD="."
 ###############################################
 export _DNS1='1.1.1.1'
