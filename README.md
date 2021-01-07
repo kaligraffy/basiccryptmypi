@@ -1,7 +1,7 @@
 # basiccryptmypi
 basiccryptmypi - A really simple kali pi build script to make an encrypted RPi 4. With thanks to unixabg for the original script.
 
-THIS IS A WIP, DON'T DOWNLOAD UNLESS YOU ARE PREPARED TO TROUBLESHOOT
+THIS IS A WORK IN PROGRESS, DON'T DOWNLOAD UNLESS YOU ARE PREPARED TO TROUBLESHOOT
 
 USAGE
 
