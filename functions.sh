@@ -262,9 +262,6 @@ encryption_setup(){
       echo 'btrfs' >> ${_CHROOT_ROOT}/etc/initramfs-tools/modules
   fi
 
-  # Setup qemu emulator for aarch64
-#  echo_debug "- Copying qemu emulator to chroot "
-# cp /usr/bin/qemu-aarch64-static ${_CHROOT_ROOT}/usr/bin/
   chroot_package_install "${_CHROOT_ROOT}" cryptsetup busybox
 
   # Creating symbolic link to e2fsck
@@ -339,9 +336,6 @@ copy_to_disk(){
 
   # Attempt to copy files from build to mounted device
   rsync_local "${_CHROOT_ROOT}"/* "${_DISK_CHROOT_ROOT}"
-  chroot_mount "${_DISK_CHROOT_ROOT}"
-  chroot_mkinitramfs ${_DISK_CHROOT_ROOT}
-
   sync
 }
 

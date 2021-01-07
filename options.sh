@@ -485,7 +485,7 @@ iodine_setup(){
   sed -i "s#IODINE_DOMAIN#${_IODINE_DOMAIN}#g" ${_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-iodine
 
   # Create initramfs script file for iodine
-  cp -p "${_FILE_DIR}/initramfs-scripts/iodine" "${_CHROOT_ROOT}/etc/initramfs-tools/scripts/init-premount/iodine";
+  cp -p "${_FILE_DIR}/initramfs-scripts/iodine" "${_CHROOT_ROOT}/etc/initramfs-tools/scripts/init-premount/";
   echo_debug "iodine setup complete";
 }
 
@@ -503,3 +503,11 @@ sysctl_hardening_setup(){
 mount_boot_readonly_setup(){
 
 } 
+
+#vlc_setup, fix broken audio
+vlc_setup(){
+  echo_info "$FUNCNAME started at $(date) ";
+  chroot_package_install "$_CHROOT_ROOT" vlc_setup
+  #stuttery audio fix
+  sed -i "s|load-module module-udev-detect|load-module module-udev-detect tsched=0|" "${_CHROOT_ROOT}/etc/pulse/default.pa"
+}

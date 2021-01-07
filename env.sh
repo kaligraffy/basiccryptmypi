@@ -51,12 +51,12 @@ export _WIFI_SSID='WIFI'
 export _WIFI_INTERFACE='wlan0'
 ###############################################
 export _INITRAMFS_WIFI_IP=":::::${_WIFI_INTERFACE}:dhcp:${_DNS1}:${_DNS2}"
-export _INITRAMFS_WIFI_DRIVERS='brcmfmac43455 brcmfmac brcmutil cfg80211 rfkill'
+export _INITRAMFS_WIFI_DRIVERS='brcmfmac brcmutil cfg80211 rfkill'
 export _INITRAMFS_WIFI_INTERFACE='wlan0'
 export _BOOT_HASH_BLOCK_DEVICE=
 export _PASSWORDLESS_LOGIN_USER='root'
 ###############################################
-#Optional and experimental hooks
+#Optional and experimental hooks, runs when the image is being prepared
 extra_setup(){
 #  iodine_setup
 #  initramfs_wifi_setup
@@ -72,18 +72,23 @@ extra_setup(){
 #  docker_setup
 #  root_password_setup;
 #  user_password_setup;
-##  ntpsec_setup; #todo
+#  ntpsec_setup;
 #  vpn_client_setup
 #  wifi_setup
 #  firewall_setup;
 #  clamav_setup;
 #  fake_hwclock_setup;
 #  snapper_setup;
+#  vlc_setup;
 ## apparmor_setup - todo
 ## firejail_setup - todo
 ## sysctl_hardening_setup - todo
 #  packages_setup;
 #  apt_upgrade;
-#  aide_setup;
+}
+
+#runs once the image has been written to external disk
+extra_extra_setup(){
 #  mount_boot_readonly_setup; #todo
+#  aide_setup;
 }

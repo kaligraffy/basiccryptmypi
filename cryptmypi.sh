@@ -41,6 +41,9 @@ main(){
   export _WRITE_TO_DISK_STARTED=1;
   check_disk_is_correct;
   copy_to_disk;
+  chroot_mount "${_DISK_CHROOT_ROOT}"
+  chroot_mkinitramfs "${_DISK_CHROOT_ROOT}"
+  extra_extra_setup;
   exit;
 }
 # Run program
