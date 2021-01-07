@@ -442,14 +442,6 @@ EOF
   chmod 755 "${_CHROOT_ROOT}/etc/cron.d/aideCheck";
 }
 
-#automatically log you in after unlocking your encrypted drive
-passwordless_login_setup(){
-  echo_info "$FUNCNAME started at $(date) ";
-  sed -i "s|^#  AutomaticLogin = root|AutomaticLogin =${_PASSWORDLESS_LOGIN_USER}|" "${_CHROOT_ROOT}/etc/gdm3/daemon.conf";
-  sed -i "s|^#  AutomaticLoginEnable = true|AutomaticLoginEnable = true" "${_CHROOT_ROOT}/etc/gdm3/daemon.conf";
-#TODO
-}
-
 #basic snapper install for use with btrfs, snapshots root directory in its entirety with default settings,
 snapper_setup(){
   echo_info "$FUNCNAME started at $(date) ";
@@ -489,6 +481,14 @@ iodine_setup(){
   echo_debug "iodine setup complete";
 }
 
+#vlc_setup, fix broken audio
+vlc_setup(){
+  echo_info "$FUNCNAME started at $(date) ";
+  chroot_package_install "$_CHROOT_ROOT" vlc_setup
+  #stuttery audio fix on rpi4
+  sed -i "s|load-module module-udev-detect|load-module module-udev-detect tsched=0|" "${_CHROOT_ROOT}/etc/pulse/default.pa"
+}
+
 #TODO
 firejail_setup(){
 
@@ -504,10 +504,11 @@ mount_boot_readonly_setup(){
 
 } 
 
-#vlc_setup, fix broken audio
-vlc_setup(){
+#automatically log you in after unlocking your encrypted drive
+passwordless_login_setup(){
   echo_info "$FUNCNAME started at $(date) ";
-  chroot_package_install "$_CHROOT_ROOT" vlc_setup
-  #stuttery audio fix
-  sed -i "s|load-module module-udev-detect|load-module module-udev-detect tsched=0|" "${_CHROOT_ROOT}/etc/pulse/default.pa"
+  sed -i "s|^#  AutomaticLogin = root|AutomaticLogin =${_PASSWORDLESS_LOGIN_USER}|" "${_CHROOT_ROOT}/etc/gdm3/daemon.conf";
+  sed -i "s|^#  AutomaticLoginEnable = true|AutomaticLoginEnable = true" "${_CHROOT_ROOT}/etc/gdm3/daemon.conf";
+#TODO
 }
+
