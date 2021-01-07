@@ -4,75 +4,10 @@
 # shellcheck disable=SC2086
 # shellcheck disable=SC2068
 # shellcheck disable=SC2128
-export _SSH_SETUP=0;
-export _DNS_SETUP=0;
-
 set -eu
-
-iodine_setup(){
-  # REFERENCE:
-  #   https://davidhamann.de/2019/05/12/tunnel-traffic-over-dns-ssh/
-  echo_info "$FUNCNAME started at $(date) ";
-
-  chroot_package_install "$_CHROOT_ROOT" iodine
-
-  # Create initramfs hook file for iodine
-  cat << 'EOF2' > ${_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-iodine
-#!/bin/sh
-if [ "$1" = "prereqs" ]; then exit 0; fi
-. /usr/share/initramfs-tools/hook-functions
-
-copy_exec "/usr/sbin/iodine"
-
-#we need a tun device for iodine
-manual_add_modules tun
-
-#Generate Script that runs in initramfs
-cat > ${DESTDIR}/start_iodine << 'EOF'
-#!/bin/sh
-
-echo "Starting Iodine"
-busybox modprobe tun
-counter=1
-
-while true; do
-    echo Try $counter: $(date)
-
-    #exit if we are no longer in the initramfs
-    [ ! -f /start_iodine ] && exit
-
-    #put this here in case it dies, it will restart. If it is running it will just fail
-    /usr/sbin/iodine -d dns0 -r -I1 -L0 -P IODINE_PASSWORD $(grep IPV4DNS0 /run/net-eth0.conf | cut -d"'" -f 2) IODINE_DOMAIN
-
-    [ $counter -gt 10 ] && reboot -f
-    counter=$((counter+1))
-    sleep 60
-done;
-EOF
-  chmod 755 ${DESTDIR}/start_iodine
-
-  exit 0
-EOF2
-  chmod 755 ${_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-iodine
-
-  # Replace variables in iodine hook file
-  sed -i "s#IODINE_PASSWORD#${_IODINE_PASSWORD}#g" ${_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-iodine
-  sed -i "s#IODINE_DOMAIN#${_IODINE_DOMAIN}#g" ${_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-iodine
-
-  # Create initramfs script file for iodine
-  cat << 'EOF' > ${_CHROOT_ROOT}/etc/initramfs-tools/scripts/init-premount/iodine
-#!/bin/sh
-if [ "$1" = "prereqs" ]; then exit 0; fi
-startIodine(){
-    exec /start_iodine
-}
-startIodine &
-exit 0
-EOF
-  chmod 755 ${_CHROOT_ROOT}/etc/initramfs-tools/scripts/init-premount/iodine
-
-  echo_debug "iodine setup complete";
-}
+export _SSH_SETUP='0';
+export _DNS_SETUP='0';
+export _NTPSEC_SETUP='0';
 
 initramfs_wifi_setup(){
 # REFERENCE:
@@ -83,7 +18,7 @@ initramfs_wifi_setup(){
   echo_debug "Attempting to set initramfs WIFI up "
   if [ -z "$_WIFI_SSID" ] || [ -z "$_WIFI_PASSWORD" ]; then
     echo_warn 'SKIPPING: _WIFI_PASSWORD and/or _WIFI_SSID are not set.'
-    exit 1
+    exit 1;
   fi
 
   # Checking if WIFI interface was provided
@@ -107,34 +42,14 @@ initramfs_wifi_setup(){
   # Update /boot/cmdline.txt to boot crypt
   sed -i "s#rootwait#ip=${_INITRAMFS_WIFI_IP} rootwait#g" ${_CHROOT_ROOT}/boot/cmdline.txt
 
-  echo_debug "Generating PSK for '${_WIFI_SSID}' '${_WIFI_PASSWORD}'"
+  echo_debug "Generating PSK for '${_WIFI_SSID}' '${_WIFI_PASSWORD}'";
   _WIFI_PSK=$(wpa_passphrase "${_WIFI_SSID}" "${_WIFI_PASSWORD}" | grep "psk=" | grep -v "#psk")
 
-  echo_debug "Creating hook to include firmware files for brcmfmac"
-  cat << EOF > ${_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-brcm
-# !/bin/sh
-set -e
-
-PREREQ=""
-prereqs()
-{
-    echo "\${PREREQ}"
-}
-
-case "\${1}" in
-    prereqs)
-        prereqs
-        exit 0
-        ;;
-esac
-
-. /usr/share/initramfs-tools/hook-functions
-
-echo "Copying firmware files for brcm to initramfs"
-cp -r /lib/firmware/brcm \${DESTDIR}/lib/firmware/
-
-EOF
-  chmod 755 ${_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-brcm
+  echo_debug "Copying scripts";
+  cp -p "${_FILES_DIR}/initramfs-scripts/zz-brcm" "${_CHROOT_ROOT}/etc/initramfs-tools/hooks/"
+  cp -p "${_FILES_DIR}/initramfs-scripts/a_enable_wireless" "${_CHROOT_ROOT}/etc/initramfs-tools/scripts/init-premount/";
+  cp -p "${_FILES_DIR}/initramfs-scripts/enable_wireless" "${_CHROOT_ROOT}/etc/initramfs-tools/hooks/"
+  cp -p "${_FILES_DIR}/initramfs-scripts/kill_wireless" "${_CHROOT_ROOT}/etc/initramfs-tools/scripts/local-bottom/"
 
   echo_debug "Creating wpa_supplicant file"
   cat <<EOT > ${_CHROOT_ROOT}/etc/initramfs-tools/wpa_supplicant.conf
@@ -147,123 +62,13 @@ network={
         key_mgmt=WPA-PSK
 }
 EOT
-
-  echo_debug "Creating initramfs script a_enable_wireless"
-  cat <<EOT > ${_CHROOT_ROOT}/etc/initramfs-tools/scripts/init-premount/a_enable_wireless
-  #!/bin/sh
-
-  PREREQ=""
-  prereqs()
-  {
-      echo "\$PREREQ"
-  }
-
-  case \$1 in
-  prereqs)
-      prereqs
-      exit 0
-      ;;
-  esac
-
-  . /scripts/functions
-
-  alias WPACLI="/sbin/wpa_cli -p/tmp/wpa_supplicant -i${_WIFI_INTERFACE} "
-
-  log_begin_msg "Sleeping for 5 seconds to allow WLAN interface to become ready"
-  sleep 5
-  log_end_msg
-
-  log_begin_msg "Starting WLAN connection"
-  /sbin/wpa_supplicant  -i${_WIFI_INTERFACE} -c/etc/wpa_supplicant.conf -P/run/initram-wpa_supplicant.pid -B -f /tmp/wpa_supplicant.log
-
-  # Wait for AUTH_LIMIT seconds, then check the status
-  AUTH_LIMIT=60
-
-  echo -n "Waiting for connection (max \${AUTH_LIMIT} seconds)"
-  while [ \$AUTH_LIMIT -ge 0 -a \`WPACLI status | grep wpa_state\` != "wpa_state=COMPLETED" ]
-  do
-    sleep 1
-    echo -n "."
-    AUTH_LIMIT=\`expr \$AUTH_LIMIT - 1\`
-  done
-  echo ""
-
-  if [ \`WPACLI status | grep wpa_state\` != "wpa_state=COMPLETED" ]; then
-    ONLINE=0
-    log_failure_msg "WLAN offline after timeout"
-    echo
-    panic
-  fi
-  ONLINE=1
-  log_success_msg "WLAN online"
-  echo
-
-  configure_networking
-EOT
-
-  chmod +x "${_CHROOT_ROOT}/etc/initramfs-tools/scripts/init-premount/a_enable_wireless"
-
-
-  echo_debug "Creating initramfs hook enable_wireless"
-  cat <<EOT > ${_CHROOT_ROOT}/etc/initramfs-tools/hooks/enable-wireless
-# !/bin/sh
-# This goes into /etc/initramfs-tools/hooks/enable-wireless
-set -e
-PREREQ=""
-prereqs()
-{
-    echo "\${PREREQ}"
-}
-case "\${1}" in
-    prereqs)
-        prereqs
-        exit 0
-        ;;
-esac
-
-. /usr/share/initramfs-tools/hook-functions
-
-# Adding wifi drivers
-for driver in ${_INITRAMFS_WIFI_DRIVERS}; do
-    manual_add_modules \${driver}
-done
-
-copy_exec /sbin/wpa_supplicant
-copy_exec /sbin/wpa_cli
-copy_file config /etc/initramfs-tools/wpa_supplicant.conf /etc/wpa_supplicant.conf
-EOT
-
-  chmod +x "${_CHROOT_ROOT}/etc/initramfs-tools/hooks/enable-wireless"
-
-  echo_debug "Creating initramfs script kill_wireless"
-  cat <<EOT > "${_CHROOT_ROOT}/etc/initramfs-tools/scripts/local-bottom/kill_wireless"
-#!/bin/sh
-# this goes into /etc/initramfs-tools/scripts/local-bottom/kill_wireless
-PREREQ=""
-prereqs()
-{
-    echo "\$PREREQ"
-}
-
-case \$1 in
-prereqs)
-    prereqs
-    exit 0
-    ;;
-esac
-
-echo "Killing wpa_supplicant so the system takes over later."
-kill \`cat /run/initram-wpa_supplicant.pid\`
-EOT
-  chmod +x "${_CHROOT_ROOT}/etc/initramfs-tools/scripts/local-bottom/kill_wireless"
-
-
+  
   # Adding modules to initramfs modules
   for driver in ${_INITRAMFS_WIFI_DRIVERS}; do
-    echo ${driver} >> ${_CHROOT_ROOT}/etc/initramfs-tools/modules;
+    echo ${driver} >> "${_CHROOT_ROOT}/etc/initramfs-tools/modules"
   done
 
-  echo_debug "initramfs wifi completed"
+  echo_debug "initramfs wifi completed";
 }
 
 #mails kali user if the hash of the boot drive changes
@@ -286,37 +91,39 @@ EOF
   chmod 755 "${_CHROOT_ROOT}/etc/cron.d/startBootHash";
 }
 
+#disable the gui 
 display_manager_setup(){
   echo_info "$FUNCNAME started at $(date) ";
   chroot_execute "$_CHROOT_ROOT" systemctl set-default multi-user
   echo_info "To get a gui run startxfce4 on command line"
 }
 
+#setup dropbear in initramfs
 dropbear_setup(){
   echo_info "$FUNCNAME started at $(date) ";
 
-  test -f "${_SSH_LOCAL_KEYFILE}" || {
-      echo_error "ERROR: Obligatory SSH keyfile '${_SSH_LOCAL_KEYFILE}' could not be found. Exiting"
-      exit 1
-  }
+  if [ ! -f "${_SSH_LOCAL_KEYFILE}" ]; then
+      echo_error "ERROR: Obligatory SSH keyfile '${_SSH_LOCAL_KEYFILE}' could not be found. Exiting";
+      exit 1;
+  fi
 
   # Installing packages
   chroot_package_install "$_CHROOT_ROOT" dropbear dropbear-initramfs cryptsetup-initramfs
 
-  echo "DROPBEAR_OPTIONS='-p $_SSH_PORT -RFEjk -c /bin/cryptroot-unlock'" >> ${_CHROOT_ROOT}/etc/dropbear-initramfs/config
+  echo "DROPBEAR_OPTIONS='-p $_SSH_PORT -RFEjk -c /bin/cryptroot-unlock'" >> ${_CHROOT_ROOT}/etc/dropbear-initramfs/config;
 
   # Now append our key to dropbear authorized_keys file
-  cat "${_SSH_LOCAL_KEYFILE}.pub" >> ${_CHROOT_ROOT}/etc/dropbear-initramfs/authorized_keys
-  chmod 600 ${_CHROOT_ROOT}/etc/dropbear-initramfs/authorized_keys
+  cat "${_SSH_LOCAL_KEYFILE}.pub" >> ${_CHROOT_ROOT}/etc/dropbear-initramfs/authorized_keys;
+  chmod 600 ${_CHROOT_ROOT}/etc/dropbear-initramfs/authorized_keys;
 
   # Update dropbear for some sleep in initramfs
-  sed -i 's#run_dropbear \&#sleep 5\nrun_dropbear \&#g' ${_CHROOT_ROOT}/usr/share/initramfs-tools/scripts/init-premount/dropbear
+  sed -i 's#run_dropbear \&#sleep 5\nrun_dropbear \&#g' ${_CHROOT_ROOT}/usr/share/initramfs-tools/scripts/init-premount/dropbear;
 
   # Using provided dropbear keys (or backuping generating ones for later usage)
   # Don't use weak key ciphers
-  rm ${_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_dss_host_key
-  rm ${_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_ecdsa_host_key
-  backup_and_use_sshkey ${_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_rsa_host_key
+  rm ${_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_dss_host_key;
+  rm ${_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_ecdsa_host_key;
+  backup_and_use_sshkey "${_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_rsa_host_key";
 }
 
 luks_nuke_setup(){
@@ -367,8 +174,7 @@ ssh_setup(){
 EOF
 
 #Used for firewall firewall_setup script
-export _SSH_SETUP=1;
-
+export _SSH_SETUP='1';
 }
 
 #sets cpu performance mode (useful for running off battery)
@@ -380,6 +186,7 @@ cpu_governor_setup(){
   chroot_execute "$_CHROOT_ROOT" systemctl enable cpufrequtils;
 }
 
+#custom hostname setup
 hostname_setup(){
   echo_debug "Setting hostname to ${_HOSTNAME}";
   # Overwrites /etc/hostname
@@ -393,38 +200,7 @@ hostname_setup(){
 #disables mdns, llmnr
 #credits: https://andrea.corbellini.name/2020/04/28/ubuntu-global-dns/
 dns_setup(){
-  echo_info "$FUNCNAME started at $(date) ";
-#   echo_debug "Writing /etc/resolv.conf ";
-#   cat <<EOT > ${_CHROOT_ROOT}/etc/resolv.conf
-# nameserver ${_DNS1}
-# nameserver ${_DNS2}
-# EOT
-#   chmod o+r ${_CHROOT_ROOT}/etc/resolv.conf;
-# 
-#   echo_debug "Installing resolvconf"
-#   chroot_package_install "${_CHROOT_ROOT}" resolvconf
-#   chroot_execute "$_CHROOT_ROOT" systemctl enable resolvconf.service
-# 
-#   echo_debug "Updating /etc/resolvconf/resolv.conf.d/head "
-#   cat <<EOT > ${_CHROOT_ROOT}/etc/resolvconf/resolv.conf.d/head
-# nameserver ${_DNS1}
-# nameserver ${_DNS2}
-# EOT
-# 
-#TODO CHECK THIS ISN'T REQUIRED ON NEXT TEST RUN
-#   echo_debug "Updating /etc/network/interfaces";
-#   cat <<EOT >> ${_CHROOT_ROOT}/etc/network/interfaces
-# dns-nameservers ${_DNS1} ${_DNS2}
-# EOT
-# 
-#   test -e "${_CHROOT_ROOT}/etc/dhpc/dhclient.conf" && {
-#    echo_debug "Updating /etc/dhpc/dhclient.conf"
-#   
-#     cat <<EOT >> ${_CHROOT_ROOT}/etc/dhpc/dhclient.conf
-# supersede domain-name-servers ${_DNS1}, ${_DNS2};
-# EOT
-#   }
-  
+  echo_info "$FUNCNAME started at $(date) "; 
   chroot_execute "$_CHROOT_ROOT" systemctl enable systemd-resolved
   sed -i "s|^#DNS=|DNS=${_DNS1}|" "${_CHROOT_ROOT}/etc/systemd/resolved.conf";
   sed -i "s|^#FallbackDNS=|FallbackDNS=${_DNS2}|" "${_CHROOT_ROOT}/etc/systemd/resolved.conf";
@@ -446,23 +222,26 @@ EOT
   mv "${_CHROOT_ROOT}/etc/resolv.conf" "${_CHROOT_ROOT}/etc/resolv.conf.backup";
   ln -s  "${_CHROOT_ROOT}/etc/resolv.conf";
   
-  echo_debug "DNS configured";
+  echo_debug "DNS configured - remember to keep your clock up to date or DNSSEC Certificate errors may occur";
   export _DNS_SETUP='1';
   #needs: 853/tcp, doesn't need as we disable llmnr and mdns: 5353/udp,5355/udp
 }
 
+#sets the root password
 root_password_setup(){
   echo_info "$FUNCNAME started at $(date) ";
   chroot ${_CHROOT_ROOT} /bin/bash -c "echo root:${_ROOT_PASSWORD} | /usr/sbin/chpasswd"
   echo_info "Root password set"
 }
 
+#sets the kali user password
 user_password_setup(){
   echo_info "$FUNCNAME started at $(date) ";
   chroot ${_CHROOT_ROOT} /bin/bash -c "echo kali:${_KALI_PASSWORD} | /usr/sbin/chpasswd"
   echo_info "Kali user password set"
 }
 
+#setup a vpn client
 vpn_client_setup(){
   echo_info "$FUNCNAME started at $(date) ";
   _OPENVPN_CONFIG_ZIPFILE=${_OPENVPN_CONFIG_ZIP}
@@ -484,6 +263,7 @@ vpn_client_setup(){
   #chroot_execute "$_CHROOT_ROOT" systemctl enable openvpn@client.service
 }
 
+#configure system on decrypt to connect to a hotspot specified in env file
 wifi_setup(){
   echo_info "$FUNCNAME started at $(date) ";
 
@@ -561,9 +341,6 @@ firewall_setup(){
   chroot_execute "$_CHROOT_ROOT" ufw allow out 80/tcp;
   chroot_execute "$_CHROOT_ROOT" ufw allow out 443/tcp;
   
-  #ntp 
-  chroot_execute "$_CHROOT_ROOT" ufw allow out 123/udp;
-  
   #OPENS UP YOUR SSH PORT
   if [ "${_SSH_SETUP}" = "1" ]; then
     chroot_execute "$_CHROOT_ROOT" ufw allow in "${_SSH_PORT}/tcp";
@@ -574,6 +351,12 @@ firewall_setup(){
     chroot_execute "$_CHROOT_ROOT" ufw allow out 853/tcp;
   fi
   
+  #OPEN UP NTPSEC PORT
+  if [ "${_NTPSEC_SETUP}" = "1" ]; then
+    chroot_execute "$_CHROOT_ROOT" ufw allow out 4460/tcp;
+        chroot_execute "$_CHROOT_ROOT" ufw allow out 123/tcp;
+  fi
+
   chroot_execute "$_CHROOT_ROOT" ufw enable;
   chroot_execute "$_CHROOT_ROOT" ufw status verbose;
   echo_warn "Firewall setup complete, please review setup and amend as necessary";
@@ -593,15 +376,19 @@ clamav_setup(){
 fake_hwclock_setup(){
   echo_info "$FUNCNAME started at $(date) ";
   chroot_package_install "$_CHROOT_ROOT" fake-hwclock
+  # set clock even if saved value appears to be in the past
+  # sed -i "s|^#FORCE=force|FORCE=force|"  "$_CHROOT_ROOT/etc/default/fake-hwclock"
   chroot_execute "$_CHROOT_ROOT" systemctl enable fake-hwclock
 }
 
+#update system
 apt_upgrade(){
   echo_info "$FUNCNAME started at $(date) ";
   chroot_execute "$_CHROOT_ROOT" apt -qq -y update
   chroot_execute "$_CHROOT_ROOT" apt -qq -y upgrade
 }
 
+#install and configure docker
 docker_setup(){
 # REFERENCES
 #   https://www.docker.com/blog/happy-pi-day-docker-raspberry-pi/
@@ -635,8 +422,8 @@ docker_setup(){
   echo_debug " docker hook call completed"
 }
 
+#install and remove custom packages
 packages_setup(){
-  # Compose package actions
   echo_info "$FUNCNAME started at $(date) ";
   chroot_package_purge "$_CHROOT_ROOT" "${_PKGS_TO_PURGE}";
   chroot_package_install "$_CHROOT_ROOT" "${_PKGS_TO_INSTALL}";
@@ -644,6 +431,7 @@ packages_setup(){
 
 #sets up aide to run at midnight each night
 aide_setup(){
+  echo_info "$FUNCNAME started at $(date) ";
   chroot_package_install "${_CHROOT_ROOT}" aide
   chroot_execute "$_CHROOT_ROOT" aideinit
   chroot_execute "$_CHROOT_ROOT" mv /var/lib/aide/aide.db.new /var/lib/aide/aide.db
@@ -654,9 +442,12 @@ EOF
   chmod 755 "${_CHROOT_ROOT}/etc/cron.d/aideCheck";
 }
 
+#automatically log you in after unlocking your encrypted drive
 passwordless_login_setup(){
+  echo_info "$FUNCNAME started at $(date) ";
   sed -i "s|^#  AutomaticLogin = root|AutomaticLogin =${_PASSWORDLESS_LOGIN_USER}|" "${_CHROOT_ROOT}/etc/gdm3/daemon.conf";
   sed -i "s|^#  AutomaticLoginEnable = true|AutomaticLoginEnable = true" "${_CHROOT_ROOT}/etc/gdm3/daemon.conf";
+#TODO
 }
 
 #basic snapper install for use with btrfs, snapshots root directory in its entirety with default settings,
@@ -665,3 +456,50 @@ snapper_setup(){
   chroot_package_install "${_CHROOT_ROOT}" snapper snapper-gui
   chroot_execute "$_CHROOT_ROOT" snapper create-config /
 }
+
+#secure network time protocol configuration, also installs ntpdate client for manually pulling the time
+ntpsec_setup(){
+  echo_info "$FUNCNAME started at $(date) ";
+  chroot_package_install "${_CHROOT_ROOT}" ntpsec ntpsec-doc ntpsec-ntpdate
+  chroot_execute "$_CHROOT_ROOT" systemctl enable ntpsec.service
+  sed -i "s|^#server time.cloudflare.com nts|server time.cloudflare.com iburst nts \nserver nts.sth1.ntp.se iburst nts\nserver nts.sth2.ntp.se iburst nts|" "/etc/ntpsec/ntp.conf" "${_CHROOT_ROOT}/etc/ntpsec/ntp.conf"
+  sed -i "s|^pool 0.debian.pool.ntp.org iburst|#pool 0.debian.pool.ntp.org iburst|" "${_CHROOT_ROOT}/etc/ntpsec/ntp.conf"
+  sed -i "s|^pool 1.debian.pool.ntp.org iburst|#pool 1.debian.pool.ntp.org iburst|" "${_CHROOT_ROOT}/etc/ntpsec/ntp.conf"
+  sed -i "s|^pool 2.debian.pool.ntp.org iburst|#pool 2.debian.pool.ntp.org iburst|" "${_CHROOT_ROOT}/etc/ntpsec/ntp.conf"
+  sed -i "s|^pool 3.debian.pool.ntp.org iburst|#pool 3.debian.pool.ntp.org iburst|" "${_CHROOT_ROOT}/etc/ntpsec/ntp.conf"
+  export _NTPSEC_SETUP='1';
+}
+
+#config iodine
+iodine_setup(){
+  # REFERENCE:
+  #   https://davidhamann.de/2019/05/12/tunnel-traffic-over-dns-ssh/
+  echo_info "$FUNCNAME started at $(date) ";
+  chroot_package_install "$_CHROOT_ROOT" iodine
+
+  # Create initramfs hook file for iodine
+  cp -p "${_FILE_DIR}/initramfs-scripts/zz-iodine" "${_CHROOT_ROOT}/etc/initramfs-tools/hooks/"
+
+  # Replace variables in iodine hook file
+  sed -i "s#IODINE_PASSWORD#${_IODINE_PASSWORD}#g" ${_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-iodine
+  sed -i "s#IODINE_DOMAIN#${_IODINE_DOMAIN}#g" ${_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-iodine
+
+  # Create initramfs script file for iodine
+  cp -p "${_FILE_DIR}/initramfs-scripts/iodine" "${_CHROOT_ROOT}/etc/initramfs-tools/scripts/init-premount/iodine";
+  echo_debug "iodine setup complete";
+}
+
+#TODO
+firejail_setup(){
+
+}
+
+#TODO
+sysctl_hardening_setup(){
+
+}
+
+#TODO
+mount_boot_readonly_setup(){
+
+} 

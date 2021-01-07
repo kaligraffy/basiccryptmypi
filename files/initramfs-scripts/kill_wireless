@@ -1,0 +1,17 @@
+#!/bin/sh
+# this goes into /etc/initramfs-tools/scripts/local-bottom/kill_wireless
+PREREQ=""
+prereqs()
+{
+    echo "$PREREQ"
+}
+
+case $1 in
+prereqs)
+    prereqs
+    exit 0
+    ;;
+esac
+
+echo "Killing wpa_supplicant so the system takes over later."
+kill `cat /run/initram-wpa_supplicant.pid`

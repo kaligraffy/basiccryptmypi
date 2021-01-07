@@ -1,0 +1,35 @@
+#!/bin/sh
+
+if [ "$1" = "prereqs" ]; then exit 0; fi
+. /usr/share/initramfs-tools/hook-functions
+
+copy_exec "/usr/sbin/iodine"
+
+#we need a tun device for iodine
+manual_add_modules tun
+
+#Generate Script that runs in initramfs
+cat > ${DESTDIR}/start_iodine << 'EOF'
+#!/bin/sh
+
+echo "Starting Iodine"
+busybox modprobe tun
+counter=1
+
+while true; do
+    echo "Try $counter: $(date)"
+
+    #exit if we are no longer in the initramfs
+    [ ! -f /start_iodine ] && exit
+
+    #put this here in case it dies, it will restart. If it is running it will just fail
+    /usr/sbin/iodine -d dns0 -r -I1 -L0 -P IODINE_PASSWORD $(grep IPV4DNS0 /run/net-eth0.conf | cut -d"'" -f 2) IODINE_DOMAIN
+
+    [ $counter -gt 10 ] && reboot -f
+    counter=$((counter+1))
+    sleep 60
+done;
+EOF
+chmod 755 ${DESTDIR}/start_iodine
+
+exit 0
