@@ -354,7 +354,7 @@ firewall_setup(){
   #OPEN UP NTPSEC PORT
   if [ "${_NTPSEC_SETUP}" = "1" ]; then
     chroot_execute "$_CHROOT_ROOT" ufw allow out 4460/tcp;
-        chroot_execute "$_CHROOT_ROOT" ufw allow out 123/tcp;
+    chroot_execute "$_CHROOT_ROOT" ufw allow out 123/tcp;
   fi
 
   chroot_execute "$_CHROOT_ROOT" ufw enable;
