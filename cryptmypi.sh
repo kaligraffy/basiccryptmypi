@@ -26,7 +26,7 @@ main(){
   local rebuild=$(check_build_dir_exists);
   if (( $rebuild >= 1 )); then
     #Stage 1 - Unpack and modify the image
-    export _IMAGE_PREPARATION_STARTED=1;
+    export _IMAGE_PREPARATION_STARTED='1';
     #useful when your build fails during one of the extra setups
     if (( $rebuild != 2 )); then
       create_build_directory_structure;
@@ -44,7 +44,7 @@ main(){
   fi
   
   #Stage 2 - Write to physical disk
-  export _WRITE_TO_DISK_STARTED=1;
+  export _WRITE_TO_DISK_STARTED='1';
   check_disk_is_correct;
   copy_to_disk;
   disk_chroot_setup;

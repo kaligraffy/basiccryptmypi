@@ -19,8 +19,8 @@ export _COLOR_WARN='\033[1;33m' #orange
 export _COLOR_INFO='\033[0;35m' #purple
 export _COLOR_DEBUG='\033[0;37m' #grey
 export _COLOR_NORMAL='\033[0m' # No Color
-export _IMAGE_PREPARATION_STARTED=0;
-export _WRITE_TO_DISK_STARTED=0;
+export _IMAGE_PREPARATION_STARTED='0';
+export _WRITE_TO_DISK_STARTED='0';
 export _LOG_FILE="${_BASEDIR}/build-$(date '+%Y-%m-%d-%H:%M:%S').log"
 
 # Runs on script exit, tidies up the mounts.
@@ -37,8 +37,8 @@ trap_on_interrupt() {
 
 # Runs on script exit, tidies up the mounts.
 trap_on_exit() {
-  if [ "$_IMAGE_PREPARATION_STARTED" != "0" ]; then cleanup_image_prep; fi
-  if [ "$_WRITE_TO_DISK_STARTED" != "0" ]; then cleanup_write_disk; fi
+  if [ "$_IMAGE_PREPARATION_STARTED" = '1' ]; then cleanup_image_prep; fi
+  if [ "$_WRITE_TO_DISK_STARTED" = '1' ]; then cleanup_write_disk; fi
   echo_info_time "$(basename $0) finished";
 }
 
