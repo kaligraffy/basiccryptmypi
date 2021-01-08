@@ -16,7 +16,7 @@ esac
 . /usr/share/initramfs-tools/hook-functions
 
 # Adding wifi drivers
-for driver in ${_INITRAMFS_WIFI_DRIVERS}; do
+for driver in _INITRAMFS_WIFI_DRIVERS; do
     manual_add_modules ${driver}
 done
 

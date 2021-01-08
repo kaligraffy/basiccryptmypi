@@ -11,4 +11,4 @@ ip link set _WIFI_INTERFACE up
 wpa_supplicant -B -Dwext -i _WIFI_INTERFACE -c /etc/wpa_supplicant.conf
 
 # Get IP from dhcp
-# dhclient _WIFI_INTERFACE
+dhclient _WIFI_INTERFACE

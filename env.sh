@@ -60,18 +60,19 @@ export _PASSWORDLESS_LOGIN_USER='root'
 extra_setup(){
 #  iodine_setup
 #  initramfs_wifi_setup
-#  hostname_setup;
+  hostname_setup;
 #  boot_hash_setup;
 #  display_manager_setup;
 ##  passwordless_login_setup; #does not work when display manager setup is called (wip)
 #  dropbear_setup
 #  luks_nuke_setup;
-#  ssh_setup #todo: sensible ssh default configuration
+#  ssh_setup;
 #  cpu_governor_setup;
 #  dns_setup;
 #  docker_setup
 #  root_password_setup;
 #  user_password_setup;
+#  set_default_shell_zsh
 #  ntpsec_setup;
 #  vpn_client_setup
 #  wifi_setup
@@ -80,15 +81,15 @@ extra_setup(){
 #  fake_hwclock_setup;
 #  snapper_setup;
 #  vlc_setup;
-## apparmor_setup - todo
-## firejail_setup - todo
-## sysctl_hardening_setup - todo
+#  apparmor_setup;
+#  firejail_setup;
+#  sysctl_hardening_setup;
 #  packages_setup;
 #  apt_upgrade;
 }
 
 #runs once the image has been written to external disk
 extra_extra_setup(){
-#  mount_boot_readonly_setup;
+  mount_boot_readonly_setup;
 #  aide_setup;
 }

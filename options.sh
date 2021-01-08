@@ -51,7 +51,10 @@ initramfs_wifi_setup(){
   cp -p "${_FILES_DIR}/initramfs-scripts/a_enable_wireless" "${_CHROOT_ROOT}/etc/initramfs-tools/scripts/init-premount/";
   cp -p "${_FILES_DIR}/initramfs-scripts/enable_wireless" "${_CHROOT_ROOT}/etc/initramfs-tools/hooks/"
   cp -p "${_FILES_DIR}/initramfs-scripts/kill_wireless" "${_CHROOT_ROOT}/etc/initramfs-tools/scripts/local-bottom/"
-
+  
+  sed -i "#_WIFI_INTERFACE#${_WIFI_INTERFACE}#" "${_CHROOT_ROOT}/etc/initramfs-tools/scripts/init-premount/a_enable_wireless";
+  sed -i "#_INITRAMFS_WIFI_DRIVERS#${INITRAMFS_WIFI_DRIVERS}#" "${_CHROOT_ROOT}/etc/initramfs-tools/hooks/enable_wireless";
+ 
   echo_debug "Creating wpa_supplicant file"
   cat <<EOT > ${_CHROOT_ROOT}/etc/initramfs-tools/wpa_supplicant.conf
 ctrl_interface=/tmp/wpa_supplicant
@@ -188,6 +191,7 @@ END
   fi
 }
 
+#TODO: sensible ssh default configuration
 ssh_setup(){
   echo_info "$FUNCNAME started at $(date) ";
   sshd_config="${_CHROOT_ROOT}/etc/ssh/sshd_config"
@@ -265,7 +269,7 @@ EOT
 
   #symlink
   mv "${_CHROOT_ROOT}/etc/resolv.conf" "${_CHROOT_ROOT}/etc/resolv.conf.backup";
-  ln -s  "${_CHROOT_ROOT}/etc/resolv.conf";
+  ln -s "${_CHROOT_ROOT}/etc/systemd/resolved.conf" "${_CHROOT_ROOT}/etc/resolv.conf";
   
   echo_debug "DNS configured - remember to keep your clock up to date or DNSSEC Certificate errors may occur";
   export _DNS_SETUP='1';
@@ -481,10 +485,9 @@ firejail_setup(){
   #TODO firejail configuration for hardened malloc, apparmor integration
 }
 
-#TODO
+#TODO write sysctl.conf hardening here
 sysctl_hardening_setup(){
   echo_info "$FUNCNAME started at $(date) ";
-
 }
 
 #make boot mount read only
@@ -499,7 +502,7 @@ passwordless_login_setup(){
   echo_info "$FUNCNAME started at $(date) ";
   sed -i "s|^#  AutomaticLogin = root|AutomaticLogin =${_PASSWORDLESS_LOGIN_USER}|" "${_CHROOT_ROOT}/etc/gdm3/daemon.conf";
   sed -i "s|^#  AutomaticLoginEnable = true|AutomaticLoginEnable = true" "${_CHROOT_ROOT}/etc/gdm3/daemon.conf";
-#TODO
+#TODO lightdm.conf
 }
 
 #set default shell to zsh
@@ -515,4 +518,9 @@ bluetooth_setup(){
   chroot_package_install "$_CHROOT_ROOT" bluez
   chroot_execute "$_CHROOT_ROOT" systemctl enable bluetooth               
   #TODO setup some devices you might have already
+}
+
+#TODO Write function for apparmor integration
+apparmor_setup(){
+  echo_info "$FUNCNAME started at $(date) ";
 }
