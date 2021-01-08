@@ -1,7 +1,10 @@
 # basiccryptmypi
-basiccryptmypi - A really simple kali pi build script to make an encrypted RPi 4. With thanks to unixabg for the original script.
+basiccryptmypi - A really simple kali pi build script.
+With thanks to unixabg for the original script.
 
 THIS IS A WORK IN PROGRESS, DON'T DOWNLOAD UNLESS YOU ARE PREPARED TO TROUBLESHOOT
+
+PLEASE READ THIS BEFORE YOU USE THE SCRIPT.
 
 USAGE
 
@@ -17,7 +20,7 @@ export _WIFI_PASSWORD='CHANGEME'
 export _IMAGE_SHA256="c6ceee472eb4dabf4ea895ef53c7bd28751feb44d46ce2fa3f51eb5469164c2c"
 export _IMAGE_URL="https://images.kali.org/arm-images/kali-linux-2020.4-rpi4-nexmon-64.img.xz"
 
-Un/Comment anything in function extra_setup() you want to use.
+Un/Comment anything in functions extra_setup() and extra_extra_setup().
 
 Run: 
 - change directory to cryptmypi directory
@@ -26,32 +29,43 @@ Run:
 
 PURPOSE
 
-Creates a configurable kali sd card or usb for the raspberry pi with strong encryption as default as well as other functionality as default.
-Its meant to provide reasonable defaults if you have a rpi4 and be really easy to use and debug
+Creates a configurable kali sd card or usb for the raspberry pi with strong encryption as default. The following 
+options should be descriptive enough, but look in options.sh for what each one does:
 
-This was based on an original project to make a headless kali pi build script and other things,
- the hope is to expand on that by providing simple config,
- clean up some of the code, thoroughly test it and then 
- attempt to build an image from scratch later on down the line,
-  perhaps against non-kali images
+initramfs_wifi_setup
+wifi_setup
+boot_hash_setup
+display_manager_setup
+dropbear_setup
+luks_nuke_setup
+ssh_setup
+cpu_governor_setup
+hostname_setup
+dns_setup
+root_password_setup
+user_password_setup
+vpn_client_setup
+firewall_setup
+clamav_setup
+fake_hwclock_setup
+apt_upgrade
+docker_setup
+packages_setup
+aide_setup
+snapper_setup
+ntpsec_setup
+iodine_setup
+vlc_setup
+firejail_setup
+sysctl_hardening_setup
+mount_boot_readonly_setup
+passwordless_login_setup
+set_default_shell_zsh
+bluetooth_setup
+apparmor_setup
+random_mac_on_reboot_setup
 
-
-This includes:
-- btrfs filesystem
-- strong luks encryption
-- DNSSEC enabled by default
-- DNSoverHTTPS enabled by default
-- ssh on port 2222 with key or password-based encryption
-- dropbear on port 2222 with key or password-based encryption
-- antivirus
-- basic firewall
-- aide intrusion protection
-- a fake hardware clock
-- ntpsec (more secure than ntp)
-- luks nuke
-- a script to hash your boot and mail you if it changes
-
-Testing is 'ad hoc' and only for the rpi 4. In theory it should still work with rpi3 if you set the right kernel in env.sh
+Testing is 'ad hoc' and only for the RPI4. Oher kernels might work if set in env.sh
 
 ISSUES
 
@@ -65,12 +79,15 @@ TODO
 - SSH defaults
 - sysctl hardening against lynis
 - apparmor/firejail support
-- passwordless login (after decryption)
 - incorrect fstab settings for btrfs (last digit should be 0 for no fsck (tbc)
 - no assessment of noload being taken out of cmdline.txt for ext4 filesystems (may cause additional writes
 - duplicate entries in crypttab in the initramfs by script
 - clean up folders logic may not be working, sometimes the build folder remains if cleared
 - fix unmount logic
+- non-kali images
+- investigate cgroups logic in docker_setup, see if it's still required
+- clean up some of the code, thoroughly test it
+- build own image from scratch?
 
 HOW DOES IT WORK
 
