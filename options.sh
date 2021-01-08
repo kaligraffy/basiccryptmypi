@@ -9,6 +9,7 @@ export _SSH_SETUP='0';
 export _DNS_SETUP='0';
 export _NTPSEC_SETUP='0';
 
+#create wifi connection to a router/hotspot on boot
 initramfs_wifi_setup(){
 # REFERENCE:
 #    http://www.marcfargas.com/posts/enable-wireless-debian-initramfs/
@@ -71,6 +72,52 @@ EOT
   echo_debug "initramfs wifi completed";
 }
 
+#configure system on decrypt to connect to a hotspot specified in env file
+wifi_setup(){
+  echo_info "$FUNCNAME started at $(date) ";
+
+  # Checking if WIFI interface was provided
+  if [ -z "${_WIFI_INTERFACE}" ]; then
+    _WIFI_INTERFACE='wlan0'
+    echo_warn "_WIFI_INTERFACE is not set on config: Setting default value ${_WIFI_INTERFACE}"
+  fi
+
+  echo_debug "Generating PSK for '${_WIFI_SSID}' '${_WIFI_PASSWORD}'"
+  _WIFI_PSK=$(wpa_passphrase "${_WIFI_SSID}" "${_WIFI_PASSWORD}" | grep "psk=" | grep -v "#psk")
+
+  echo_debug "Creating wpa_supplicant file"
+  cat <<EOT > ${_CHROOT_ROOT}/etc/wpa_supplicant.conf
+ctrl_interface=/var/run/wpa_supplicant
+network={
+       ssid="${_WIFI_SSID}"
+       scan_ssid=1
+       proto=WPA RSN
+       key_mgmt=WPA-PSK
+       pairwise=CCMP TKIP
+       group=CCMP TKIP
+${_WIFI_PSK}
+}
+EOT
+
+  echo_debug "Updating /etc/network/interfaces file"
+  cat <<EOT >> ${_CHROOT_ROOT}/etc/network/interfaces
+
+# The buildin wireless interface
+auto ${_WIFI_INTERFACE}
+allow-hotplug ${_WIFI_INTERFACE}
+iface ${_WIFI_INTERFACE} inet dhcp
+wpa-conf /etc/wpa_supplicant.conf
+# pre-up wpa_supplicant -B -Dwext -i${_WIFI_INTERFACE} -c/etc/wpa_supplicant.conf
+# post-down killall -q wpa_supplicant
+EOT
+
+  echo_debug "Create connection script /usr/local/bin/sys-wifi-connect.sh"
+  cp -p "${_FILE_DIR}/wifi-scripts/sys-wifi-connect.sh" "${_CHROOT_ROOT}/usr/local/bin/sys-wifi-connect.sh"
+  sed -i "s|_WIFI_INTERFACE|${_WIFI_INTERFACE}|" "${_CHROOT_ROOT}/usr/local/bin/sys-wifi-connect.sh";
+  echo_debug "Add to cron to start at boot (before login)"
+  echo "@reboot root /bin/sh /usr/local/bin/sys-wifi-connect.sh" > "${_CHROOT_ROOT}/etc/cron.d/sys-wifi"
+}
+
 #mails kali user if the hash of the boot drive changes
 boot_hash_setup(){
   echo_info "$FUNCNAME started at $(date) ";
@@ -80,10 +127,8 @@ boot_hash_setup(){
   BOOTDRIVE="${_BOOT_HASH_BLOCK_DEVICE}"
   BOOTHASHSCRIPT="${_CHROOT_ROOT}/usr/local/bin/bootHash.sh";
   echo_debug "Creating script bootHash.sh in ${_BUILD_DIR}/usr/local/bin";
-  cp "${_FILE_DIR}/boot-hash/boothash.sh" "$BOOTHASHSCRIPT";
+  cp -p "${_FILE_DIR}/boot-hash/boothash.sh" "$BOOTHASHSCRIPT";
   sed -i "s|/dev/sdX|${BOOTDRIVE}|g" "$BOOTHASHSCRIPT";
-  chmod 700 "$BOOTHASHSCRIPT";
-
   #crontab run on startup
   cat << 'EOF' > "${_CHROOT_ROOT}/etc/cron.d/startBootHash"
 @reboot root /bin/bash /usr/local/bin/bootHash.sh
@@ -263,69 +308,6 @@ vpn_client_setup(){
   #chroot_execute "$_CHROOT_ROOT" systemctl enable openvpn@client.service
 }
 
-#configure system on decrypt to connect to a hotspot specified in env file
-wifi_setup(){
-  echo_info "$FUNCNAME started at $(date) ";
-
-  # Checking if WIFI interface was provided
-  if [ -z "${_WIFI_INTERFACE}" ]; then
-    _WIFI_INTERFACE='wlan0'
-    echo_warn "_WIFI_INTERFACE is not set on config: Setting default value ${_WIFI_INTERFACE}"
-  fi
-
-  echo_debug "Generating PSK for '${_WIFI_SSID}' '${_WIFI_PASSWORD}'"
-  _WIFI_PSK=$(wpa_passphrase "${_WIFI_SSID}" "${_WIFI_PASSWORD}" | grep "psk=" | grep -v "#psk")
-
-  echo_debug "Creating wpa_supplicant file"
-  cat <<EOT > ${_CHROOT_ROOT}/etc/wpa_supplicant.conf
-ctrl_interface=/var/run/wpa_supplicant
-network={
-       ssid="${_WIFI_SSID}"
-       scan_ssid=1
-       proto=WPA RSN
-       key_mgmt=WPA-PSK
-       pairwise=CCMP TKIP
-       group=CCMP TKIP
-${_WIFI_PSK}
-}
-EOT
-
-  echo_debug "Updating /etc/network/interfaces file"
-  cat <<EOT >> ${_CHROOT_ROOT}/etc/network/interfaces
-
-# The buildin wireless interface
-auto ${_WIFI_INTERFACE}
-allow-hotplug ${_WIFI_INTERFACE}
-iface ${_WIFI_INTERFACE} inet dhcp
-wpa-conf /etc/wpa_supplicant.conf
-# pre-up wpa_supplicant -B -Dwext -i${_WIFI_INTERFACE} -c/etc/wpa_supplicant.conf
-# post-down killall -q wpa_supplicant
-EOT
-
-  echo_debug "Create connection script /root/sys-wifi-connect.sh"
-cat <<EOT >> ${_CHROOT_ROOT}/sys-wifi-connect.sh
-#!/bin/bash
-
-# Remove file if exists
-test -e /var/run/wpa_supplicant/wlan0 && rm -f /var/run/wpa_supplicant/wlan0
-
-# Power interface up
-ip link set ${_WIFI_INTERFACE} down
-ip link set ${_WIFI_INTERFACE} up
-
-# Connect to WPA WiFi network
-wpa_supplicant -B -Dwext -i ${_WIFI_INTERFACE} -c /etc/wpa_supplicant.conf
-
-# Get IP from dhcp
-# dhclient ${_WIFI_INTERFACE}
-EOT
-
-  chmod +x ${_CHROOT_ROOT}/sys-wifi-connect.sh
-
-  echo_debug "Add to cron to start at boot (before login)"
-  echo "@reboot /root/sys-wifi-connect.sh" > ${_CHROOT_ROOT}/etc/cron.d/sys-wifi
-}
-
 #installs a basic firewall
 firewall_setup(){
   echo_info "$FUNCNAME started at $(date) ";
@@ -389,6 +371,7 @@ apt_upgrade(){
 }
 
 #install and configure docker
+#TODO Test this
 docker_setup(){
 # REFERENCES
 #   https://www.docker.com/blog/happy-pi-day-docker-raspberry-pi/
@@ -432,9 +415,9 @@ packages_setup(){
 #sets up aide to run at midnight each night
 aide_setup(){
   echo_info "$FUNCNAME started at $(date) ";
-  chroot_package_install "${_CHROOT_ROOT}" aide
-  chroot_execute "$_CHROOT_ROOT" aideinit
-  chroot_execute "$_CHROOT_ROOT" mv /var/lib/aide/aide.db.new /var/lib/aide/aide.db
+  chroot_package_install "${_DISK_CHROOT_ROOT}" aide
+  chroot_execute "${_DISK_CHROOT_ROOT}" aideinit
+  chroot_execute "${_DISK_CHROOT_ROOT}" mv /var/lib/aide/aide.db.new /var/lib/aide/aide.db
 
   cat << 'EOF' > "${_CHROOT_ROOT}/etc/cron.d/aideCheck"
 0 0 * * * root /usr/sbin/aide --check --config=/etc/aide/aide.conf
@@ -473,8 +456,8 @@ iodine_setup(){
   cp -p "${_FILE_DIR}/initramfs-scripts/zz-iodine" "${_CHROOT_ROOT}/etc/initramfs-tools/hooks/"
 
   # Replace variables in iodine hook file
-  sed -i "s#IODINE_PASSWORD#${_IODINE_PASSWORD}#g" ${_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-iodine
-  sed -i "s#IODINE_DOMAIN#${_IODINE_DOMAIN}#g" ${_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-iodine
+  sed -i "s#IODINE_PASSWORD#${_IODINE_PASSWORD}#g" "${_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-iodine"
+  sed -i "s#IODINE_DOMAIN#${_IODINE_DOMAIN}#g" "${_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-iodine"
 
   # Create initramfs script file for iodine
   cp -p "${_FILE_DIR}/initramfs-scripts/iodine" "${_CHROOT_ROOT}/etc/initramfs-tools/scripts/init-premount/";
@@ -484,24 +467,31 @@ iodine_setup(){
 #vlc_setup, fix broken audio
 vlc_setup(){
   echo_info "$FUNCNAME started at $(date) ";
-  chroot_package_install "$_CHROOT_ROOT" vlc_setup
+  chroot_package_install "$_CHROOT_ROOT" vlc
   #stuttery audio fix on rpi4
   sed -i "s|load-module module-udev-detect|load-module module-udev-detect tsched=0|" "${_CHROOT_ROOT}/etc/pulse/default.pa"
+  #TODO stuttery video fix on rpi4
 }
 
-#TODO
+#firejail setup
 firejail_setup(){
-
+  echo_info "$FUNCNAME started at $(date) ";
+  chroot_package_install "$_CHROOT_ROOT" firejail firejail-profiles firetools
+  chroot_execute "$_CHROOT_ROOT" firecfg
+  #TODO firejail configuration for hardened malloc, apparmor integration
 }
 
 #TODO
 sysctl_hardening_setup(){
+  echo_info "$FUNCNAME started at $(date) ";
 
 }
 
-#TODO
+#make boot mount read only
 mount_boot_readonly_setup(){
-
+  echo_info "$FUNCNAME started at $(date) ";
+  sed -i "s#/boot           vfat    defaults          0       2#/boot           vfat    defaults,noatime,ro,errors=remount-ro          0       2#" "${_DISK_CHROOT_ROOT}/etc/fstab";
+  echo_warn "Remember to remount when running mkinitramfs!";
 } 
 
 #automatically log you in after unlocking your encrypted drive
@@ -512,3 +502,17 @@ passwordless_login_setup(){
 #TODO
 }
 
+#set default shell to zsh
+set_default_shell_zsh(){
+  echo_info "$FUNCNAME started at $(date) ";
+  sed -i "s#root:x:0:0:root:/root:/usr/bin/bash#root:x:0:0:root:/root:/usr/bin/zsh#" "${_CHROOT_ROOT}/etc/passwd";
+  sed -i "s#kali:x:1000:1000::/home/kali:/usr/bin/zsh#kali:x:1000:1000::/home/kali:/usr/bin/zsh#" "${_CHROOT_ROOT}/etc/passwd";
+}
+
+#enable bluetooth
+bluetooth_setup(){
+  echo_info "$FUNCNAME started at $(date) ";
+  chroot_package_install "$_CHROOT_ROOT" bluez
+  chroot_execute "$_CHROOT_ROOT" systemctl enable bluetooth               
+  #TODO setup some devices you might have already
+}

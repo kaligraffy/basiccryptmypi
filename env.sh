@@ -89,6 +89,6 @@ extra_setup(){
 
 #runs once the image has been written to external disk
 extra_extra_setup(){
-#  mount_boot_readonly_setup; #todo
+#  mount_boot_readonly_setup;
 #  aide_setup;
 }
