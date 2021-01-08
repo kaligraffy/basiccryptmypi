@@ -82,7 +82,6 @@ TODO
 - incorrect fstab settings for btrfs (last digit should be 0 for no fsck (tbc)
 - no assessment of noload being taken out of cmdline.txt for ext4 filesystems (may cause additional writes
 - duplicate entries in crypttab in the initramfs by script
-- clean up folders logic may not be working, sometimes the build folder remains if cleared
 - fix unmount logic
 - non-kali images
 - investigate cgroups logic in docker_setup, see if it's still required

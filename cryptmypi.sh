@@ -1,5 +1,7 @@
 #!/bin/bash
+# shellcheck disable=SC1091
 set -eu
+
 # Creates a configurable kali pi build
 
 # Load functions, environment variables and dependencies
@@ -22,18 +24,22 @@ main(){
 
   #Check for a build directory
   local rebuild=$(check_build_dir_exists);
-  if (( $rebuild == 1 )); then
+  if (( $rebuild >= 1 )); then
     #Stage 1 - Unpack and modify the image
-    create_build_directory_structure;
     export _IMAGE_PREPARATION_STARTED=1;
-    download_image;
-    extract_image;
-    mount_loopback_image;
-    copy_extracted_image_to_chroot_dir;
+    #useful when your build fails during one of the extra setups
+    if (( $rebuild != 2 )); then
+      create_build_directory_structure;
+      download_image;
+      extract_image;
+      mount_loopback_image;
+      copy_extracted_image_to_chroot_dir;
+    fi
     chroot_setup;
     locale_setup;
     encryption_setup;
     extra_setup;
+    chroot_mkinitramfs_setup;
     chroot_teardown;
   fi
   
@@ -41,9 +47,10 @@ main(){
   export _WRITE_TO_DISK_STARTED=1;
   check_disk_is_correct;
   copy_to_disk;
-  chroot_mount "${_DISK_CHROOT_ROOT}"
-  chroot_mkinitramfs "${_DISK_CHROOT_ROOT}"
+  disk_chroot_setup;
+  disk_chroot_mkinitramfs;
   extra_extra_setup;
+  disk_chroot_teardown;
   exit;
 }
 # Run program

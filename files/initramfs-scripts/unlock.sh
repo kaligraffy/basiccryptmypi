@@ -1,4 +1,6 @@
 #!/bin/sh
+# shellcheck disable=SC2086
+# shellcheck disable=SC2009
 
   export PATH='/sbin:/bin/:/usr/sbin:/usr/bin'
 

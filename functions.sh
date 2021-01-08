@@ -1,4 +1,5 @@
 #!/bin/bash
+# shellcheck disable=SC2128
 # shellcheck disable=SC2034
 # shellcheck disable=SC2145
 # shellcheck disable=SC2086
@@ -36,15 +37,14 @@ trap_on_interrupt() {
 
 # Runs on script exit, tidies up the mounts.
 trap_on_exit() {
-  if [ $_IMAGE_PREPARATION_STARTED -gt 0 ]; then cleanup_image_prep; fi
-  if [ $_WRITE_TO_DISK_STARTED -gt 0 ]; then cleanup_write_disk; fi
+  if [ "$_IMAGE_PREPARATION_STARTED" != "0" ]; then cleanup_image_prep; fi
+  if [ "$_WRITE_TO_DISK_STARTED" != "0" ]; then cleanup_write_disk; fi
   echo_info_time "$(basename $0) finished";
 }
 
 # Cleanup on exit
 cleanup_image_prep(){
   echo_info_time "$FUNCNAME";
-
   umount  "${_BUILD_DIR}/mount" || true
   umount  "${_BUILD_DIR}/boot" || true
   umount /dev/loop* || true;
@@ -55,7 +55,6 @@ cleanup_image_prep(){
 # Cleanup on exit
 cleanup_write_disk(){
   echo_info_time "$FUNCNAME";
-
   chroot_umount "${_DISK_CHROOT_ROOT}" || true
   umount "${_BLOCK_DEVICE_BOOT}" || true
   cryptsetup -v luksClose "${_ENCRYPTED_VOLUME_PATH}" || true
@@ -74,9 +73,11 @@ check_build_dir_exists(){
   
   if [ -d ${_BUILD_DIR} ]; then
     local continue;
-    read -p "Build directory already exists: ${_BUILD_DIR}. Rebuild? (y/N)  " continue;
+    read -p "Build directory already exists: ${_BUILD_DIR}. Rebuild Yes,No,Partial (skip extract)? (y/N/p)  " continue;
     if [ "${continue}" = 'y' ] || [ "${continue}" = 'Y' ]; then
       echo '1';
+    elif [ "${continue}" = 'p' ] || [ "${continue}" = 'P' ]; then
+      echo '2';
     else
       echo '0'; 
     fi
@@ -141,7 +142,7 @@ extract_image() {
   elif [ -e "${extracted_image}" ]; then
     local continue="";
     read -p "${extracted_image} found, re-extract? (y/N)  " continue;
-    if [ "${continue}" -ne 'y' ] || [ "${continue}" -ne 'Y' ]; then
+    if [ "${continue}" != 'y' ] && [ "${continue}" != 'Y' ]; then
       return 0;
     fi
   fi
@@ -170,7 +171,6 @@ extract_image() {
 #mounts the extracted image via losetup
 mount_loopback_image(){
   echo_info_time "$FUNCNAME";
-
   local extracted_image="${_EXTRACTED_IMAGE}";
   loopdev=$(losetup -P -f --show "$extracted_image");
   partprobe ${loopdev};
@@ -228,8 +228,6 @@ download_image(){
 
 locale_setup(){
   echo_info_time "$FUNCNAME";
-
-
   echo_debug "Uncommenting locale ${_LOCALE} for inclusion in generation"
   sed -i 's/^# *\(en_US.UTF-8\)/\1/' "${_CHROOT_ROOT}"/etc/locale.gen
 
@@ -238,7 +236,6 @@ locale_setup(){
   LANG="${_LOCALE}"
 EOF
 
-  echo_debug "Installing locales"
   chroot_package_install "${_CHROOT_ROOT}" locales
 
   echo_debug "Updating env variables"
@@ -263,7 +260,6 @@ EOF
 
 encryption_setup(){
   echo_info_time "$FUNCNAME";
-
   
   # Check if btrfs is the file system, if so install required packages
   fs_type="${_FILESYSTEM_TYPE}"
@@ -283,10 +279,7 @@ encryption_setup(){
 
   # Indicate kernel to use initramfs (facilitates loading drivers)
   echo "initramfs initramfs.gz followkernel" >> ${_CHROOT_ROOT}/boot/config.txt
-
-  # Begin cryptsetup
-  echo_debug "Making the cryptsetup settings "
-
+  
   # Update /boot/cmdline.txt to boot crypt
   sed -i "s|root=/dev/mmcblk0p2|root=${_ENCRYPTED_VOLUME_PATH} cryptdevice=/dev/mmcblk0p2:$(basename ${_ENCRYPTED_VOLUME_PATH})|g" ${_CHROOT_ROOT}/boot/cmdline.txt
   sed -i "s|rootfstype=ext3|rootfstype=${fs_type}|g" ${_CHROOT_ROOT}/boot/cmdline.txt
@@ -356,6 +349,7 @@ copy_to_disk(){
 
 #### MISC FUNCTIONS####
 #gets from local filesystem or generates a ssh key and puts it on the build 
+#TODO Make more readable
 assure_box_sshkey(){
   local id_rsa="${_FILE_DIR}/id_rsa";
   echo_debug "Make ssh keyfile:";
@@ -375,6 +369,7 @@ assure_box_sshkey(){
 }
 
 #puts the sshkey into your files directory for safe keeping
+#TODO Make more readable
 backup_and_use_sshkey(){
   local temporary_keypath=${1};
   local temporary_keyname="${_FILE_DIR}"/"$(basename ${temporary_keypath})";
@@ -416,11 +411,25 @@ chroot_setup(){
   chroot_update "$_CHROOT_ROOT"
 }
 
-chroot_teardown(){
+chroot_mkinitramfs_setup(){
   chroot_mkinitramfs "${_CHROOT_ROOT}";
+}
+
+chroot_teardown(){
   chroot_umount "${_CHROOT_ROOT}";
 }
 
+disk_chroot_setup(){
+  chroot_mount "${_DISK_CHROOT_ROOT}"
+}
+
+disk_chroot_mkinitramfs(){
+  chroot_mkinitramfs "${_DISK_CHROOT_ROOT}"
+}
+
+disk_chroot_teardown(){
+  chroot_umount "${_DISK_CHROOT_ROOT}";
+}
 
 chroot_mount(){
   local chroot_dir=$1

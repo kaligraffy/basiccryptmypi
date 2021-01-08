@@ -54,7 +54,7 @@ initramfs_wifi_setup(){
   cp -p "${_FILES_DIR}/initramfs-scripts/kill_wireless" "${_CHROOT_ROOT}/etc/initramfs-tools/scripts/local-bottom/"
   
   sed -i "#_WIFI_INTERFACE#${_WIFI_INTERFACE}#" "${_CHROOT_ROOT}/etc/initramfs-tools/scripts/init-premount/a_enable_wireless";
-  sed -i "#_INITRAMFS_WIFI_DRIVERS#${INITRAMFS_WIFI_DRIVERS}#" "${_CHROOT_ROOT}/etc/initramfs-tools/hooks/enable_wireless";
+  sed -i "#_INITRAMFS_WIFI_DRIVERS#${_INITRAMFS_WIFI_DRIVERS}#" "${_CHROOT_ROOT}/etc/initramfs-tools/hooks/enable_wireless";
  
   echo_debug "Creating wpa_supplicant file"
   cat <<EOT > ${_CHROOT_ROOT}/etc/initramfs-tools/wpa_supplicant.conf
@@ -153,8 +153,6 @@ display_manager_setup(){
 #setup dropbear in initramfs
 dropbear_setup(){
   echo_info_time "$FUNCNAME";
-
-
   if [ ! -f "${_SSH_LOCAL_KEYFILE}" ]; then
       echo_error "ERROR: Obligatory SSH keyfile '${_SSH_LOCAL_KEYFILE}' could not be found. Exiting";
       exit 1;
@@ -278,8 +276,7 @@ EOT
 
   #symlink
   mv "${_CHROOT_ROOT}/etc/resolv.conf" "${_CHROOT_ROOT}/etc/resolv.conf.backup";
-  ln -s "${_CHROOT_ROOT}/etc/systemd/resolved.conf" "${_CHROOT_ROOT}/etc/resolv.conf";
-  
+  chroot_execute "${_CHROOT_ROOT}" ln -s "/etc/systemd/resolved.conf" "/etc/resolv.conf";
   echo_debug "DNS configured - remember to keep your clock up to date or DNSSEC Certificate errors may occur";
   export _DNS_SETUP='1';
   #needs: 853/tcp, doesn't need as we disable llmnr and mdns: 5353/udp,5355/udp
@@ -288,17 +285,13 @@ EOT
 #sets the root password
 root_password_setup(){
   echo_info_time "$FUNCNAME";
-
   chroot ${_CHROOT_ROOT} /bin/bash -c "echo root:${_ROOT_PASSWORD} | /usr/sbin/chpasswd"
-  echo_info "Root password set"
 }
 
 #sets the kali user password
 user_password_setup(){
   echo_info_time "$FUNCNAME";
-
   chroot ${_CHROOT_ROOT} /bin/bash -c "echo kali:${_KALI_PASSWORD} | /usr/sbin/chpasswd"
-  echo_info "Kali user password set"
 }
 
 #setup a vpn client
@@ -320,14 +313,14 @@ vpn_client_setup(){
   sed -i '/^#AUTOSTART="all"/s/^#//' ${_CHROOT_ROOT}/etc/default/openvpn
 
   echo_debug "Enabling service "
-  chroot_execute "$_CHROOT_ROOT" systemctl enable openvpn@client
-  #chroot_execute "$_CHROOT_ROOT" systemctl enable openvpn@client.service
+  chroot_execute "$_CHROOT_ROOT" systemctl enable openvpn@client.service
 }
 
 #installs a basic firewall
+#TODO fix logging so it doesn't log to syslog
+#TODO replace with a new nftables script for more granular control
 firewall_setup(){
   echo_info_time "$FUNCNAME";
-
 
   # Installing packages
   chroot_package_install "$_CHROOT_ROOT" ufw;
@@ -364,7 +357,6 @@ firewall_setup(){
 #installs clamav and update/scanning daemons, updates to most recent definitions
 clamav_setup(){
   echo_info_time "$FUNCNAME";
-
   chroot_package_install "$_CHROOT_ROOT" clamav clamav-daemon
   chroot_execute "$_CHROOT_ROOT" systemctl enable clamav-freshclam.service
   chroot_execute "$_CHROOT_ROOT" systemctl enable clamav-daemon.service
@@ -375,7 +367,6 @@ clamav_setup(){
 #simulates a hardware clock
 fake_hwclock_setup(){
   echo_info_time "$FUNCNAME";
-
   chroot_package_install "$_CHROOT_ROOT" fake-hwclock
   # set clock even if saved value appears to be in the past
   # sed -i "s|^#FORCE=force|FORCE=force|"  "$_CHROOT_ROOT/etc/default/fake-hwclock"
@@ -385,7 +376,6 @@ fake_hwclock_setup(){
 #update system
 apt_upgrade(){
   echo_info_time "$FUNCNAME";
-
   chroot_execute "$_CHROOT_ROOT" apt -qq -y update
   chroot_execute "$_CHROOT_ROOT" apt -qq -y upgrade
 }
@@ -398,38 +388,28 @@ docker_setup(){
 #   https://github.com/docker/docker.github.io/blob/595616145a53d68fb5be1d603e97666cefcb5293/install/linux/docker-ce/debian.md
 #   https://docs.docker.com/engine/install/debian/
 #   https://gist.github.com/decidedlygray/1288c0265457e5f2426d4c3b768dfcef
-
   echo_info_time "$FUNCNAME";
+  echo_warn "Docker may conflict with VPN services/connections"
+#   echo_debug "    Updating iptables  (issue: default kali iptables was stalling)"
+#   systemctl start and stop commands would hang/stall due to pristine iptables on kali-linux-2020.1a-rpi3-nexmon-64.img.xz
+#   chroot_package_install "$_CHROOT_ROOT" iptables
+#   chroot_execute "$_CHROOT_ROOT" update-alternatives --set iptables /usr/sbin/iptables-legacy
+#   chroot_execute "$_CHROOT_ROOT" update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
 
-  echo_warn "### Docker service may experience conflicts VPN services/connections ###"
-
-  echo_debug "    Updating /boot/cmdline.txt to enable cgroup "
 # Needed to avoid "cgroups: memory cgroup not supported on this system"
 #   see https://github.com/moby/moby/issues/35587
 #       cgroup_enable works on kernel 4.9 upwards
 #       cgroup_memory will be dropped in 4.14, but works on < 4.9
 #       keeping both for now
   sed -i "s#rootwait#cgroup_enable=memory cgroup_memory=1 rootwait#g" ${_CHROOT_ROOT}/boot/cmdline.txt
-
-  echo_debug "    Updating iptables  (issue: default kali iptables was stalling)"
-  # systemctl start and stop commands would hang/stall due to pristine iptables on kali-linux-2020.1a-rpi3-nexmon-64.img.xz
-  chroot_package_install "$_CHROOT_ROOT" iptables
-  chroot_execute "$_CHROOT_ROOT" update-alternatives --set iptables /usr/sbin/iptables-legacy
-  chroot_execute "$_CHROOT_ROOT" update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
-
-  echo_debug "    Installing docker "
   chroot_package_install "$_CHROOT_ROOT" docker.io
-
-  echo_debug "    Enabling service "
   chroot_execute "$_CHROOT_ROOT" systemctl enable docker
-  # chroot_execute "$_CHROOT_ROOT" systemctl start docker
   echo_debug " docker hook call completed"
 }
 
 #install and remove custom packages
 packages_setup(){
   echo_info_time "$FUNCNAME";
-
   chroot_package_purge "$_CHROOT_ROOT" "${_PKGS_TO_PURGE}";
   chroot_package_install "$_CHROOT_ROOT" "${_PKGS_TO_INSTALL}";
 }
@@ -437,7 +417,6 @@ packages_setup(){
 #sets up aide to run at midnight each night
 aide_setup(){
   echo_info_time "$FUNCNAME";
-
   chroot_package_install "${_DISK_CHROOT_ROOT}" aide
   chroot_execute "${_DISK_CHROOT_ROOT}" aideinit
   chroot_execute "${_DISK_CHROOT_ROOT}" mv /var/lib/aide/aide.db.new /var/lib/aide/aide.db
@@ -449,17 +428,16 @@ EOF
 }
 
 #basic snapper install for use with btrfs, snapshots root directory in its entirety with default settings,
+#snapper-gui errors
 snapper_setup(){
   echo_info_time "$FUNCNAME";
-
-  chroot_package_install "${_CHROOT_ROOT}" snapper snapper-gui
-  chroot_execute "$_CHROOT_ROOT" snapper create-config /
+  chroot_package_install "${_DISK_CHROOT_ROOT}" snapper 
+  chroot_execute "${_DISK_CHROOT_ROOT}" snapper create-config /
 }
 
 #secure network time protocol configuration, also installs ntpdate client for manually pulling the time
 ntpsec_setup(){
   echo_info_time "$FUNCNAME";
-
   chroot_package_install "${_CHROOT_ROOT}" ntpsec ntpsec-doc ntpsec-ntpdate
   chroot_execute "$_CHROOT_ROOT" systemctl enable ntpsec.service
   sed -i "s|^#server time.cloudflare.com nts|server time.cloudflare.com iburst nts \nserver nts.sth1.ntp.se iburst nts\nserver nts.sth2.ntp.se iburst nts|" "/etc/ntpsec/ntp.conf" "${_CHROOT_ROOT}/etc/ntpsec/ntp.conf"
@@ -475,7 +453,6 @@ iodine_setup(){
   # REFERENCE:
   #   https://davidhamann.de/2019/05/12/tunnel-traffic-over-dns-ssh/
   echo_info_time "$FUNCNAME";
-
   chroot_package_install "$_CHROOT_ROOT" iodine
 
   # Create initramfs hook file for iodine
@@ -493,7 +470,6 @@ iodine_setup(){
 #vlc_setup, fix broken audio
 vlc_setup(){
   echo_info_time "$FUNCNAME";
-
   chroot_package_install "$_CHROOT_ROOT" vlc
   #stuttery audio fix on rpi4
   sed -i "s|load-module module-udev-detect|load-module module-udev-detect tsched=0|" "${_CHROOT_ROOT}/etc/pulse/default.pa"
@@ -503,7 +479,6 @@ vlc_setup(){
 #firejail setup
 firejail_setup(){
   echo_info_time "$FUNCNAME";
-
   chroot_package_install "$_CHROOT_ROOT" firejail firejail-profiles firetools
   chroot_execute "$_CHROOT_ROOT" firecfg
   #TODO firejail configuration for hardened malloc, apparmor integration
@@ -512,7 +487,7 @@ firejail_setup(){
 #TODO write sysctl.conf hardening here
 sysctl_hardening_setup(){
   echo_info_time "$FUNCNAME";
-
+  echo_warn "NOT YET IMPLEMENTED";
 }
 
 #make boot mount read only
@@ -548,14 +523,14 @@ bluetooth_setup(){
 #TODO Write function for apparmor integration
 apparmor_setup(){
   echo_info_time "$FUNCNAME";
-
+  echo_warn "NOT YET IMPLEMENTED";
 }
 
 #randomize mac on reboot
 random_mac_on_reboot_setup(){
 #https://wiki.archlinux.org/index.php/MAC_address_spoofing#Automatically
-  chroot_package_install "$_CHROOT_ROOT" macchanger
-  
+  echo_info_time "$FUNCNAME";
+  chroot_package_install "$_CHROOT_ROOT" macchanger 
   cat << 'EOF' > "${_CHROOT_ROOT}/etc/systemd/system/macspoof@${_WIFI_INTERFACE}.service"
 [Unit]
 Description=macchanger on %I
@@ -572,7 +547,4 @@ Type=oneshot
 WantedBy=multi-user.target
 EOF
   chmod 755 "${_CHROOT_ROOT}/etc/systemd/system/macspoof@${_WIFI_INTERFACE}.service";
-}
-
-
 }
