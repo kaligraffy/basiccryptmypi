@@ -195,7 +195,7 @@ END
   fi
 }
 
-#TODO: sensible ssh default configuration
+#TODO sensible ssh default configuration
 ssh_setup(){
   echo_info_time "$FUNCNAME";
 
