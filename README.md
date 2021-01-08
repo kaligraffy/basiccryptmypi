@@ -4,28 +4,14 @@ With thanks to unixabg for the original script.
 
 THIS IS A WORK IN PROGRESS, DON'T DOWNLOAD UNLESS YOU ARE PREPARED TO TROUBLESHOOT
 
-PLEASE READ THIS BEFORE YOU USE THE SCRIPT.
-
 USAGE
 
-Leave aside about 30GB of disk space 
-
-Modify .env with your settings. At the least change:
-export _OUTPUT_BLOCK_DEVICE="/dev/sdX"
-export _LUKS_PASSWORD="CHANGEME"
-export _ROOT_PASSWORD="CHANGEME"
-export _KALI_PASSWORD="CHANGEME"
-export _SSH_KEY_PASSPHRASE="CHANGEME"
-export _WIFI_PASSWORD='CHANGEME'
-export _IMAGE_SHA256="c6ceee472eb4dabf4ea895ef53c7bd28751feb44d46ce2fa3f51eb5469164c2c"
-export _IMAGE_URL="https://images.kali.org/arm-images/kali-linux-2020.4-rpi4-nexmon-64.img.xz"
-
-Un/Comment anything in functions extra_setup() and extra_extra_setup().
-
-Run: 
-- change directory to cryptmypi directory
-- sudo ./cryptmypi
-- follow prompts
+ Leave aside about 20GB of disk space 
+ git clone https://github.com/kaligraffy/basiccryptmypi.git
+ cd cryptmypi
+  Rename an example .env file or fill in the template.env file
+ ./cryptmypi
+ Follow the prompts
 
 PURPOSE
 
@@ -69,24 +55,7 @@ Testing is 'ad hoc' and only for the RPI4. Oher kernels might work if set in env
 
 ISSUES
 
-Occasionally, the mounts don't get cleaned up properly, if this is the case run: losetup -D; umount /dev/loop/*; mount
-Then check if there are any other mounts to umount.
-
-TODO
-- re-comment the .env file for the less obvious environment variables
-- use BATS to test the script
-- TEST initramfs wifi, ssh and dropbear work together
-- SSH defaults
-- sysctl hardening against lynis
-- apparmor/firejail support
-- incorrect fstab settings for btrfs (last digit should be 0 for no fsck (tbc)
-- no assessment of noload being taken out of cmdline.txt for ext4 filesystems (may cause additional writes
-- duplicate entries in crypttab in the initramfs by script
-- fix unmount logic
-- non-kali images
-- investigate cgroups logic in docker_setup, see if it's still required
-- clean up some of the code, thoroughly test it
-- build own image from scratch?
+Mounts don't get cleaned up properly, if this is the case run: losetup -D; umount /dev/loop/*;
 
 HOW DOES IT WORK
 
@@ -99,4 +68,4 @@ HOW DOES IT WORK
 
 LOGGING
 
-The script logs to the cryptmypi directory, making a log of all actions to the file specified in the .env file.
+The script logs to the cryptmypi directory
