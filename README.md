@@ -6,49 +6,49 @@ THIS IS A WORK IN PROGRESS, DON'T DOWNLOAD UNLESS YOU ARE PREPARED TO TROUBLESHO
 
 USAGE
 
- Leave aside about 20GB of disk space 
- git clone https://github.com/kaligraffy/basiccryptmypi.git
- cd cryptmypi
-  Rename an example .env file or fill in the template.env file
- ./cryptmypi
- Follow the prompts
+- Leave aside about 20GB of disk space 
+- git clone https://github.com/kaligraffy/basiccryptmypi.git
+- cd cryptmypi
+-  Rename an example .env file or fill in the template.env file
+- ./cryptmypi
+- Follow the prompts
 
 PURPOSE
 
 Creates a configurable kali sd card or usb for the raspberry pi with strong encryption as default. The following 
 options should be descriptive enough, but look in options.sh for what each one does:
 
-initramfs_wifi_setup
-wifi_setup
-boot_hash_setup
-display_manager_setup
-dropbear_setup
-luks_nuke_setup
-ssh_setup
-cpu_governor_setup
-hostname_setup
-dns_setup
-root_password_setup
-user_password_setup
-vpn_client_setup
-firewall_setup
-clamav_setup
-fake_hwclock_setup
-apt_upgrade
-docker_setup
-packages_setup
-aide_setup
-snapper_setup
-ntpsec_setup
-iodine_setup
-vlc_setup
-firejail_setup
-sysctl_hardening_setup
-mount_boot_readonly_setup
-passwordless_login_setup
-set_default_shell_zsh
-bluetooth_setup
-apparmor_setup
+- initramfs_wifi_setup
+- wifi_setup
+- boot_hash_setup
+- display_manager_setup
+- dropbear_setup
+- luks_nuke_setup
+- ssh_setup
+- cpu_governor_setup
+- hostname_setup
+- dns_setup
+- root_password_setup
+- user_password_setup
+- vpn_client_setup
+- firewall_setup
+- clamav_setup
+- fake_hwclock_setup
+- apt_upgrade
+- docker_setup
+- packages_setup
+- aide_setup
+- snapper_setup
+- ntpsec_setup
+- iodine_setup
+- vlc_setup
+- firejail_setup
+- sysctl_hardening_setup
+- mount_boot_readonly_setup
+- passwordless_login_setup
+- set_default_shell_zsh
+- bluetooth_setup
+- apparmor_setup
 random_mac_on_reboot_setup
 
 Testing is 'ad hoc' and only for the RPI4. Oher kernels might work if set in env.sh
