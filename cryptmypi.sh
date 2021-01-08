@@ -53,5 +53,8 @@ main(){
   disk_chroot_teardown;
   exit;
 }
+
+
 # Run program
+#TODO Investigate logging missing from build log
 main | tee "${_LOG_FILE}" || true;
