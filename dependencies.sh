@@ -1,8 +1,8 @@
 #!/bin/bash
 set -eu
 install_dependencies() {
-    echo_info "$FUNCNAME started at $(date)"
-    apt-get -qq install \
+  echo_info_time "$FUNCNAME";
+  apt-get -qq install \
         binfmt-support \
         coreutils \
         parted \

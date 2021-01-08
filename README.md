@@ -55,30 +55,22 @@ Testing is 'ad hoc' and only for the rpi 4. In theory it should still work with 
 
 ISSUES
 
-- unmount logic
-
 Occasionally, the mounts don't get cleaned up properly, if this is the case run: losetup -D; umount /dev/loop/*; mount
 Then check if there are any other mounts to umount.
 
-Raise on here and I'll try and fix them as soon as I can, this is a refactor of an existing project, 
-I highly anticipate bugs, despite removing a large amount of code which *should* make this slightly more streamlined
-
-- duplicate entries in crypttab in the initramfs by script
-- incorrect fstab settings for btrfs (last digit should be 0 for no fsck (tbc)
-- no assessment of noload being taken out of cmdline.txt for ext4 filesystems (may cause additional writes
-- initramfs,ssh and dropbear are not tested yet (priority atm)
-- clean up folders logic may not be working, sometimes the build folder remains if cleared
-
 TODO
-
 - re-comment the .env file for the less obvious environment variables
 - use BATS to test the script
-- make initramfs wifi, ssh and dropbear work together
+- TEST initramfs wifi, ssh and dropbear work together
 - SSH defaults
 - sysctl hardening against lynis
 - apparmor/firejail support
 - passwordless login (after decryption)
-- mount boot readonly by default options
+- incorrect fstab settings for btrfs (last digit should be 0 for no fsck (tbc)
+- no assessment of noload being taken out of cmdline.txt for ext4 filesystems (may cause additional writes
+- duplicate entries in crypttab in the initramfs by script
+- clean up folders logic may not be working, sometimes the build folder remains if cleared
+- fix unmount logic
 
 HOW DOES IT WORK
 

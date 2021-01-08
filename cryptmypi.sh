@@ -14,7 +14,7 @@ trap 'trap_on_interrupt' SIGINT;
 
 #Program logic
 main(){
-  echo_info "starting $(basename $0) at $(date)";
+  echo_info_time "$(basename $0)";
   #Setup
   check_run_as_root;
   install_dependencies;

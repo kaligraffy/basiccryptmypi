@@ -36,14 +36,15 @@ trap_on_interrupt() {
 
 # Runs on script exit, tidies up the mounts.
 trap_on_exit() {
-  if [ $_IMAGE_PREPARATION_STARTED -gt '0' ]; then cleanup_image_prep; fi
-  if [ $_WRITE_TO_DISK_STARTED -gt '0' ]; then cleanup_write_disk; fi
-  echo_info "stopping $(basename $0) at $(date)";
+  if [ $_IMAGE_PREPARATION_STARTED -gt 0 ]; then cleanup_image_prep; fi
+  if [ $_WRITE_TO_DISK_STARTED -gt 0 ]; then cleanup_write_disk; fi
+  echo_info_time "$(basename $0) finished";
 }
 
 # Cleanup on exit
 cleanup_image_prep(){
-  echo_info "$FUNCNAME started at $(date) ";
+  echo_info_time "$FUNCNAME";
+
   umount  "${_BUILD_DIR}/mount" || true
   umount  "${_BUILD_DIR}/boot" || true
   umount /dev/loop* || true;
@@ -53,7 +54,8 @@ cleanup_image_prep(){
 }
 # Cleanup on exit
 cleanup_write_disk(){
-  echo_info "$FUNCNAME started at $(date) ";
+  echo_info_time "$FUNCNAME";
+
   chroot_umount "${_DISK_CHROOT_ROOT}" || true
   umount "${_BLOCK_DEVICE_BOOT}" || true
   cryptsetup -v luksClose "${_ENCRYPTED_VOLUME_PATH}" || true
@@ -63,8 +65,9 @@ cleanup_write_disk(){
   umount "${_DISK_CHROOT_ROOT}" && test -d "${_DISK_CHROOT_ROOT}" && rm -rf "${_DISK_CHROOT_ROOT}" || true
 }
 
+#check if theres a build directory already
 check_build_dir_exists(){
-  if [ "${_NO_PROMPTS}" = "1" ] ; then
+  if [ "${_NO_PROMPTS}" -eq 1 ] ; then
     echo '1';
     return;
   fi
@@ -84,16 +87,17 @@ check_build_dir_exists(){
 
 #checks if script was run with root
 check_run_as_root(){
-  echo_info "$FUNCNAME started at $(date)"
+  echo_info_time "$FUNCNAME";
   if (( $EUID != 0 )); then
-    echo_error "This script must be run as root/sudo"
-    exit 1
+    echo_error "This script must be run as root/sudo";
+    exit 1;
   fi
 }
 
 #Fix for using mmcblk0pX devices, adds a p used later on
 fix_block_device_names(){
   # check device exists/folder exists
+  echo_info_time "$FUNCNAME";
   if [ ! -b "${_OUTPUT_BLOCK_DEVICE}" ] || [ -z "${_OUTPUT_BLOCK_DEVICE+x}" ] || [ -z "${_OUTPUT_BLOCK_DEVICE}"  ]; then
     echo_error "No Output Block Device Set";
     exit;
@@ -111,6 +115,7 @@ fix_block_device_names(){
 }
 
 create_build_directory_structure(){
+  echo_info_time "$FUNCNAME";
   #deletes only build directory first if it exists
   rm -rf "${_BUILD_DIR}" || true ;
   mkdir "${_BUILD_DIR}"; 
@@ -120,28 +125,28 @@ create_build_directory_structure(){
   mkdir "${_CHROOT_ROOT}"; #where the extracted image's files are copied to to be editted
 }
 
+#extracts the image so it can be mounted
 extract_image() {
-  echo_info "$FUNCNAME started at $(date) ";
+  echo_info_time "$FUNCNAME";
+
   local image_name="$(basename ${_IMAGE_URL})";
   local image_path="${_FILE_DIR}/${image_name}";
   local extracted_image="${_EXTRACTED_IMAGE}";
 
   #If no prompts is set and extracted image exists then continue to extract
-  if [ "${_NO_PROMPTS}" = "1" ]; then
-      if [ -e "${extracted_image}" ]; then
-        return 0;
-      fi
+  if [ "${_NO_PROMPTS}" -eq 1 ]; then
+    if [ -e "${extracted_image}" ]; then
+      return 0;
+    fi
   elif [ -e "${extracted_image}" ]; then
-      local continue="";
-      read -p "${extracted_image} found, re-extract? (y/N)  " continue;
-      if [ "${continue}" = 'y' ] || [ "${continue}" = 'Y' ]; then
-        echo_info "continuing to extract...";
-      else
-        return 0;
-      fi
+    local continue="";
+    read -p "${extracted_image} found, re-extract? (y/N)  " continue;
+    if [ "${continue}" -ne 'y' ] || [ "${continue}" -ne 'Y' ]; then
+      return 0;
+    fi
   fi
 
-  echo_info "Starting extract at $(date)";
+  echo_info_time "Starting extract";
   #If theres a problem extracting, delete the partially extracted file and exit
   trap 'rm $(echo $extracted_image); exit 1' ERR SIGINT;
   case ${image_path} in
@@ -159,11 +164,13 @@ extract_image() {
         ;;
   esac
   trap - ERR SIGINT;
-  echo_info "Finished extract at $(date)";
+  echo_info_time "Finished extract";
 }
 
+#mounts the extracted image via losetup
 mount_loopback_image(){
-  echo_info "$FUNCNAME started at $(date) ";
+  echo_info_time "$FUNCNAME";
+
   local extracted_image="${_EXTRACTED_IMAGE}";
   loopdev=$(losetup -P -f --show "$extracted_image");
   partprobe ${loopdev};
@@ -171,8 +178,10 @@ mount_loopback_image(){
   mount ${loopdev}p1 ${_BUILD_DIR}/boot;
 }
 
+#rsyncs the mounted image to a new folder
 copy_extracted_image_to_chroot_dir(){
-  echo_info "$FUNCNAME started at $(date) ";
+  echo_info_time "$FUNCNAME";
+
   rsync_local "${_BUILD_DIR}/boot" "${_CHROOT_ROOT}/"
   if [ ! -e  "${_CHROOT_ROOT}/boot" ]; then
     echo_error 'rsync has failed'
@@ -185,6 +194,8 @@ copy_extracted_image_to_chroot_dir(){
   fi
 }
 
+#prompts to check disk is correct before writing out to disk, 
+#if no prompts is set, it skips the check
 check_disk_is_correct(){
   if [ "${_NO_PROMPTS}" != "1" ]; then
         local continue
@@ -200,12 +211,13 @@ check_disk_is_correct(){
 
 #Download an image file to the file directory
 download_image(){
-  echo_info "$FUNCNAME started at $(date) ";
+  echo_info_time "$FUNCNAME";
+
   local image_name=$(basename ${_IMAGE_URL})
   local image_out_file=${_FILE_DIR}/${image_name}
-  echo_info "Starting download at $(date)"
+  echo_info_time "Starting download"
   wget -nc "${_IMAGE_URL}" -O "${image_out_file}" || true
-  echo_info "Completed download at $(date)"
+  echo_info_time "Completed download"
   if [ -z ${_IMAGE_SHA256} ]; then
     return 0
   fi
@@ -215,7 +227,8 @@ download_image(){
 }
 
 locale_setup(){
-  echo_info "$FUNCNAME started at $(date) ";
+  echo_info_time "$FUNCNAME";
+
 
   echo_debug "Uncommenting locale ${_LOCALE} for inclusion in generation"
   sed -i 's/^# *\(en_US.UTF-8\)/\1/' "${_CHROOT_ROOT}"/etc/locale.gen
@@ -249,7 +262,8 @@ EOF
 }
 
 encryption_setup(){
-  echo_info "$FUNCNAME started at $(date) ";
+  echo_info_time "$FUNCNAME";
+
   
   # Check if btrfs is the file system, if so install required packages
   fs_type="${_FILESYSTEM_TYPE}"
@@ -307,7 +321,8 @@ encryption_setup(){
 
 # Encrypt & Write SD
 copy_to_disk(){  
-  echo_info "$FUNCNAME started at $(date) ";
+  echo_info_time "$FUNCNAME";
+
   fs_type=$_FILESYSTEM_TYPE;
   
   echo_debug "Partitioning SD Card"
@@ -359,6 +374,7 @@ assure_box_sshkey(){
   chmod 644 "${_CHROOT_ROOT}/.ssh/id_rsa.pub";
 }
 
+#puts the sshkey into your files directory for safe keeping
 backup_and_use_sshkey(){
   local temporary_keypath=${1};
   local temporary_keyname="${_FILE_DIR}"/"$(basename ${temporary_keypath})";
@@ -387,9 +403,9 @@ make_filesystem(){
 #rsync for local copy
 #arguments $1 - to $2 - from
 rsync_local(){
-  echo_info "Starting copy of ${@} at $(date)";
+  echo_info_time "Starting copy of ${@}";
   rsync --hard-links  --archive --partial --info=progress2 "${@}"
-  echo_info "Finished copy of ${@} at $(date)";
+  echo_info_time "Finished copy of ${@}";
   sync;
 }
 
@@ -481,7 +497,6 @@ chroot_execute(){
 
 chroot_mkinitramfs(){
   local chroot_dir="$1"
-  echo_info "$FUNCNAME started at $(date) ";
   echo_debug "Building new initramfs (CHROOT is ${chroot_dir})";
 
   #Point crypttab to the current physical device during mkinitramfs
@@ -516,4 +531,7 @@ echo_debug(){
   fi
   #even if output is suppressed by log level output it to the log file
   echo "$@" >> "${_LOG_FILE}";
+}
+echo_info_time(){
+  echo_info "$1 at $(date '+%H:%M:%S')";
 }

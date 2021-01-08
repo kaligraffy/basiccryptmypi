@@ -54,42 +54,44 @@ export _INITRAMFS_WIFI_IP=":::::${_WIFI_INTERFACE}:dhcp:${_DNS1}:${_DNS2}"
 export _INITRAMFS_WIFI_DRIVERS='brcmfmac brcmutil cfg80211 rfkill'
 export _INITRAMFS_WIFI_INTERFACE='wlan0'
 export _BOOT_HASH_BLOCK_DEVICE=
-export _PASSWORDLESS_LOGIN_USER='root'
+export _PASSWORDLESS_LOGIN_USER='kali'
 ###############################################
 #Optional and experimental hooks, runs when the image is being prepared
 extra_setup(){
-#  iodine_setup
-#  initramfs_wifi_setup
-  hostname_setup;
-#  boot_hash_setup;
-#  display_manager_setup;
-##  passwordless_login_setup; #does not work when display manager setup is called (wip)
-#  dropbear_setup
-#  luks_nuke_setup;
-#  ssh_setup;
-#  cpu_governor_setup;
-#  dns_setup;
-#  docker_setup
-#  root_password_setup;
-#  user_password_setup;
-#  set_default_shell_zsh
-#  ntpsec_setup;
-#  vpn_client_setup
-#  wifi_setup
-#  firewall_setup;
-#  clamav_setup;
-#  fake_hwclock_setup;
-#  snapper_setup;
-#  vlc_setup;
-#  apparmor_setup;
-#  firejail_setup;
-#  sysctl_hardening_setup;
-#  packages_setup;
-#  apt_upgrade;
+# initramfs_wifi_setup
+# wifi_setup
+# boot_hash_setup
+# display_manager_setup
+# dropbear_setup
+# luks_nuke_setup
+# ssh_setup
+# cpu_governor_setup
+# hostname_setup
+# dns_setup
+# root_password_setup
+# user_password_setup
+# vpn_client_setup
+# clamav_setup
+# fake_hwclock_setup
+# apt_upgrade
+# docker_setup
+# packages_setup
+# snapper_setup
+# ntpsec_setup
+# iodine_setup
+# vlc_setup
+# firejail_setup
+# sysctl_hardening_setup
+# passwordless_login_setup
+# set_default_shell_zsh
+# bluetooth_setup
+# apparmor_setup
+# firewall_setup
+# random_mac_on_reboot_setup
 }
 
 #runs once the image has been written to external disk
 extra_extra_setup(){
-  mount_boot_readonly_setup;
-#  aide_setup;
+#  mount_boot_readonly_setup
+#  aide_setup
 }

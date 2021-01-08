@@ -15,7 +15,8 @@ initramfs_wifi_setup(){
 #    http://www.marcfargas.com/posts/enable-wireless-debian-initramfs/
 #    https://wiki.archlinux.org/index.php/Dm-crypt/Specialties#Remote_unlock_via_wifi
 #    http://retinal.dehy.de/docs/doku.php?id=technotes:raspberryrootnfs
-  echo_info "$FUNCNAME started at $(date) ";
+  echo_info_time "$FUNCNAME";
+
   echo_debug "Attempting to set initramfs WIFI up "
   if [ -z "$_WIFI_SSID" ] || [ -z "$_WIFI_PASSWORD" ]; then
     echo_warn 'SKIPPING: _WIFI_PASSWORD and/or _WIFI_SSID are not set.'
@@ -77,7 +78,8 @@ EOT
 
 #configure system on decrypt to connect to a hotspot specified in env file
 wifi_setup(){
-  echo_info "$FUNCNAME started at $(date) ";
+  echo_info_time "$FUNCNAME";
+
 
   # Checking if WIFI interface was provided
   if [ -z "${_WIFI_INTERFACE}" ]; then
@@ -123,7 +125,8 @@ EOT
 
 #mails kali user if the hash of the boot drive changes
 boot_hash_setup(){
-  echo_info "$FUNCNAME started at $(date) ";
+  echo_info_time "$FUNCNAME";
+
   #install mail package
   chroot_package_install "${_CHROOT_ROOT}" mailutils
 
@@ -141,14 +144,16 @@ EOF
 
 #disable the gui 
 display_manager_setup(){
-  echo_info "$FUNCNAME started at $(date) ";
+  echo_info_time "$FUNCNAME";
+
   chroot_execute "$_CHROOT_ROOT" systemctl set-default multi-user
   echo_info "To get a gui run startxfce4 on command line"
 }
 
 #setup dropbear in initramfs
 dropbear_setup(){
-  echo_info "$FUNCNAME started at $(date) ";
+  echo_info_time "$FUNCNAME";
+
 
   if [ ! -f "${_SSH_LOCAL_KEYFILE}" ]; then
       echo_error "ERROR: Obligatory SSH keyfile '${_SSH_LOCAL_KEYFILE}' could not be found. Exiting";
@@ -175,7 +180,8 @@ dropbear_setup(){
 }
 
 luks_nuke_setup(){
-  echo_info "$FUNCNAME started at $(date) ";
+  echo_info_time "$FUNCNAME";
+
 # Install and configure cryptsetup nuke package if we were given a password
   if [ -n "${_LUKS_NUKE_PASSWORD}" ]; then
     echo_debug "Attempting to install and configure encrypted pi cryptsetup nuke password."
@@ -193,7 +199,8 @@ END
 
 #TODO: sensible ssh default configuration
 ssh_setup(){
-  echo_info "$FUNCNAME started at $(date) ";
+  echo_info_time "$FUNCNAME";
+
   sshd_config="${_CHROOT_ROOT}/etc/ssh/sshd_config"
   ssh_authorized_keys="${_CHROOT_ROOT}/.ssh/authorized_keys"
 
@@ -228,7 +235,8 @@ export _SSH_SETUP='1';
 
 #sets cpu performance mode (useful for running off battery)
 cpu_governor_setup(){
-  echo_info "$FUNCNAME started at $(date) ";
+  echo_info_time "$FUNCNAME";
+
   chroot_package_install "${_CHROOT_ROOT}" cpufrequtils;
   echo_info "Use cpufreq-info/systemctl status cpufrequtils to confirm the changes when the device is running";
   echo "GOVERNOR=${_CPU_GOVERNOR}" | tee ${_CHROOT_ROOT}/etc/default/cpufrequtils;
@@ -249,7 +257,8 @@ hostname_setup(){
 #disables mdns, llmnr
 #credits: https://andrea.corbellini.name/2020/04/28/ubuntu-global-dns/
 dns_setup(){
-  echo_info "$FUNCNAME started at $(date) "; 
+  echo_info_time "$FUNCNAME";
+ 
   chroot_execute "$_CHROOT_ROOT" systemctl enable systemd-resolved
   sed -i "s|^#DNS=|DNS=${_DNS1}|" "${_CHROOT_ROOT}/etc/systemd/resolved.conf";
   sed -i "s|^#FallbackDNS=|FallbackDNS=${_DNS2}|" "${_CHROOT_ROOT}/etc/systemd/resolved.conf";
@@ -278,21 +287,24 @@ EOT
 
 #sets the root password
 root_password_setup(){
-  echo_info "$FUNCNAME started at $(date) ";
+  echo_info_time "$FUNCNAME";
+
   chroot ${_CHROOT_ROOT} /bin/bash -c "echo root:${_ROOT_PASSWORD} | /usr/sbin/chpasswd"
   echo_info "Root password set"
 }
 
 #sets the kali user password
 user_password_setup(){
-  echo_info "$FUNCNAME started at $(date) ";
+  echo_info_time "$FUNCNAME";
+
   chroot ${_CHROOT_ROOT} /bin/bash -c "echo kali:${_KALI_PASSWORD} | /usr/sbin/chpasswd"
   echo_info "Kali user password set"
 }
 
 #setup a vpn client
 vpn_client_setup(){
-  echo_info "$FUNCNAME started at $(date) ";
+  echo_info_time "$FUNCNAME";
+
   _OPENVPN_CONFIG_ZIPFILE=${_OPENVPN_CONFIG_ZIP}
   _OPENVPN_CONFIG_ZIPPATH="${_FILE_DIR}/${_OPENVPN_CONFIG_ZIPFILE}"
 
@@ -314,7 +326,8 @@ vpn_client_setup(){
 
 #installs a basic firewall
 firewall_setup(){
-  echo_info "$FUNCNAME started at $(date) ";
+  echo_info_time "$FUNCNAME";
+
 
   # Installing packages
   chroot_package_install "$_CHROOT_ROOT" ufw;
@@ -350,7 +363,8 @@ firewall_setup(){
 
 #installs clamav and update/scanning daemons, updates to most recent definitions
 clamav_setup(){
-  echo_info "$FUNCNAME started at $(date) ";
+  echo_info_time "$FUNCNAME";
+
   chroot_package_install "$_CHROOT_ROOT" clamav clamav-daemon
   chroot_execute "$_CHROOT_ROOT" systemctl enable clamav-freshclam.service
   chroot_execute "$_CHROOT_ROOT" systemctl enable clamav-daemon.service
@@ -360,7 +374,8 @@ clamav_setup(){
 
 #simulates a hardware clock
 fake_hwclock_setup(){
-  echo_info "$FUNCNAME started at $(date) ";
+  echo_info_time "$FUNCNAME";
+
   chroot_package_install "$_CHROOT_ROOT" fake-hwclock
   # set clock even if saved value appears to be in the past
   # sed -i "s|^#FORCE=force|FORCE=force|"  "$_CHROOT_ROOT/etc/default/fake-hwclock"
@@ -369,7 +384,8 @@ fake_hwclock_setup(){
 
 #update system
 apt_upgrade(){
-  echo_info "$FUNCNAME started at $(date) ";
+  echo_info_time "$FUNCNAME";
+
   chroot_execute "$_CHROOT_ROOT" apt -qq -y update
   chroot_execute "$_CHROOT_ROOT" apt -qq -y upgrade
 }
@@ -383,7 +399,8 @@ docker_setup(){
 #   https://docs.docker.com/engine/install/debian/
 #   https://gist.github.com/decidedlygray/1288c0265457e5f2426d4c3b768dfcef
 
-  echo_info "$FUNCNAME started at $(date) ";
+  echo_info_time "$FUNCNAME";
+
   echo_warn "### Docker service may experience conflicts VPN services/connections ###"
 
   echo_debug "    Updating /boot/cmdline.txt to enable cgroup "
@@ -411,14 +428,16 @@ docker_setup(){
 
 #install and remove custom packages
 packages_setup(){
-  echo_info "$FUNCNAME started at $(date) ";
+  echo_info_time "$FUNCNAME";
+
   chroot_package_purge "$_CHROOT_ROOT" "${_PKGS_TO_PURGE}";
   chroot_package_install "$_CHROOT_ROOT" "${_PKGS_TO_INSTALL}";
 }
 
 #sets up aide to run at midnight each night
 aide_setup(){
-  echo_info "$FUNCNAME started at $(date) ";
+  echo_info_time "$FUNCNAME";
+
   chroot_package_install "${_DISK_CHROOT_ROOT}" aide
   chroot_execute "${_DISK_CHROOT_ROOT}" aideinit
   chroot_execute "${_DISK_CHROOT_ROOT}" mv /var/lib/aide/aide.db.new /var/lib/aide/aide.db
@@ -431,14 +450,16 @@ EOF
 
 #basic snapper install for use with btrfs, snapshots root directory in its entirety with default settings,
 snapper_setup(){
-  echo_info "$FUNCNAME started at $(date) ";
+  echo_info_time "$FUNCNAME";
+
   chroot_package_install "${_CHROOT_ROOT}" snapper snapper-gui
   chroot_execute "$_CHROOT_ROOT" snapper create-config /
 }
 
 #secure network time protocol configuration, also installs ntpdate client for manually pulling the time
 ntpsec_setup(){
-  echo_info "$FUNCNAME started at $(date) ";
+  echo_info_time "$FUNCNAME";
+
   chroot_package_install "${_CHROOT_ROOT}" ntpsec ntpsec-doc ntpsec-ntpdate
   chroot_execute "$_CHROOT_ROOT" systemctl enable ntpsec.service
   sed -i "s|^#server time.cloudflare.com nts|server time.cloudflare.com iburst nts \nserver nts.sth1.ntp.se iburst nts\nserver nts.sth2.ntp.se iburst nts|" "/etc/ntpsec/ntp.conf" "${_CHROOT_ROOT}/etc/ntpsec/ntp.conf"
@@ -453,7 +474,8 @@ ntpsec_setup(){
 iodine_setup(){
   # REFERENCE:
   #   https://davidhamann.de/2019/05/12/tunnel-traffic-over-dns-ssh/
-  echo_info "$FUNCNAME started at $(date) ";
+  echo_info_time "$FUNCNAME";
+
   chroot_package_install "$_CHROOT_ROOT" iodine
 
   # Create initramfs hook file for iodine
@@ -470,7 +492,8 @@ iodine_setup(){
 
 #vlc_setup, fix broken audio
 vlc_setup(){
-  echo_info "$FUNCNAME started at $(date) ";
+  echo_info_time "$FUNCNAME";
+
   chroot_package_install "$_CHROOT_ROOT" vlc
   #stuttery audio fix on rpi4
   sed -i "s|load-module module-udev-detect|load-module module-udev-detect tsched=0|" "${_CHROOT_ROOT}/etc/pulse/default.pa"
@@ -479,7 +502,8 @@ vlc_setup(){
 
 #firejail setup
 firejail_setup(){
-  echo_info "$FUNCNAME started at $(date) ";
+  echo_info_time "$FUNCNAME";
+
   chroot_package_install "$_CHROOT_ROOT" firejail firejail-profiles firetools
   chroot_execute "$_CHROOT_ROOT" firecfg
   #TODO firejail configuration for hardened malloc, apparmor integration
@@ -487,34 +511,35 @@ firejail_setup(){
 
 #TODO write sysctl.conf hardening here
 sysctl_hardening_setup(){
-  echo_info "$FUNCNAME started at $(date) ";
+  echo_info_time "$FUNCNAME";
+
 }
 
 #make boot mount read only
 mount_boot_readonly_setup(){
-  echo_info "$FUNCNAME started at $(date) ";
+  echo_info_time "$FUNCNAME";
   sed -i "s#/boot           vfat    defaults          0       2#/boot           vfat    defaults,noatime,ro,errors=remount-ro          0       2#" "${_DISK_CHROOT_ROOT}/etc/fstab";
   echo_warn "Remember to remount when running mkinitramfs!";
 } 
 
-#automatically log you in after unlocking your encrypted drive
+#automatically log you in after unlocking your encrypted drive, without a password...somehow.
 passwordless_login_setup(){
-  echo_info "$FUNCNAME started at $(date) ";
-  sed -i "s|^#  AutomaticLogin = root|AutomaticLogin =${_PASSWORDLESS_LOGIN_USER}|" "${_CHROOT_ROOT}/etc/gdm3/daemon.conf";
-  sed -i "s|^#  AutomaticLoginEnable = true|AutomaticLoginEnable = true" "${_CHROOT_ROOT}/etc/gdm3/daemon.conf";
-#TODO lightdm.conf
+  echo_info_time "$FUNCNAME";
+  sed -i "s|^#greeter-hide-users=false|greeter-hide-users=false|" "${_CHROOT_ROOT}/etc/lightdm/lightdm.conf"
+  sed -i "s|^#autologin-user=$|autologin-user=${_PASSWORDLESS_LOGIN_USER}|" "${_CHROOT_ROOT}/etc/lightdm/lightdm.conf"
+  sed -i "s|^#autologin-user-timeout=0|autologin-user-timeout=0|" "${_CHROOT_ROOT}/etc/lightdm/lightdm.conf"
 }
 
 #set default shell to zsh
 set_default_shell_zsh(){
-  echo_info "$FUNCNAME started at $(date) ";
+  echo_info_time "$FUNCNAME";
   sed -i "s#root:x:0:0:root:/root:/usr/bin/bash#root:x:0:0:root:/root:/usr/bin/zsh#" "${_CHROOT_ROOT}/etc/passwd";
   sed -i "s#kali:x:1000:1000::/home/kali:/usr/bin/zsh#kali:x:1000:1000::/home/kali:/usr/bin/zsh#" "${_CHROOT_ROOT}/etc/passwd";
 }
 
 #enable bluetooth
 bluetooth_setup(){
-  echo_info "$FUNCNAME started at $(date) ";
+  echo_info_time "$FUNCNAME";
   chroot_package_install "$_CHROOT_ROOT" bluez
   chroot_execute "$_CHROOT_ROOT" systemctl enable bluetooth               
   #TODO setup some devices you might have already
@@ -522,5 +547,32 @@ bluetooth_setup(){
 
 #TODO Write function for apparmor integration
 apparmor_setup(){
-  echo_info "$FUNCNAME started at $(date) ";
+  echo_info_time "$FUNCNAME";
+
+}
+
+#randomize mac on reboot
+random_mac_on_reboot_setup(){
+#https://wiki.archlinux.org/index.php/MAC_address_spoofing#Automatically
+  chroot_package_install "$_CHROOT_ROOT" macchanger
+  
+  cat << 'EOF' > "${_CHROOT_ROOT}/etc/systemd/system/macspoof@${_WIFI_INTERFACE}.service"
+[Unit]
+Description=macchanger on %I
+Wants=network-pre.target
+Before=network-pre.target
+BindsTo=sys-subsystem-net-devices-%i.device
+After=sys-subsystem-net-devices-%i.device
+
+[Service]
+ExecStart=/usr/bin/macchanger -r %I
+Type=oneshot
+
+[Install]
+WantedBy=multi-user.target
+EOF
+  chmod 755 "${_CHROOT_ROOT}/etc/systemd/system/macspoof@${_WIFI_INTERFACE}.service";
+}
+
+
 }
