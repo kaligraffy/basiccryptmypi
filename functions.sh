@@ -7,21 +7,24 @@
 set -eu
 
 #Global variables
-export _BASEDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )";
-export _BUILD_DIR=${_BASEDIR}/build
-export _FILE_DIR=${_BASEDIR}/files
+export _BASE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )";
+export _BUILD_DIR=${_BASE_DIR}/build
+export _FILE_DIR=${_BASE_DIR}/files
 export _EXTRACTED_IMAGE="${_FILE_DIR}/extracted.img"
 export _CHROOT_ROOT=${_BUILD_DIR}/root
 export _DISK_CHROOT_ROOT=/mnt/cryptmypi
-export _ENCRYPTED_VOLUME_PATH="/dev/mapper/crypt-1"
+export _ENCRYPTED_VOLUME_PATH="/dev/mapper/crypt"
 export _COLOR_ERROR='\033[0;31m' #red
 export _COLOR_WARN='\033[1;33m' #orange
 export _COLOR_INFO='\033[0;35m' #purple
 export _COLOR_DEBUG='\033[0;37m' #grey
 export _COLOR_NORMAL='\033[0m' # No Color
-export _IMAGE_PREPARATION_STARTED='0';
-export _WRITE_TO_DISK_STARTED='0';
-export _LOG_FILE="${_BASEDIR}/build-$(date '+%Y-%m-%d-%H:%M:%S').log"
+export _LOG_FILE="${_BASE_DIR}/build-$(date '+%Y-%m-%d-%H:%M:%S').log"
+
+trap 'trap_on_error $LINENO' ERR;
+trap 'trap_on_interrupt' SIGINT;
+
+#TODO temporarily set dns in chroot resolv.conf, too force it to use that during updates/package installs
 
 # Runs on script exit, tidies up the mounts.
 trap_on_error() {
@@ -37,8 +40,13 @@ trap_on_interrupt() {
 
 # Runs on script exit, tidies up the mounts.
 trap_on_exit() {
-  if [ "$_IMAGE_PREPARATION_STARTED" = '1' ]; then cleanup_image_prep; fi
-  if [ "$_WRITE_TO_DISK_STARTED" = '1' ]; then cleanup_write_disk; fi
+  echo_info_time"checking if cleanup scripts need running";
+  if (( $1 == 1 )); then 
+    cleanup_image_prep; 
+  fi
+  if (( $2 == 1 )); then 
+    cleanup_write_disk; 
+  fi
   echo_info_time "$(basename $0) finished";
 }
 
@@ -95,6 +103,11 @@ check_run_as_root(){
   fi
 }
 
+#auxiliary method for cleanup logic
+rebuild_started(){
+  export _IMAGE_PREPARATION_STARTED=1;
+}
+
 #Fix for using mmcblk0pX devices, adds a p used later on
 fix_block_device_names(){
   # check device exists/folder exists
@@ -147,25 +160,25 @@ extract_image() {
     fi
   fi
 
-  echo_info_time "Starting extract";
+  echo_info_time "starting extract";
   #If theres a problem extracting, delete the partially extracted file and exit
   trap 'rm $(echo $extracted_image); exit 1' ERR SIGINT;
   case ${image_path} in
     *.xz)
-        echo_info "Extracting with xz";
+        echo_info_time"extracting with xz";
         pv ${image_path} | xz --decompress --stdout > "$extracted_image";
         ;;
     *.zip)
-        echo_info "Extracting with unzip";
+        echo_info_time"extracting with unzip";
         unzip -p $image_path > "$extracted_image";
         ;;
     *)
-        echo_error "Unknown extension type on image: $image_path";
+        echo_error "unknown extension type on image: $image_path";
         exit 1;
         ;;
   esac
   trap - ERR SIGINT;
-  echo_info_time "Finished extract";
+  echo_info_time "finished extract";
 }
 
 #mounts the extracted image via losetup
@@ -200,8 +213,8 @@ check_disk_is_correct(){
   if [ "${_NO_PROMPTS}" != "1" ]; then
         local continue
         echo_warn "CHECK DISK IS CORRECT"
-        echo_info "$(lsblk)"
-        echo_info ""
+        echo_info_time"$(lsblk)"
+        echo_info_time""
         read -p "Type 'YES' if the selected device is correct:  ${_OUTPUT_BLOCK_DEVICE}  " continue
         if [ "${continue}" != 'YES' ] ; then
             exit 0
@@ -215,15 +228,19 @@ download_image(){
 
   local image_name=$(basename ${_IMAGE_URL})
   local image_out_file=${_FILE_DIR}/${image_name}
-  echo_info_time "Starting download"
+  echo_info_time "starting download"
   wget -nc "${_IMAGE_URL}" -O "${image_out_file}" || true
-  echo_info_time "Completed download"
+  echo_info_time "completed download"
   if [ -z ${_IMAGE_SHA256} ]; then
     return 0
   fi
-  echo_info "Checking image checksum"
+  echo_info_time"checksumming image"
   echo ${_IMAGE_SHA256}  $image_out_file | sha256sum --check --status
-  echo_info "- valid"
+  if [ $? != '0' ]; then
+    echo_error "invalid Checksum";
+    exit;
+  fi
+  echo_info_time"valid Checksum"
 }
 
 locale_setup(){
@@ -398,14 +415,14 @@ make_filesystem(){
 #rsync for local copy
 #arguments $1 - to $2 - from
 rsync_local(){
-  echo_info_time "Starting copy of ${@}";
+  echo_info_time "starting copy of ${@}";
   rsync --hard-links  --archive --partial --info=progress2 "${@}"
-  echo_info_time "Finished copy of ${@}";
+  echo_info_time "finished copy of ${@}";
   sync;
 }
 
 ####CHROOT FUNCTIONS####
-
+#TODO fix chroot being passed into everything, make it a global
 chroot_setup(){
   chroot_mount "$_CHROOT_ROOT"
   chroot_update "$_CHROOT_ROOT"
@@ -433,25 +450,63 @@ disk_chroot_teardown(){
 
 chroot_mount(){
   local chroot_dir=$1
-  echo_debug "Preparing chroot mount structure at '${chroot_dir}'."
+  echo_info_time"preparing chroot mount structure at '${chroot_dir}'."
   # mount binds
-  echo_debug "Mounting '${chroot_dir}/dev/' "
-  mount --bind /dev ${chroot_dir}/dev/ || echo_error "mounting '${chroot_dir}/dev/'"
-  echo_debug "Mounting '${chroot_dir}/dev/pts' "
-  mount --bind /dev/pts ${chroot_dir}/dev/pts || echo_error "mounting '${chroot_dir}/dev/pts'"
-  echo_debug "Mounting '${chroot_dir}/sys/' ";
-  mount --bind /sys ${chroot_dir}/sys/ || echo_error "mounting '${chroot_dir}/sys/'";
-  echo_debug "Mounting '${chroot_dir}/proc/' ";
-  mount -t proc /proc ${chroot_dir}/proc/ || echo_error "mounting '${chroot_dir}/proc/'";
+  
+  mount --bind /dev "${chroot_dir}/dev/";
+  if [ $? -ne 0 ]; then
+    echo_error "mounting ${chroot_dir}/dev/";
+    exit 1;
+  fi
+  
+  mount --bind /dev/pts "${chroot_dir}/dev/pts";
+  if [ $? -ne 0 ]; then
+    echo_error "mounting ${chroot_dir}/dev/pts";
+    exit 1;
+  fi
+  
+  mount --bind /sys "${chroot_dir}/sys/";
+  if [ $? -ne 0 ]; then
+    echo_error "mounting ${chroot_dir}/sys/";
+    exit 1;
+  fi
+  
+  mount -t proc /proc "${chroot_dir}/proc/";
+  if [ $? -ne 0 ]; then
+    echo_error "mounting ${chroot_dir}/proc/";
+    exit 1;
+  fi
+  echo_info_time"prepared chroot mount structure at '${chroot_dir}'."
 }
 
 chroot_umount(){
   local chroot_dir="$1"
-  echo_debug "Unmounting binds"
-  umount ${chroot_dir}/dev/pts || true;
-  umount ${chroot_dir}/dev || true;
-  umount ${chroot_dir}/sys || true;
-  umount ${chroot_dir}/proc || true;
+  echo_info_time"unmounting binds"
+  
+  umount "${chroot_dir}/dev/pts"
+  if [ $? -ne 0 ]; then
+    echo_error "umounting ${chroot_dir}/dev/";
+    exit 1;
+  fi
+  
+  umount "${chroot_dir}/dev/"
+  if [ $? -ne 0 ]; then
+    echo_error "umounting ${chroot_dir}/dev/";
+    exit 1;
+  fi
+  
+  umount "${chroot_dir}/sys/"
+  if [ $? -ne 0 ]; then
+    echo_error "umounting ${chroot_dir}/sys/";
+    exit 1;
+  fi
+  
+  umount "${chroot_dir}/proc/"
+  if [ $? -ne 0 ]; then
+    echo_error "umounting ${chroot_dir}/proc/";
+    exit 1;
+  fi
+  echo_info_time"unmounted chroot mount structure at '${chroot_dir}'."
 }
 
 #run apt update
@@ -475,11 +530,11 @@ chroot_update(){
 chroot_package_install(){
   local chroot_dir=$1;
   shift;
-  echo_info "- Installing $@";
   PACKAGES="$@"
   for package in $PACKAGES
   do
-      chroot_execute "${chroot_dir}" apt-get -qq -y install $package 
+    echo_info_time"installing $package";
+    chroot_execute "${chroot_dir}" apt-get -qq -y install $package 
   done
 }
 
@@ -488,7 +543,7 @@ chroot_package_install(){
 chroot_package_purge(){
   local chroot_dir=$1;
   shift;
-  echo_info "- Purging $@";
+  echo_info_time"purging $@";
   chroot_execute "${chroot_dir}" apt-get -qq -y purge $@ ;
   chroot_execute "${chroot_dir}" apt-get -qq -y autoremove ;
 }
@@ -542,5 +597,5 @@ echo_debug(){
   echo "$@" >> "${_LOG_FILE}";
 }
 echo_info_time(){
-  echo_info "$1 at $(date '+%H:%M:%S')";
+  echo_info_time"$(date '+%H:%M:%S'): $@";
 }

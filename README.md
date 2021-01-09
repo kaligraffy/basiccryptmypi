@@ -49,7 +49,7 @@ options should be descriptive enough, but look in options.sh for what each one d
 - set_default_shell_zsh
 - bluetooth_setup
 - apparmor_setup
-random_mac_on_reboot_setup
+- random_mac_on_reboot_setup
 
 Testing is 'ad hoc' and only for the RPI4. Oher kernels might work if set in env.sh
 

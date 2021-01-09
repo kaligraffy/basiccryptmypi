@@ -10,13 +10,9 @@ set -eu
 . options.sh;
 . dependencies.sh;
 
-trap 'trap_on_exit' EXIT;
-trap 'trap_on_error $LINENO' ERR;
-trap 'trap_on_interrupt' SIGINT;
-
 #Program logic
 main(){
-  echo_info_time "$(basename $0)";
+  echo_info_time "$(basename $0) started";
   #Setup
   check_run_as_root;
   install_dependencies;
@@ -26,7 +22,7 @@ main(){
   local rebuild=$(check_build_dir_exists);
   if (( $rebuild >= 1 )); then
     #Stage 1 - Unpack and modify the image
-    export _IMAGE_PREPARATION_STARTED='1';
+    trap 'trap_on_exit 1 0' EXIT;
     #useful when your build fails during one of the extra setups
     if (( $rebuild != 2 )); then
       create_build_directory_structure;
@@ -44,7 +40,7 @@ main(){
   fi
   
   #Stage 2 - Write to physical disk
-  export _WRITE_TO_DISK_STARTED='1';
+  trap 'trap_on_exit 1 1' EXIT;
   check_disk_is_correct;
   copy_to_disk;
   disk_chroot_setup;
@@ -57,4 +53,5 @@ main(){
 
 # Run program
 #TODO Investigate logging missing from build log
-main | tee "${_LOG_FILE}" || true;
+#TODO Bats testing
+main | tee "${_LOG_FILE}";

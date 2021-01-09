@@ -80,7 +80,6 @@ EOT
 wifi_setup(){
   echo_info_time "$FUNCNAME";
 
-
   # Checking if WIFI interface was provided
   if [ -z "${_WIFI_INTERFACE}" ]; then
     _WIFI_INTERFACE='wlan0'
@@ -147,7 +146,7 @@ display_manager_setup(){
   echo_info_time "$FUNCNAME";
 
   chroot_execute "$_CHROOT_ROOT" systemctl set-default multi-user
-  echo_info "To get a gui run startxfce4 on command line"
+  echo_warn "To get a gui run startxfce4 on command line"
 }
 
 #setup dropbear in initramfs
@@ -236,50 +235,18 @@ cpu_governor_setup(){
   echo_info_time "$FUNCNAME";
 
   chroot_package_install "${_CHROOT_ROOT}" cpufrequtils;
-  echo_info "Use cpufreq-info/systemctl status cpufrequtils to confirm the changes when the device is running";
+  echo_warn "Use cpufreq-info/systemctl status cpufrequtils to confirm the changes when the device is running";
   echo "GOVERNOR=${_CPU_GOVERNOR}" | tee ${_CHROOT_ROOT}/etc/default/cpufrequtils;
   chroot_execute "$_CHROOT_ROOT" systemctl enable cpufrequtils;
 }
 
 #custom hostname setup
 hostname_setup(){
-  echo_debug "Setting hostname to ${_HOSTNAME}";
+  echo_info_time "$FUNCNAME";
   # Overwrites /etc/hostname
   echo "${_HOSTNAME}" > "${_CHROOT_ROOT}/etc/hostname";
   # Updates /etc/hosts
   sed -i "s#^127.0.0.1       kali#127.0.0.1  ${_HOSTNAME}#" "${_CHROOT_ROOT}/etc/hosts";
-}
-
-#configures two ipv4 ip addresses as your global dns
-#enables dnssec and DNSOverTLS
-#disables mdns, llmnr
-#credits: https://andrea.corbellini.name/2020/04/28/ubuntu-global-dns/
-dns_setup(){
-  echo_info_time "$FUNCNAME";
- 
-  chroot_execute "$_CHROOT_ROOT" systemctl enable systemd-resolved
-  sed -i "s|^#DNS=|DNS=${_DNS1}|" "${_CHROOT_ROOT}/etc/systemd/resolved.conf";
-  sed -i "s|^#FallbackDNS=|FallbackDNS=${_DNS2}|" "${_CHROOT_ROOT}/etc/systemd/resolved.conf";
-  sed -i "s|^#DNSSEC=no|DNSSEC=true|" "${_CHROOT_ROOT}/etc/systemd/resolved.conf";
-  sed -i "s|^#DNSOverTLS=no|DNSOverTLS=yes|" "${_CHROOT_ROOT}/etc/systemd/resolved.conf";
-  sed -i "s|^#MulticastDNS=yes|MulticastDNS=no|" "${_CHROOT_ROOT}/etc/systemd/resolved.conf";
-  sed -i "s|^#LLMNR=yes|LLMNR=no|" "${_CHROOT_ROOT}/etc/systemd/resolved.conf";
-  
-  cat <<EOT > ${_CHROOT_ROOT}/etc/NetworkManager/conf.d/dns.conf
-  [main]
-  dns=none
-  systemd-resolved=false
-EOT
-
-  #add resolved dns to top of /etc/systemd/resolved.conf for use with NetworkManager:
-  echo -e "nameserver 127.0.0.53\n$(cat "${_CHROOT_ROOT}/etc/systemd/resolved.conf")" > "${_CHROOT_ROOT}/etc/systemd/resolved.conf"
-
-  #symlink
-  mv "${_CHROOT_ROOT}/etc/resolv.conf" "${_CHROOT_ROOT}/etc/resolv.conf.backup";
-  chroot_execute "${_CHROOT_ROOT}" ln -s "/etc/systemd/resolved.conf" "/etc/resolv.conf";
-  echo_debug "DNS configured - remember to keep your clock up to date or DNSSEC Certificate errors may occur";
-  export _DNS_SETUP='1';
-  #needs: 853/tcp, doesn't need as we disable llmnr and mdns: 5353/udp,5355/udp
 }
 
 #sets the root password
@@ -345,7 +312,6 @@ firewall_setup(){
   
   #OPEN UP NTPSEC PORT
   if [ "${_NTPSEC_SETUP}" = "1" ]; then
-    chroot_execute "$_CHROOT_ROOT" ufw allow out 4460/tcp;
     chroot_execute "$_CHROOT_ROOT" ufw allow out 123/tcp;
   fi
 
@@ -432,7 +398,9 @@ EOF
 snapper_setup(){
   echo_info_time "$FUNCNAME";
   chroot_package_install "${_DISK_CHROOT_ROOT}" snapper 
-  chroot_execute "${_DISK_CHROOT_ROOT}" snapper create-config /
+  #chroot_execute "${_DISK_CHROOT_ROOT}" snapper create-config /
+  #TODO Set sensible snapper configs for a limited space ssd
+  echo_warn "Remember to set reasonable snapper config";
 }
 
 #secure network time protocol configuration, also installs ntpdate client for manually pulling the time
@@ -440,7 +408,7 @@ ntpsec_setup(){
   echo_info_time "$FUNCNAME";
   chroot_package_install "${_CHROOT_ROOT}" ntpsec ntpsec-doc ntpsec-ntpdate
   chroot_execute "$_CHROOT_ROOT" systemctl enable ntpsec.service
-  sed -i "s|^#server time.cloudflare.com nts|server time.cloudflare.com iburst nts \nserver nts.sth1.ntp.se iburst nts\nserver nts.sth2.ntp.se iburst nts|" "/etc/ntpsec/ntp.conf" "${_CHROOT_ROOT}/etc/ntpsec/ntp.conf"
+  sed -i "s|^#server time.cloudflare.com nts|server time.cloudflare.com:123 iburst nts \nserver nts.sth1.ntp.se:123 iburst nts\nserver nts.sth2.ntp.se:123 iburst nts|" "/etc/ntpsec/ntp.conf" "${_CHROOT_ROOT}/etc/ntpsec/ntp.conf"
   sed -i "s|^pool 0.debian.pool.ntp.org iburst|#pool 0.debian.pool.ntp.org iburst|" "${_CHROOT_ROOT}/etc/ntpsec/ntp.conf"
   sed -i "s|^pool 1.debian.pool.ntp.org iburst|#pool 1.debian.pool.ntp.org iburst|" "${_CHROOT_ROOT}/etc/ntpsec/ntp.conf"
   sed -i "s|^pool 2.debian.pool.ntp.org iburst|#pool 2.debian.pool.ntp.org iburst|" "${_CHROOT_ROOT}/etc/ntpsec/ntp.conf"
@@ -547,4 +515,36 @@ Type=oneshot
 WantedBy=multi-user.target
 EOF
   chmod 755 "${_CHROOT_ROOT}/etc/systemd/system/macspoof@${_WIFI_INTERFACE}.service";
+}
+
+#configures two ipv4 ip addresses as your global dns
+#enables dnssec and DNSOverTLS
+#disables mdns, llmnr
+#credits: https://andrea.corbellini.name/2020/04/28/ubuntu-global-dns/
+dns_setup(){
+  echo_info_time "$FUNCNAME";
+ 
+  chroot_execute "$_DISK_CHROOT_ROOT" systemctl enable systemd-resolved
+  sed -i "s|^#DNS=|DNS=${_DNS1}|" "${_DISK_CHROOT_ROOT}/etc/systemd/resolved.conf";
+  sed -i "s|^#FallbackDNS=|FallbackDNS=${_DNS2}|" "${_DISK_CHROOT_ROOT}/etc/systemd/resolved.conf";
+  sed -i "s|^#DNSSEC=no|DNSSEC=true|" "${_DISK_CHROOT_ROOT}/etc/systemd/resolved.conf";
+  sed -i "s|^#DNSOverTLS=no|DNSOverTLS=yes|" "${_DISK_CHROOT_ROOT}/etc/systemd/resolved.conf";
+  sed -i "s|^#MulticastDNS=yes|MulticastDNS=no|" "${_DISK_CHROOT_ROOT}/etc/systemd/resolved.conf";
+  sed -i "s|^#LLMNR=yes|LLMNR=no|" "${_DISK_CHROOT_ROOT}/etc/systemd/resolved.conf";
+  
+  cat <<EOT > ${_DISK_CHROOT_ROOT}/etc/NetworkManager/conf.d/dns.conf
+  [main]
+  dns=none
+  systemd-resolved=false
+EOT
+
+  #add resolved dns to top of /etc/systemd/resolved.conf for use with NetworkManager:
+  echo -e "nameserver 127.0.0.53\n$(cat "${_DISK_CHROOT_ROOT}/etc/systemd/resolved.conf")" > "${_DISK_CHROOT_ROOT}/etc/systemd/resolved.conf"
+
+  #symlink
+  mv "${_DISK_CHROOT_ROOT}/etc/resolv.conf" "${_DISK_CHROOT_ROOT}/etc/resolv.conf.backup";
+  chroot_execute "${_DISK_CHROOT_ROOT}" ln -s "/etc/systemd/resolved.conf" "/etc/resolv.conf";
+  echo_debug "DNS configured - remember to keep your clock up to date or DNSSEC Certificate errors may occur";
+  export _DNS_SETUP='1';
+  #needs: 853/tcp, doesn't need as we disable llmnr and mdns: 5353/udp,5355/udp
 }
