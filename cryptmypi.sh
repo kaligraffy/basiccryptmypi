@@ -31,6 +31,7 @@ main(){
       mount_loopback_image;
       copy_extracted_image_to_chroot_dir;
     fi
+    #TODO investigate move locale_setup, encryption_setup, extra_setup to stage 2 so any additional setup is applied directly to disk
     chroot_setup;
     locale_setup;
     encryption_setup;

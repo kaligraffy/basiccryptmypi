@@ -48,10 +48,10 @@ initramfs_wifi_setup(){
   _WIFI_PSK=$(wpa_passphrase "${_WIFI_SSID}" "${_WIFI_PASSWORD}" | grep "psk=" | grep -v "#psk")
 
   echo_debug "Copying scripts";
-  cp -p "${_FILES_DIR}/initramfs-scripts/zz-brcm" "${_CHROOT_ROOT}/etc/initramfs-tools/hooks/"
-  cp -p "${_FILES_DIR}/initramfs-scripts/a_enable_wireless" "${_CHROOT_ROOT}/etc/initramfs-tools/scripts/init-premount/";
-  cp -p "${_FILES_DIR}/initramfs-scripts/enable_wireless" "${_CHROOT_ROOT}/etc/initramfs-tools/hooks/"
-  cp -p "${_FILES_DIR}/initramfs-scripts/kill_wireless" "${_CHROOT_ROOT}/etc/initramfs-tools/scripts/local-bottom/"
+  cp -p "${_FILE_DIR}/initramfs-scripts/zz-brcm" "${_CHROOT_ROOT}/etc/initramfs-tools/hooks/"
+  cp -p "${_FILE_DIR}/initramfs-scripts/a_enable_wireless" "${_CHROOT_ROOT}/etc/initramfs-tools/scripts/init-premount/";
+  cp -p "${_FILE_DIR}/initramfs-scripts/enable_wireless" "${_CHROOT_ROOT}/etc/initramfs-tools/hooks/"
+  cp -p "${_FILE_DIR}/initramfs-scripts/kill_wireless" "${_CHROOT_ROOT}/etc/initramfs-tools/scripts/local-bottom/"
   
   sed -i "#_WIFI_INTERFACE#${_WIFI_INTERFACE}#" "${_CHROOT_ROOT}/etc/initramfs-tools/scripts/init-premount/a_enable_wireless";
   sed -i "#_INITRAMFS_WIFI_DRIVERS#${_INITRAMFS_WIFI_DRIVERS}#" "${_CHROOT_ROOT}/etc/initramfs-tools/hooks/enable_wireless";
@@ -129,11 +129,10 @@ boot_hash_setup(){
   #install mail package
   chroot_package_install "${_CHROOT_ROOT}" mailutils
 
-  BOOTDRIVE="${_BOOT_HASH_BLOCK_DEVICE}"
   BOOTHASHSCRIPT="${_CHROOT_ROOT}/usr/local/bin/bootHash.sh";
-  echo_debug "Creating script bootHash.sh in ${_BUILD_DIR}/usr/local/bin";
+  echo_debug "Creating script bootHash.sh in ${_CHROOT_ROOT}/usr/local/bin";
   cp -p "${_FILE_DIR}/boot-hash/boothash.sh" "$BOOTHASHSCRIPT";
-  sed -i "s|/dev/sdX|${BOOTDRIVE}|g" "$BOOTHASHSCRIPT";
+  sed -i "s|/dev/sdX|${_BOOT_HASH_BLOCK_DEVICE}|g" "$BOOTHASHSCRIPT";
   #crontab run on startup
   cat << 'EOF' > "${_CHROOT_ROOT}/etc/cron.d/startBootHash"
 @reboot root /bin/bash /usr/local/bin/bootHash.sh
@@ -499,22 +498,7 @@ random_mac_on_reboot_setup(){
 #https://wiki.archlinux.org/index.php/MAC_address_spoofing#Automatically
   echo_info_time "$FUNCNAME";
   chroot_package_install "$_CHROOT_ROOT" macchanger 
-  cat << 'EOF' > "${_CHROOT_ROOT}/etc/systemd/system/macspoof@${_WIFI_INTERFACE}.service"
-[Unit]
-Description=macchanger on %I
-Wants=network-pre.target
-Before=network-pre.target
-BindsTo=sys-subsystem-net-devices-%i.device
-After=sys-subsystem-net-devices-%i.device
-
-[Service]
-ExecStart=/usr/bin/macchanger -r %I
-Type=oneshot
-
-[Install]
-WantedBy=multi-user.target
-EOF
-  chmod 755 "${_CHROOT_ROOT}/etc/systemd/system/macspoof@${_WIFI_INTERFACE}.service";
+  cp -p "${_FILE_DIR}/random-mac-scripts/macspoof" "${_CHROOT_ROOT}/etc/systemd/system/macspoof@${_WIFI_INTERFACE}.service";
 }
 
 #configures two ipv4 ip addresses as your global dns
