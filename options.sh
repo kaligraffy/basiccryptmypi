@@ -56,10 +56,9 @@ initramfs_wifi_setup(){
   sed -i "#_WIFI_INTERFACE#${_WIFI_INTERFACE}#" "${_CHROOT_ROOT}/etc/initramfs-tools/scripts/init-premount/a_enable_wireless";
   sed -i "#_INITRAMFS_WIFI_DRIVERS#${_INITRAMFS_WIFI_DRIVERS}#" "${_CHROOT_ROOT}/etc/initramfs-tools/hooks/enable_wireless";
  
-  echo_debug "Creating wpa_supplicant file"
+  echo_debug "Creating wpa_supplicant file";
   cat <<EOT > ${_CHROOT_ROOT}/etc/initramfs-tools/wpa_supplicant.conf
 ctrl_interface=/tmp/wpa_supplicant
-
 network={
         ssid="${_WIFI_SSID}"
         psk="${_WIFI_PSK}"
@@ -67,12 +66,11 @@ network={
         key_mgmt=WPA-PSK
 }
 EOT
-  
+
   # Adding modules to initramfs modules
   for driver in ${_INITRAMFS_WIFI_DRIVERS}; do
     echo ${driver} >> "${_CHROOT_ROOT}/etc/initramfs-tools/modules"
   done
-
   echo_debug "initramfs wifi completed";
 }
 
@@ -105,7 +103,6 @@ EOT
 
   echo_debug "Updating /etc/network/interfaces file"
   cat <<EOT >> ${_CHROOT_ROOT}/etc/network/interfaces
-
 # The buildin wireless interface
 auto ${_WIFI_INTERFACE}
 allow-hotplug ${_WIFI_INTERFACE}
@@ -120,6 +117,8 @@ EOT
   sed -i "s|_WIFI_INTERFACE|${_WIFI_INTERFACE}|" "${_CHROOT_ROOT}/usr/local/bin/sys-wifi-connect.sh";
   echo_debug "Add to cron to start at boot (before login)"
   echo "@reboot root /bin/sh /usr/local/bin/sys-wifi-connect.sh" > "${_CHROOT_ROOT}/etc/cron.d/sys-wifi"
+  chmod 755 "${_CHROOT_ROOT}/etc/cron.d/sys-wifi";
+
 }
 
 #mails kali user if the hash of the boot drive changes
@@ -129,21 +128,18 @@ boot_hash_setup(){
   #install mail package
   chroot_package_install "${_CHROOT_ROOT}" mailutils
 
-  BOOTHASHSCRIPT="${_CHROOT_ROOT}/usr/local/bin/bootHash.sh";
-  echo_debug "Creating script bootHash.sh in ${_CHROOT_ROOT}/usr/local/bin";
+  BOOTHASHSCRIPT="${_CHROOT_ROOT}/usr/local/bin/boothash.sh";
+  echo_debug "Creating script boothash.sh in ${_CHROOT_ROOT}/usr/local/bin";
   cp -p "${_FILE_DIR}/boot-hash/boothash.sh" "$BOOTHASHSCRIPT";
   sed -i "s|/dev/sdX|${_BOOT_HASH_BLOCK_DEVICE}|g" "$BOOTHASHSCRIPT";
   #crontab run on startup
-  cat << 'EOF' > "${_CHROOT_ROOT}/etc/cron.d/startBootHash"
-@reboot root /bin/bash /usr/local/bin/bootHash.sh
-EOF
-  chmod 755 "${_CHROOT_ROOT}/etc/cron.d/startBootHash";
+  echo "@reboot root /bin/bash /usr/local/bin/boothash.sh" > "${_CHROOT_ROOT}/etc/cron.d/start_boot_hash"
+  chmod 755 "${_CHROOT_ROOT}/etc/cron.d/start_boot_hash";
 }
 
 #disable the gui 
 display_manager_setup(){
   echo_info_time "$FUNCNAME";
-
   chroot_execute "$_CHROOT_ROOT" systemctl set-default multi-user
   echo_warn "To get a gui run startxfce4 on command line"
 }
@@ -172,7 +168,7 @@ dropbear_setup(){
   # Don't use weak key ciphers
   rm ${_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_dss_host_key;
   rm ${_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_ecdsa_host_key;
-  backup_and_use_sshkey "${_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_rsa_host_key";
+  backup_dropbear_key "${_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_rsa_host_key";
 }
 
 luks_nuke_setup(){
@@ -182,12 +178,12 @@ luks_nuke_setup(){
   if [ -n "${_LUKS_NUKE_PASSWORD}" ]; then
     echo_debug "Attempting to install and configure encrypted pi cryptsetup nuke password."
     chroot_package_install "${_CHROOT_ROOT}" cryptsetup-nuke-password
-    chroot ${_CHROOT_ROOT} /bin/bash -c "debconf-set-selections <<END
+    chroot ${_CHROOT_ROOT} /bin/bash -c "debconf-set-selections <<EOT
 cryptsetup-nuke-password cryptsetup-nuke-password/password string ${_LUKS_NUKE_PASSWORD}
 cryptsetup-nuke-password cryptsetup-nuke-password/password-again string ${_LUKS_NUKE_PASSWORD}
-END
+EOT
 "
-      chroot_execute "$_CHROOT_ROOT" dpkg-reconfigure -f noninteractive cryptsetup-nuke-password
+  chroot_execute "$_CHROOT_ROOT" dpkg-reconfigure -f noninteractive cryptsetup-nuke-password
   else
       echo_warn "SKIPPING Cryptsetup NUKE. Nuke password _LUKS_NUKE_PASSWORD not set."
   fi
@@ -212,7 +208,7 @@ ssh_setup(){
   chmod 600 "${ssh_authorized_keys}"
 
   # Creating box's default user own key
-  assure_box_sshkey "${_HOSTNAME}"
+  create_ssh_key
 
   # Update sshd settings
   cp -p "${sshd_config}" "${sshd_config}.bak"
@@ -386,9 +382,7 @@ aide_setup(){
   chroot_execute "${_DISK_CHROOT_ROOT}" aideinit
   chroot_execute "${_DISK_CHROOT_ROOT}" mv /var/lib/aide/aide.db.new /var/lib/aide/aide.db
 
-  cat << 'EOF' > "${_CHROOT_ROOT}/etc/cron.d/aideCheck"
-0 0 * * * root /usr/sbin/aide --check --config=/etc/aide/aide.conf
-EOF
+  echo "0 0 * * * root /usr/sbin/aide --check --config=/etc/aide/aide.conf" > "${_CHROOT_ROOT}/etc/cron.d/aideCheck"
   chmod 755 "${_CHROOT_ROOT}/etc/cron.d/aideCheck";
 }
 

@@ -28,11 +28,12 @@ main(){
       create_build_directory_structure;
       download_image;
       extract_image;
-      mount_loopback_image;
+      mount_image_on_loopback;
       copy_extracted_image_to_chroot_dir;
     fi
     #TODO investigate move locale_setup, encryption_setup, extra_setup to stage 2 so any additional setup is applied directly to disk
     chroot_setup;
+    chroot_update_apt_setup;
     locale_setup;
     encryption_setup;
     extra_setup;
@@ -45,7 +46,7 @@ main(){
   check_disk_is_correct;
   copy_to_disk;
   disk_chroot_setup;
-  disk_chroot_mkinitramfs;
+  disk_chroot_mkinitramfs_setup;
   extra_extra_setup;
   disk_chroot_teardown;
   exit;
@@ -53,6 +54,6 @@ main(){
 
 
 # Run program
-#TODO Investigate logging missing from build log
 #TODO Bats testing
+#TODO Create an image file functionality rather than writing to sd card
 main | tee "${_LOG_FILE}";

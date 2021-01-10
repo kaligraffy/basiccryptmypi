@@ -24,7 +24,7 @@ export _LOG_FILE="${_BASE_DIR}/build-$(date '+%Y-%m-%d-%H:%M:%S').log"
 trap 'trap_on_error $LINENO' ERR;
 trap 'trap_on_interrupt' SIGINT;
 
-#TODO temporarily set dns in chroot resolv.conf, too force it to use that during updates/package installs
+#TODO temporarily set dns in chroot resolv.conf, to force it to use that during updates/package installs
 
 # Runs on script exit, tidies up the mounts.
 trap_on_error() {
@@ -56,7 +56,7 @@ cleanup_image_prep(){
   umount  "${_BUILD_DIR}/mount" || true
   umount  "${_BUILD_DIR}/boot" || true
   umount /dev/loop* || true;
-  losetup -D || true
+  losetup -d /dev/loop*  || true
   rm -rf ${_BUILD_DIR}/mount || true
   rm -rf ${_BUILD_DIR}/boot || true
 }
@@ -69,7 +69,10 @@ cleanup_write_disk(){
   umount "${_ENCRYPTED_VOLUME_PATH}" || true
   umount "${_BLOCK_DEVICE_ROOT}" || true
   umount "${_OUTPUT_BLOCK_DEVICE}" || true
-  umount "${_DISK_CHROOT_ROOT}" && test -d "${_DISK_CHROOT_ROOT}" && rm -rf "${_DISK_CHROOT_ROOT}" || true
+  umount "${_DISK_CHROOT_ROOT}" 
+  if [ $? == 0 ]; then 
+    rm -rf "${_DISK_CHROOT_ROOT}" || true;
+  fi
 }
 
 #check if theres a build directory already
@@ -103,11 +106,6 @@ check_run_as_root(){
   fi
 }
 
-#auxiliary method for cleanup logic
-rebuild_started(){
-  export _IMAGE_PREPARATION_STARTED=1;
-}
-
 #Fix for using mmcblk0pX devices, adds a p used later on
 fix_block_device_names(){
   # check device exists/folder exists
@@ -133,7 +131,6 @@ create_build_directory_structure(){
   #deletes only build directory first if it exists
   rm -rf "${_BUILD_DIR}" || true ;
   mkdir "${_BUILD_DIR}"; 
-  mkdir -p "${_FILE_DIR}"; #where images are downloaded, extracted image lives here too
   mkdir "${_BUILD_DIR}/mount"; #where the extracted image's root directory is mounted
   mkdir "${_BUILD_DIR}/boot";  #where the extracted image's boot directory is mounted
   mkdir "${_CHROOT_ROOT}"; #where the extracted image's files are copied to to be editted
@@ -182,7 +179,7 @@ extract_image() {
 }
 
 #mounts the extracted image via losetup
-mount_loopback_image(){
+mount_image_on_loopback(){
   echo_info_time "$FUNCNAME";
   local extracted_image="${_EXTRACTED_IMAGE}";
   loopdev=$(losetup -P -f --show "$extracted_image");
@@ -213,8 +210,8 @@ check_disk_is_correct(){
   if [ "${_NO_PROMPTS}" != "1" ]; then
         local continue
         echo_warn "CHECK DISK IS CORRECT"
-        echo_info_time"$(lsblk)"
-        echo_info_time""
+        echo_info_time "$(lsblk)"
+        echo_info_time ""
         read -p "Type 'YES' if the selected device is correct:  ${_OUTPUT_BLOCK_DEVICE}  " continue
         if [ "${continue}" != 'YES' ] ; then
             exit 0
@@ -257,7 +254,6 @@ EOF
 
   echo_debug "Updating env variables"
   chroot "${_CHROOT_ROOT}" /bin/bash -x <<EOF
-  export LC_ALL="${_LOCALE}" 2> /dev/null
   export LANG="${_LOCALE}"
   export LANGUAGE="${_LOCALE}"
 EOF
@@ -269,7 +265,6 @@ EOF
   cat << EOF >> ${_CHROOT_ROOT}/.bashrc
 
   # Setting locales
-  export LC_ALL="${_LOCALE}"
   export LANG="${_LOCALE}"
   export LANGUAGE="${_LOCALE}"
 EOF
@@ -363,38 +358,37 @@ copy_to_disk(){
 }
 
 #### MISC FUNCTIONS####
+
 #gets from local filesystem or generates a ssh key and puts it on the build 
-#TODO Make more readable
-assure_box_sshkey(){
+create_ssh_key(){
   local id_rsa="${_FILE_DIR}/id_rsa";
-  echo_debug "Make ssh keyfile:";
-  test -f "${id_rsa}" && {
-    echo_debug "- Keyfile ${id_rsa} already exists";
-    } || {
-    echo_debug "- Keyfile ${id_rsa} does not exists. Generating ";
+  
+  if [ ! -f "${id_rsa}" ]; then 
+    echo_debug "generating ${id_rsa}";
     ssh-keygen -b "${_SSH_BLOCK_SIZE}" -N "${_SSH_KEY_PASSPHRASE}" -f "${id_rsa}";
-    chmod 600 "${id_rsa}";
-    chmod 644 "${id_rsa}.pub";
-  }
-  echo_debug "- Copying keyfile ${id_rsa} to box's default user .ssh directory";
-  cp "${id_rsa}" "${_CHROOT_ROOT}/.ssh/id_rsa";
-  cp "${id_rsa}.pub" "${_CHROOT_ROOT}/.ssh/id_rsa.pub";
-  chmod 600 "${_CHROOT_ROOT}/.ssh/id_rsa";
-  chmod 644 "${_CHROOT_ROOT}/.ssh/id_rsa.pub";
+  fi
+  
+  chmod 600 "${id_rsa}";
+  chmod 644 "${id_rsa}.pub";
+  echo_debug "copying keyfile ${id_rsa} to box's default user .ssh directory";
+  cp -p "${id_rsa}" "${_CHROOT_ROOT}/.ssh/id_rsa";
+  cp -p "${id_rsa}.pub" "${_CHROOT_ROOT}/.ssh/id_rsa.pub";
+
 }
 
 #puts the sshkey into your files directory for safe keeping
-#TODO Make more readable
-backup_and_use_sshkey(){
+backup_dropbear_key(){
   local temporary_keypath=${1};
   local temporary_keyname="${_FILE_DIR}"/"$(basename ${temporary_keypath})";
 
-  test -f "${temporary_keyname}" && {
+  #if theres a key in your files directory copy it into your chroot directory
+  # if there isn't, copy it from your chroot directory into your files directory
+  if [ -f "${temporary_keyname}" ]; then
     cp "${temporary_keyname}" "${temporary_keypath}";
     chmod 600 "${temporary_keypath}";
-    } || {
-    cp "${temporary_keypath}" "${temporary_keyname}";
-  }
+  elif
+    cp -p "${temporary_keypath}" "${temporary_keyname}";
+  fi
 }
 
 #calls mkfs for a given filesystem
@@ -423,7 +417,10 @@ rsync_local(){
 #TODO fix chroot being passed into everything, make it a global
 chroot_setup(){
   chroot_mount "$_CHROOT_ROOT"
-  chroot_update "$_CHROOT_ROOT"
+}
+
+chroot_update_apt_setup(){
+  chroot_update_apt "$_CHROOT_ROOT"
 }
 
 chroot_mkinitramfs_setup(){
@@ -438,7 +435,7 @@ disk_chroot_setup(){
   chroot_mount "${_DISK_CHROOT_ROOT}"
 }
 
-disk_chroot_mkinitramfs(){
+disk_chroot_mkinitramfs_setup(){
   chroot_mkinitramfs "${_DISK_CHROOT_ROOT}"
 }
 
@@ -446,8 +443,9 @@ disk_chroot_teardown(){
   chroot_umount "${_DISK_CHROOT_ROOT}";
 }
 
+#mount dev,sys,proc in chroot so they are available for apt 
 chroot_mount(){
-  local chroot_dir=$1
+  local chroot_dir="$1"
   echo_info_time"preparing chroot mount structure at '${chroot_dir}'."
   # mount binds
   
@@ -477,6 +475,7 @@ chroot_mount(){
   echo_info_time"prepared chroot mount structure at '${chroot_dir}'."
 }
 
+#unmount dev,sys,proc in chroot
 chroot_umount(){
   local chroot_dir="$1"
   echo_info_time"unmounting binds"
@@ -508,7 +507,7 @@ chroot_umount(){
 }
 
 #run apt update
-chroot_update(){
+chroot_update_apt(){
   #Force https on initial use of apt for the main kali repo
   local chroot_root="$1"
   sed -i 's|http:|https:|g' ${chroot_root}/etc/apt/sources.list;
@@ -541,8 +540,12 @@ chroot_package_install(){
 chroot_package_purge(){
   local chroot_dir=$1;
   shift;
-  echo_info_time"purging $@";
-  chroot_execute "${chroot_dir}" apt-get -qq -y purge $@ ;
+  PACKAGES="$@"
+  for package in $PACKAGES
+  do
+    echo_info_time"purging $package";
+    chroot_execute "${chroot_dir}" apt-get -qq -y purge $package 
+  done
   chroot_execute "${chroot_dir}" apt-get -qq -y autoremove ;
 }
 
@@ -550,8 +553,7 @@ chroot_execute(){
   local chroot_dir=$1;
   shift;
   chroot ${chroot_dir} "$@";
-  retVal=$?
-  if [ $retVal -ne 0 ]; then
+  if [ $? -ne 0 ]; then
       echo_error "Command in chroot failed"
       exit 1;
   fi
