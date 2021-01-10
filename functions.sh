@@ -35,12 +35,12 @@ trap_on_error() {
 # Runs on script exit, tidies up the mounts.
 trap_on_interrupt() {
   echo_error "script interrupted by user";
-  exit 1;
+  trap_on_exit
 }
 
 # Runs on script exit, tidies up the mounts.
 trap_on_exit() {
-  echo_info_time "checking if cleanup scripts need running";
+  echo_debug "checking if cleanup scripts need running";
   if (( $1 == 1 )); then 
     cleanup_image_prep; 
   fi
@@ -54,18 +54,20 @@ trap_on_exit() {
 cleanup_image_prep(){
   echo_info_time "$FUNCNAME";
   chroot_teardown;
-  umount  "${_BUILD_DIR}/mount" || true
-  umount  "${_BUILD_DIR}/boot" || true
+  umount "${_BUILD_DIR}/mount" || true
+  umount "${_BUILD_DIR}/boot" || true
   loopdev=$(losetup -a | grep $_EXTRACTED_IMAGE | cut -d':' -f 1);
-  umount $loopdev* || true;
-  losetup -d $loopdev  || true
+  if [ ! -z $loopdev ]; then
+    umount $loopdev* || true;
+    losetup -d $loopdev*  || true
+  fi
   rm -rf ${_BUILD_DIR}/mount || true
   rm -rf ${_BUILD_DIR}/boot || true
 }
 # Cleanup on exit
 cleanup_write_disk(){
   echo_info_time "$FUNCNAME";
-  chroot_umount "${_DISK_CHROOT_ROOT}" || true
+  disk_chroot_teardown;
   umount "${_BLOCK_DEVICE_BOOT}" || true
   cryptsetup -v luksClose "${_ENCRYPTED_VOLUME_PATH}" || true
   umount "${_ENCRYPTED_VOLUME_PATH}" || true
@@ -240,30 +242,6 @@ download_image(){
     exit;
   fi
   echo_info_time "valid Checksum"
-}
-
-#sets the locale (e.g. en_US, en_UK)
-locale_setup(){
-  echo_info_time "$FUNCNAME";
-  echo_debug "Uncommenting locale ${_LOCALE} for inclusion in generation"
-  sed -i 's/^# *\(en_US.UTF-8\)/\1/' "${_CHROOT_ROOT}/etc/locale.gen";
-
-  echo_debug "Updating /etc/default/locale";
-  echo "LANG=${_LOCALE}" >> "${_CHROOT_ROOT}/etc/default/locale";
-  read -r -d '' language_exports <<- EOT
-    export LANG="${_LOCALE}"
-    export LANGUAGE="${_LOCALE}"
-EOT
-  echo_warn "$language_exports";
-  chroot_package_install "${_CHROOT_ROOT}" locales
-
-  
-  echo_debug "Updating env variables";
-  chroot "${_CHROOT_ROOT}" /bin/bash -x "$language_exports"
-  echo $language_exports >> ${_CHROOT_ROOT}/.bashrc;
-
-  echo_debug "Generating locale"
-  chroot_execute "${_CHROOT_ROOT}" locale-gen
 }
 
 #sets up encryption settings in chroot
@@ -469,13 +447,12 @@ chroot_mount(){
     echo_error "mounting ${chroot_dir}/proc/";
     exit 1;
   fi
-  echo_info_time "prepared chroot mount structure at '${chroot_dir}'."
 }
 
 #unmount dev,sys,proc in chroot
 chroot_umount(){
   local chroot_dir="$1"
-  echo_info_time "unmounting binds"
+  echo_info_time "unmounted chroot mount structure at '${chroot_dir}'. For a clean mount, reboot your computer"
   
   #umount /dev /dev/pts  
   umount -R "${chroot_dir}/dev/"
@@ -495,7 +472,6 @@ chroot_umount(){
     echo_error "umounting ${chroot_dir}/proc/";
     exit 1;
   fi
-  echo_info_time "unmounted chroot mount structure at '${chroot_dir}'."
 }
 
 #run apt update

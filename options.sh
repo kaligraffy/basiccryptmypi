@@ -5,9 +5,33 @@
 # shellcheck disable=SC2068
 # shellcheck disable=SC2128
 set -eu
-export _SSH_SETUP='0';
-export _DNS_SETUP='0';
-export _NTPSEC_SETUP='0';
+export _UFW_SETUP='0';
+
+#sets the locale (e.g. en_US, en_UK)
+locale_setup(){
+  echo_info_time "$FUNCNAME";
+  echo_debug "Uncommenting locale ${_LOCALE} for inclusion in generation"
+  sed -i 's/^# *\(en_US.UTF-8\)/\1/' "${_CHROOT_ROOT}/etc/locale.gen";
+
+  echo_debug "Updating /etc/default/locale";
+  echo "LANG=${_LOCALE}" >> "${_CHROOT_ROOT}/etc/default/locale";
+
+  chroot_package_install "${_CHROOT_ROOT}" locales
+  
+  echo_debug "Updating env variables";
+  chroot "${_CHROOT_ROOT}" /bin/bash -x <<- EOT
+    export LANG="${_LOCALE}"
+    export LANGUAGE="${_LOCALE}"
+EOT
+
+  cat <<- EOT >> ${_CHROOT_ROOT}/.bashrc;
+    export LANG="${_LOCALE}"
+    export LANGUAGE="${_LOCALE}"
+EOT
+
+  echo_debug "Generating locale"
+  chroot_execute "${_CHROOT_ROOT}" locale-gen
+}
 
 #create wifi connection to a router/hotspot on boot
 initramfs_wifi_setup(){
@@ -220,15 +244,16 @@ ssh_setup(){
     PubkeyAuthentication yes
     AuthorizedKeysFile .ssh/authorized_keys
 EOT
-
-  #Used for firewall firewall_setup script
-  export _SSH_SETUP='1';
+  
+  #OPENS UP YOUR SSH PORT
+  if [ "${_UFW_SETUP}" = "1" ]; then
+    chroot_execute "$_CHROOT_ROOT" ufw allow in "${_SSH_PORT}/tcp";
+  fi
 }
 
 #sets cpu performance mode (useful for running off battery)
 cpu_governor_setup(){
   echo_info_time "$FUNCNAME";
-
   chroot_package_install "${_CHROOT_ROOT}" cpufrequtils;
   echo_warn "Use cpufreq-info/systemctl status cpufrequtils to confirm the changes when the device is running";
   echo "GOVERNOR=${_CPU_GOVERNOR}" | tee ${_CHROOT_ROOT}/etc/default/cpufrequtils;
@@ -278,42 +303,6 @@ vpn_client_setup(){
   chroot_execute "$_CHROOT_ROOT" systemctl enable openvpn@client.service
 }
 
-#installs a basic firewall
-#TODO fix logging so it doesn't log to syslog
-#TODO replace with a new nftables script for more granular control
-firewall_setup(){
-  echo_info_time "$FUNCNAME";
-
-  # Installing packages
-  chroot_package_install "$_CHROOT_ROOT" ufw;
-  chroot_execute "$_CHROOT_ROOT" ufw logging high;
-  chroot_execute "$_CHROOT_ROOT" ufw default deny outgoing;
-  chroot_execute "$_CHROOT_ROOT" ufw default deny incoming;
-  chroot_execute "$_CHROOT_ROOT" ufw default deny routed;
-  
-  chroot_execute "$_CHROOT_ROOT" ufw allow out 53/udp;
-  chroot_execute "$_CHROOT_ROOT" ufw allow out 80/tcp;
-  chroot_execute "$_CHROOT_ROOT" ufw allow out 443/tcp;
-  
-  #OPENS UP YOUR SSH PORT
-  if [ "${_SSH_SETUP}" = "1" ]; then
-    chroot_execute "$_CHROOT_ROOT" ufw allow in "${_SSH_PORT}/tcp";
-  fi
-  
-  #OPENS UP DNSOverTLS PORT
-  if [ "${_DNS_SETUP}" = "1" ]; then
-    chroot_execute "$_CHROOT_ROOT" ufw allow out 853/tcp;
-  fi
-  
-  #OPEN UP NTPSEC PORT
-  if [ "${_NTPSEC_SETUP}" = "1" ]; then
-    chroot_execute "$_CHROOT_ROOT" ufw allow out 123/tcp;
-  fi
-
-  chroot_execute "$_CHROOT_ROOT" ufw enable;
-  chroot_execute "$_CHROOT_ROOT" ufw status verbose;
-  echo_warn "Firewall setup complete, please review setup and amend as necessary";
-}
 
 #installs clamav and update/scanning daemons, updates to most recent definitions
 clamav_setup(){
@@ -365,7 +354,7 @@ docker_setup(){
   sed -i "s#rootwait#cgroup_enable=memory cgroup_memory=1 rootwait#g" ${_CHROOT_ROOT}/boot/cmdline.txt
   chroot_package_install "$_CHROOT_ROOT" docker.io
   chroot_execute "$_CHROOT_ROOT" systemctl enable docker
-  echo_debug " docker hook call completed"
+  echo_debug "docker installed";
 }
 
 #install and remove custom packages
@@ -406,7 +395,9 @@ ntpsec_setup(){
   sed -i "s|^pool 1.debian.pool.ntp.org iburst|#pool 1.debian.pool.ntp.org iburst|" "${_CHROOT_ROOT}/etc/ntpsec/ntp.conf"
   sed -i "s|^pool 2.debian.pool.ntp.org iburst|#pool 2.debian.pool.ntp.org iburst|" "${_CHROOT_ROOT}/etc/ntpsec/ntp.conf"
   sed -i "s|^pool 3.debian.pool.ntp.org iburst|#pool 3.debian.pool.ntp.org iburst|" "${_CHROOT_ROOT}/etc/ntpsec/ntp.conf"
-  export _NTPSEC_SETUP='1';
+  if [ "${_UFW_SETUP}" = "1" ]; then
+    chroot_execute "$_CHROOT_ROOT" ufw allow out 123/tcp;
+  fi
 }
 
 #config iodine
@@ -510,7 +501,7 @@ dns_setup(){
   sed -i "s|^#MulticastDNS=yes|MulticastDNS=no|" "${_DISK_CHROOT_ROOT}/etc/systemd/resolved.conf";
   sed -i "s|^#LLMNR=yes|LLMNR=no|" "${_DISK_CHROOT_ROOT}/etc/systemd/resolved.conf";
   
-  cat <<EOT > ${_DISK_CHROOT_ROOT}/etc/NetworkManager/conf.d/dns.conf
+  cat <<- EOT > ${_DISK_CHROOT_ROOT}/etc/NetworkManager/conf.d/dns.conf
   [main]
   dns=none
   systemd-resolved=false
@@ -523,6 +514,33 @@ EOT
   mv "${_DISK_CHROOT_ROOT}/etc/resolv.conf" "${_DISK_CHROOT_ROOT}/etc/resolv.conf.backup";
   chroot_execute "${_DISK_CHROOT_ROOT}" ln -s "/etc/systemd/resolved.conf" "/etc/resolv.conf";
   echo_debug "DNS configured - remember to keep your clock up to date (date -s XX:XX) or DNSSEC Certificate errors may occur";
-  export _DNS_SETUP='1';
+  if [ "${_UFW_SETUP}" = "1" ]; then
+    chroot_execute "$_CHROOT_ROOT" ufw allow out 853/tcp;
+    ufw=$(chroot_execute "$_CHROOT_ROOT" ufw status verbose)
+    echo_warn $($ufw | grep 853);
+  fi
   #needs: 853/tcp, doesn't need as we disable llmnr and mdns: 5353/udp,5355/udp
+}
+
+#installs a basic firewall
+#TODO fix logging so it doesn't log to syslog
+#TODO replace with a new nftables script for more granular control
+firewall_setup(){
+  echo_info_time "$FUNCNAME";
+
+  # Installing packages
+  chroot_package_install "$_CHROOT_ROOT" ufw;
+  chroot_execute "$_CHROOT_ROOT" ufw logging high;
+  chroot_execute "$_CHROOT_ROOT" ufw default deny outgoing;
+  chroot_execute "$_CHROOT_ROOT" ufw default deny incoming;
+  chroot_execute "$_CHROOT_ROOT" ufw default deny routed;
+  
+  chroot_execute "$_CHROOT_ROOT" ufw allow out 53/udp;
+  chroot_execute "$_CHROOT_ROOT" ufw allow out 80/tcp;
+  chroot_execute "$_CHROOT_ROOT" ufw allow out 443/tcp;
+  
+  chroot_execute "$_CHROOT_ROOT" ufw enable;
+  chroot_execute "$_CHROOT_ROOT" ufw status verbose;
+  echo_warn "Firewall setup complete, please review setup and amend as necessary";
+  export $_UFW_SETUP=1;
 }

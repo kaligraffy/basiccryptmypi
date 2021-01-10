@@ -23,6 +23,7 @@ main(){
     #Stage 1 - Unpack and modify the image
     trap 'trap_on_exit 1 0' EXIT;
     #useful when your build fails during one of the extra setups
+    cleanup_image_prep;
     if (( $rebuild != 2 )); then
       create_build_directory_structure;
       download_image;
@@ -33,7 +34,6 @@ main(){
     #TODO investigate move locale_setup, encryption_setup, extra_setup to stage 2 so any additional setup is applied directly to disk
     chroot_setup;
     chroot_update_apt_setup;
-    locale_setup;
     encryption_setup;
     extra_setup;
     chroot_mkinitramfs_setup;
@@ -42,6 +42,7 @@ main(){
   
   #Stage 2 - Write to physical disk
   trap 'trap_on_exit 1 1' EXIT;
+  cleanup_write_disk;
   fix_block_device_names;
   check_disk_is_correct;
   copy_to_disk;
