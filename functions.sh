@@ -40,7 +40,7 @@ trap_on_interrupt() {
 
 # Runs on script exit, tidies up the mounts.
 trap_on_exit() {
-  echo_info_time"checking if cleanup scripts need running";
+  echo_info_time "checking if cleanup scripts need running";
   if (( $1 == 1 )); then 
     cleanup_image_prep; 
   fi
@@ -53,10 +53,12 @@ trap_on_exit() {
 # Cleanup on exit
 cleanup_image_prep(){
   echo_info_time "$FUNCNAME";
+  chroot_teardown;
   umount  "${_BUILD_DIR}/mount" || true
   umount  "${_BUILD_DIR}/boot" || true
-  umount /dev/loop* || true;
-  losetup -d /dev/loop*  || true
+  loopdev=$(losetup -a | grep $_EXTRACTED_IMAGE | cut -d':' -f 1);
+  umount $loopdev* || true;
+  losetup -d $loopdev  || true
   rm -rf ${_BUILD_DIR}/mount || true
   rm -rf ${_BUILD_DIR}/boot || true
 }
@@ -162,11 +164,11 @@ extract_image() {
   trap 'rm $(echo $extracted_image); exit 1' ERR SIGINT;
   case ${image_path} in
     *.xz)
-        echo_info_time"extracting with xz";
+        echo_info_time "extracting with xz";
         pv ${image_path} | xz --decompress --stdout > "$extracted_image";
         ;;
     *.zip)
-        echo_info_time"extracting with unzip";
+        echo_info_time "extracting with unzip";
         unzip -p $image_path > "$extracted_image";
         ;;
     *)
@@ -182,7 +184,7 @@ extract_image() {
 mount_image_on_loopback(){
   echo_info_time "$FUNCNAME";
   local extracted_image="${_EXTRACTED_IMAGE}";
-  loopdev=$(losetup -P -f --show "$extracted_image");
+  loopdev=$(losetup -P -f --read-only --show "$extracted_image");
   partprobe ${loopdev};
   mount ${loopdev}p2 ${_BUILD_DIR}/mount;
   mount ${loopdev}p1 ${_BUILD_DIR}/boot;
@@ -231,13 +233,13 @@ download_image(){
   if [ -z ${_IMAGE_SHA256} ]; then
     return 0
   fi
-  echo_info_time"checksumming image"
+  echo_info_time "checksumming image"
   echo ${_IMAGE_SHA256}  $image_out_file | sha256sum --check --status
   if [ $? != '0' ]; then
     echo_error "invalid Checksum";
     exit;
   fi
-  echo_info_time"valid Checksum"
+  echo_info_time "valid Checksum"
 }
 
 #sets the locale (e.g. en_US, en_UK)
@@ -248,12 +250,13 @@ locale_setup(){
 
   echo_debug "Updating /etc/default/locale";
   echo "LANG=${_LOCALE}" >> "${_CHROOT_ROOT}/etc/default/locale";
-
-  chroot_package_install "${_CHROOT_ROOT}" locales
   read -r -d '' language_exports <<- EOT
     export LANG="${_LOCALE}"
     export LANGUAGE="${_LOCALE}"
 EOT
+  echo_warn "$language_exports";
+  chroot_package_install "${_CHROOT_ROOT}" locales
+
   
   echo_debug "Updating env variables";
   chroot "${_CHROOT_ROOT}" /bin/bash -x "$language_exports"
@@ -440,22 +443,22 @@ disk_chroot_teardown(){
 #mount dev,sys,proc in chroot so they are available for apt 
 chroot_mount(){
   local chroot_dir="$1"
-  echo_info_time"preparing chroot mount structure at '${chroot_dir}'."
+  echo_info_time "preparing chroot mount structure at '${chroot_dir}'."
   # mount binds
   
-  mount --bind /dev "${chroot_dir}/dev/";
+  mount -o bind /dev "${chroot_dir}/dev/";
   if [ $? -ne 0 ]; then
     echo_error "mounting ${chroot_dir}/dev/";
     exit 1;
   fi
   
-  mount --bind /dev/pts "${chroot_dir}/dev/pts";
+  mount -o bind /dev/pts "${chroot_dir}/dev/pts";
   if [ $? -ne 0 ]; then
     echo_error "mounting ${chroot_dir}/dev/pts";
     exit 1;
   fi
   
-  mount --bind /sys "${chroot_dir}/sys/";
+  mount -o bind /sys "${chroot_dir}/sys/";
   if [ $? -ne 0 ]; then
     echo_error "mounting ${chroot_dir}/sys/";
     exit 1;
@@ -466,21 +469,16 @@ chroot_mount(){
     echo_error "mounting ${chroot_dir}/proc/";
     exit 1;
   fi
-  echo_info_time"prepared chroot mount structure at '${chroot_dir}'."
+  echo_info_time "prepared chroot mount structure at '${chroot_dir}'."
 }
 
 #unmount dev,sys,proc in chroot
 chroot_umount(){
   local chroot_dir="$1"
-  echo_info_time"unmounting binds"
+  echo_info_time "unmounting binds"
   
-  umount "${chroot_dir}/dev/pts"
-  if [ $? -ne 0 ]; then
-    echo_error "umounting ${chroot_dir}/dev/";
-    exit 1;
-  fi
-  
-  umount "${chroot_dir}/dev/"
+  #umount /dev /dev/pts  
+  umount -R "${chroot_dir}/dev/"
   if [ $? -ne 0 ]; then
     echo_error "umounting ${chroot_dir}/dev/";
     exit 1;
@@ -497,7 +495,7 @@ chroot_umount(){
     echo_error "umounting ${chroot_dir}/proc/";
     exit 1;
   fi
-  echo_info_time"unmounted chroot mount structure at '${chroot_dir}'."
+  echo_info_time "unmounted chroot mount structure at '${chroot_dir}'."
 }
 
 #run apt update
@@ -524,7 +522,7 @@ chroot_package_install(){
   PACKAGES="$@"
   for package in $PACKAGES
   do
-    echo_info_time"installing $package";
+    echo_info_time "installing $package";
     chroot_execute "${chroot_dir}" apt-get -qq -y install $package 
   done
 }
@@ -537,7 +535,7 @@ chroot_package_purge(){
   PACKAGES="$@"
   for package in $PACKAGES
   do
-    echo_info_time"purging $package";
+    echo_info_time "purging $package";
     chroot_execute "${chroot_dir}" apt-get -qq -y purge $package 
   done
   chroot_execute "${chroot_dir}" apt-get -qq -y autoremove ;
@@ -571,18 +569,22 @@ chroot_mkinitramfs(){
   echo_debug "Cleaning up symbolic links";
   test -L "/dev/mmcblk0p1" && unlink "/dev/mmcblk0p1";
   test -L "/dev/mmcblk0p2" && unlink "/dev/mmcblk0p2";
+
 }
 
 ####PRINT FUNCTIONS####
 echo_error(){ 
   echo -e "${_COLOR_ERROR}ERROR: $*${_COLOR_NORMAL}";
-};
+}
+
 echo_warn(){ 
   echo -e "${_COLOR_WARN}WARNING: $@${_COLOR_NORMAL}";
-};
+}
+
 echo_info(){
   echo -e "${_COLOR_INFO}$@${_COLOR_NORMAL}";
-};
+}
+
 echo_debug(){
   if [ $_LOG_LEVEL -lt 1 ]; then
     echo -e "${_COLOR_DEBUG}$@${_COLOR_NORMAL}";
@@ -590,6 +592,7 @@ echo_debug(){
   #even if output is suppressed by log level output it to the log file
   echo "$@" >> "${_LOG_FILE}";
 }
+
 echo_info_time(){
-  echo_info_time"$(date '+%H:%M:%S'): $@";
+  echo_info "$(date '+%H:%M:%S'): $@";
 }

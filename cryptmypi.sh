@@ -16,7 +16,6 @@ main(){
   #Setup
   check_run_as_root;
   install_dependencies;
-  fix_block_device_names;
 
   #Check for a build directory
   local rebuild=$(check_build_dir_exists);
@@ -43,6 +42,7 @@ main(){
   
   #Stage 2 - Write to physical disk
   trap 'trap_on_exit 1 1' EXIT;
+  fix_block_device_names;
   check_disk_is_correct;
   copy_to_disk;
   disk_chroot_setup;
