@@ -240,36 +240,30 @@ download_image(){
   echo_info_time"valid Checksum"
 }
 
+#sets the locale (e.g. en_US, en_UK)
 locale_setup(){
   echo_info_time "$FUNCNAME";
   echo_debug "Uncommenting locale ${_LOCALE} for inclusion in generation"
-  sed -i 's/^# *\(en_US.UTF-8\)/\1/' "${_CHROOT_ROOT}"/etc/locale.gen
+  sed -i 's/^# *\(en_US.UTF-8\)/\1/' "${_CHROOT_ROOT}/etc/locale.gen";
 
-  echo_debug "Updating /etc/default/locale"
-  cat << EOF >> "${_CHROOT_ROOT}/etc/default/locale"
-  LANG="${_LOCALE}"
-EOF
+  echo_debug "Updating /etc/default/locale";
+  echo "LANG=${_LOCALE}" >> "${_CHROOT_ROOT}/etc/default/locale";
 
   chroot_package_install "${_CHROOT_ROOT}" locales
-
-  echo_debug "Updating env variables"
-  chroot "${_CHROOT_ROOT}" /bin/bash -x <<EOF
-  export LANG="${_LOCALE}"
-  export LANGUAGE="${_LOCALE}"
-EOF
+  read -r -d '' language_exports <<- EOT
+    export LANG="${_LOCALE}"
+    export LANGUAGE="${_LOCALE}"
+EOT
+  
+  echo_debug "Updating env variables";
+  chroot "${_CHROOT_ROOT}" /bin/bash -x "$language_exports"
+  echo $language_exports >> ${_CHROOT_ROOT}/.bashrc;
 
   echo_debug "Generating locale"
   chroot_execute "${_CHROOT_ROOT}" locale-gen
-
-  echo_debug "Updating .bashrc"
-  cat << EOF >> ${_CHROOT_ROOT}/.bashrc
-
-  # Setting locales
-  export LANG="${_LOCALE}"
-  export LANGUAGE="${_LOCALE}"
-EOF
 }
 
+#sets up encryption settings in chroot
 encryption_setup(){
   echo_info_time "$FUNCNAME";
   
@@ -386,7 +380,7 @@ backup_dropbear_key(){
   if [ -f "${temporary_keyname}" ]; then
     cp "${temporary_keyname}" "${temporary_keypath}";
     chmod 600 "${temporary_keypath}";
-  elif
+  else
     cp -p "${temporary_keypath}" "${temporary_keyname}";
   fi
 }
@@ -414,7 +408,7 @@ rsync_local(){
 }
 
 ####CHROOT FUNCTIONS####
-#TODO fix chroot being passed into everything, make it a global
+#TODO fix chroot being passed into everything, make it a global, and set it up disk_chroot when it's in stage 2
 chroot_setup(){
   chroot_mount "$_CHROOT_ROOT"
 }

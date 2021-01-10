@@ -57,14 +57,14 @@ initramfs_wifi_setup(){
   sed -i "#_INITRAMFS_WIFI_DRIVERS#${_INITRAMFS_WIFI_DRIVERS}#" "${_CHROOT_ROOT}/etc/initramfs-tools/hooks/enable_wireless";
  
   echo_debug "Creating wpa_supplicant file";
-  cat <<EOT > ${_CHROOT_ROOT}/etc/initramfs-tools/wpa_supplicant.conf
-ctrl_interface=/tmp/wpa_supplicant
-network={
+  cat <<- EOT > ${_CHROOT_ROOT}/etc/initramfs-tools/wpa_supplicant.conf
+    ctrl_interface=/tmp/wpa_supplicant
+    network={
         ssid="${_WIFI_SSID}"
         psk="${_WIFI_PSK}"
         scan_ssid=1
         key_mgmt=WPA-PSK
-}
+    }
 EOT
 
   # Adding modules to initramfs modules
@@ -88,28 +88,28 @@ wifi_setup(){
   _WIFI_PSK=$(wpa_passphrase "${_WIFI_SSID}" "${_WIFI_PASSWORD}" | grep "psk=" | grep -v "#psk")
 
   echo_debug "Creating wpa_supplicant file"
-  cat <<EOT > ${_CHROOT_ROOT}/etc/wpa_supplicant.conf
-ctrl_interface=/var/run/wpa_supplicant
-network={
-       ssid="${_WIFI_SSID}"
-       scan_ssid=1
-       proto=WPA RSN
-       key_mgmt=WPA-PSK
-       pairwise=CCMP TKIP
-       group=CCMP TKIP
-${_WIFI_PSK}
-}
+  cat <<- EOT > ${_CHROOT_ROOT}/etc/wpa_supplicant.conf
+    ctrl_interface=/var/run/wpa_supplicant
+    network={
+      ssid="${_WIFI_SSID}"
+      scan_ssid=1
+      proto=WPA RSN
+      key_mgmt=WPA-PSK
+      pairwise=CCMP TKIP
+      group=CCMP TKIP
+      ${_WIFI_PSK}
+    }
 EOT
 
   echo_debug "Updating /etc/network/interfaces file"
-  cat <<EOT >> ${_CHROOT_ROOT}/etc/network/interfaces
-# The buildin wireless interface
-auto ${_WIFI_INTERFACE}
-allow-hotplug ${_WIFI_INTERFACE}
-iface ${_WIFI_INTERFACE} inet dhcp
-wpa-conf /etc/wpa_supplicant.conf
-# pre-up wpa_supplicant -B -Dwext -i${_WIFI_INTERFACE} -c/etc/wpa_supplicant.conf
-# post-down killall -q wpa_supplicant
+  cat <<- EOT >> ${_CHROOT_ROOT}/etc/network/interfaces
+    # The buildin wireless interface
+    auto ${_WIFI_INTERFACE}
+    allow-hotplug ${_WIFI_INTERFACE}
+    iface ${_WIFI_INTERFACE} inet dhcp
+    wpa-conf /etc/wpa_supplicant.conf
+    # pre-up wpa_supplicant -B -Dwext -i${_WIFI_INTERFACE} -c/etc/wpa_supplicant.conf
+    # post-down killall -q wpa_supplicant
 EOT
 
   echo_debug "Create connection script /usr/local/bin/sys-wifi-connect.sh"
@@ -178,14 +178,14 @@ luks_nuke_setup(){
   if [ -n "${_LUKS_NUKE_PASSWORD}" ]; then
     echo_debug "Attempting to install and configure encrypted pi cryptsetup nuke password."
     chroot_package_install "${_CHROOT_ROOT}" cryptsetup-nuke-password
-    chroot ${_CHROOT_ROOT} /bin/bash -c "debconf-set-selections <<EOT
-cryptsetup-nuke-password cryptsetup-nuke-password/password string ${_LUKS_NUKE_PASSWORD}
-cryptsetup-nuke-password cryptsetup-nuke-password/password-again string ${_LUKS_NUKE_PASSWORD}
+    chroot ${_CHROOT_ROOT} /bin/bash -c "debconf-set-selections <<- EOT
+    cryptsetup-nuke-password cryptsetup-nuke-password/password string ${_LUKS_NUKE_PASSWORD}
+    cryptsetup-nuke-password cryptsetup-nuke-password/password-again string ${_LUKS_NUKE_PASSWORD}
 EOT
 "
   chroot_execute "$_CHROOT_ROOT" dpkg-reconfigure -f noninteractive cryptsetup-nuke-password
   else
-      echo_warn "SKIPPING Cryptsetup NUKE. Nuke password _LUKS_NUKE_PASSWORD not set."
+      echo_warn "Nuke password _LUKS_NUKE_PASSWORD not set. Skipping."
   fi
 }
 
@@ -196,10 +196,10 @@ ssh_setup(){
   sshd_config="${_CHROOT_ROOT}/etc/ssh/sshd_config"
   ssh_authorized_keys="${_CHROOT_ROOT}/.ssh/authorized_keys"
 
-  test -f "${_SSH_LOCAL_KEYFILE}" || {
-      echo_error "ERROR: Obligatory SSH keyfile '${_SSH_LOCAL_KEYFILE}' could not be found. "
-      exit 1
-  }
+  if [ ! -f "${_SSH_LOCAL_KEYFILE}" ]; then
+      echo_error "SSH keyfile '${_SSH_LOCAL_KEYFILE}' could not be found"
+      exit 1;
+  fi
 
   # Append our key to the default user's authorized_keys file
   echo_debug "Creating authorized_keys file"
@@ -208,21 +208,21 @@ ssh_setup(){
   chmod 600 "${ssh_authorized_keys}"
 
   # Creating box's default user own key
-  create_ssh_key
+  create_ssh_key;
 
   # Update sshd settings
   cp -p "${sshd_config}" "${sshd_config}.bak"
 
-  cat << EOF >> "${sshd_config}"
-  PasswordAuthentication $(echo $_SSH_PASSWORD_AUTHENTICATION)
-  Port $(echo $_SSH_PORT)
-  ChallengeResponseAuthentication no
-  PubkeyAuthentication yes
-  AuthorizedKeysFile .ssh/authorized_keys
-EOF
+  cat <<- EOT >> "${sshd_config}"
+    PasswordAuthentication $(echo $_SSH_PASSWORD_AUTHENTICATION)
+    Port $(echo $_SSH_PORT)
+    ChallengeResponseAuthentication no
+    PubkeyAuthentication yes
+    AuthorizedKeysFile .ssh/authorized_keys
+EOT
 
-#Used for firewall firewall_setup script
-export _SSH_SETUP='1';
+  #Used for firewall firewall_setup script
+  export _SSH_SETUP='1';
 }
 
 #sets cpu performance mode (useful for running off battery)
@@ -393,7 +393,7 @@ snapper_setup(){
   chroot_package_install "${_DISK_CHROOT_ROOT}" snapper 
   #chroot_execute "${_DISK_CHROOT_ROOT}" snapper create-config /
   #TODO Set sensible snapper configs for a limited space ssd
-  echo_warn "Remember to set reasonable snapper config";
+  echo_warn "Remember to set a reasonable snapper config";
 }
 
 #secure network time protocol configuration, also installs ntpdate client for manually pulling the time
@@ -501,7 +501,7 @@ random_mac_on_reboot_setup(){
 #credits: https://andrea.corbellini.name/2020/04/28/ubuntu-global-dns/
 dns_setup(){
   echo_info_time "$FUNCNAME";
- 
+  chroot_execute "$_DISK_CHROOT_ROOT" systemctl disable resolvconf                                                                                                            
   chroot_execute "$_DISK_CHROOT_ROOT" systemctl enable systemd-resolved
   sed -i "s|^#DNS=|DNS=${_DNS1}|" "${_DISK_CHROOT_ROOT}/etc/systemd/resolved.conf";
   sed -i "s|^#FallbackDNS=|FallbackDNS=${_DNS2}|" "${_DISK_CHROOT_ROOT}/etc/systemd/resolved.conf";
@@ -522,7 +522,7 @@ EOT
   #symlink
   mv "${_DISK_CHROOT_ROOT}/etc/resolv.conf" "${_DISK_CHROOT_ROOT}/etc/resolv.conf.backup";
   chroot_execute "${_DISK_CHROOT_ROOT}" ln -s "/etc/systemd/resolved.conf" "/etc/resolv.conf";
-  echo_debug "DNS configured - remember to keep your clock up to date or DNSSEC Certificate errors may occur";
+  echo_debug "DNS configured - remember to keep your clock up to date (date -s XX:XX) or DNSSEC Certificate errors may occur";
   export _DNS_SETUP='1';
   #needs: 853/tcp, doesn't need as we disable llmnr and mdns: 5353/udp,5355/udp
 }

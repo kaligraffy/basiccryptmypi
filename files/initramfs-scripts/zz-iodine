@@ -9,7 +9,7 @@ copy_exec "/usr/sbin/iodine"
 manual_add_modules tun
 
 #Generate Script that runs in initramfs
-cat > ${DESTDIR}/start_iodine << 'EOF'
+cat > ${DESTDIR}/start_iodine << 'EOT'
 #!/bin/sh
 
 echo "Starting Iodine"
@@ -29,7 +29,7 @@ while true; do
     counter=$((counter+1))
     sleep 60
 done;
-EOF
+EOT
 chmod 755 ${DESTDIR}/start_iodine
 
 exit 0
