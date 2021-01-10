@@ -378,7 +378,7 @@ backup_dropbear_key(){
   #if theres a key in your files directory copy it into your chroot directory
   # if there isn't, copy it from your chroot directory into your files directory
   if [ -f "${temporary_keyname}" ]; then
-    cp "${temporary_keyname}" "${temporary_keypath}";
+    cp -p "${temporary_keyname}" "${temporary_keypath}";
     chmod 600 "${temporary_keypath}";
   else
     cp -p "${temporary_keypath}" "${temporary_keyname}";

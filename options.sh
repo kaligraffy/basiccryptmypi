@@ -128,12 +128,12 @@ boot_hash_setup(){
   #install mail package
   chroot_package_install "${_CHROOT_ROOT}" mailutils
 
-  BOOTHASHSCRIPT="${_CHROOT_ROOT}/usr/local/bin/boothash.sh";
-  echo_debug "Creating script boothash.sh in ${_CHROOT_ROOT}/usr/local/bin";
-  cp -p "${_FILE_DIR}/boot-hash/boothash.sh" "$BOOTHASHSCRIPT";
-  sed -i "s|/dev/sdX|${_BOOT_HASH_BLOCK_DEVICE}|g" "$BOOTHASHSCRIPT";
+  SCRIPT="${_CHROOT_ROOT}/usr/local/bin/boot_hash.sh";
+  echo_debug "Creating script boot_hash.sh in ${_CHROOT_ROOT}/usr/local/bin";
+  cp -p "${_FILE_DIR}/boot-hash/boot_hash.sh" "$SCRIPT";
+  sed -i "s|/dev/sdX|${_BOOT_HASH_BLOCK_DEVICE}|g" "$SCRIPT";
   #crontab run on startup
-  echo "@reboot root /bin/bash /usr/local/bin/boothash.sh" > "${_CHROOT_ROOT}/etc/cron.d/start_boot_hash"
+  echo "@reboot root /bin/bash /usr/local/bin/boot_hash.sh" > "${_CHROOT_ROOT}/etc/cron.d/start_boot_hash"
   chmod 755 "${_CHROOT_ROOT}/etc/cron.d/start_boot_hash";
 }
 
