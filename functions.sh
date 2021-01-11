@@ -73,6 +73,7 @@ cleanup_loop_device(){
 
 #check if theres a build directory already
 check_build_dir_exists(){
+  echo_info "$FUNCNAME";
   if [ "${_NO_PROMPTS}" -eq 1 ] ; then
     echo '1';
     return;
@@ -194,7 +195,8 @@ copy_extracted_image_to_chroot_dir(){
 #prompts to check disk is correct before writing out to disk, 
 #if no prompts is set, it skips the check
 check_disk_is_correct(){
-  if [ "${_NO_PROMPTS}" != "1" ]; then
+  echo_info "$FUNCNAME";
+  if [ "${_NO_PROMPTS}" -eq 0 ]; then
         local continue
         echo_info "$(lsblk)";
         echo_warn "CHECK THE DISK IS CORRECT";
@@ -321,6 +323,7 @@ copy_to_disk(){
 
 #gets from local filesystem or generates a ssh key and puts it on the build 
 create_ssh_key(){
+  echo_info "$FUNCNAME";
   local id_rsa="${_FILE_DIR}/id_rsa";
   
   if [ ! -f "${id_rsa}" ]; then 
@@ -338,6 +341,7 @@ create_ssh_key(){
 
 #puts the sshkey into your files directory for safe keeping
 backup_dropbear_key(){
+  echo_info "$FUNCNAME";
   local temporary_keypath=${1};
   local temporary_keyname="${_FILE_DIR}"/"$(basename ${temporary_keypath})";
 
@@ -354,6 +358,7 @@ backup_dropbear_key(){
 #calls mkfs for a given filesystem
 # arguments: a filesystem type, e.g. btrfs, ext4 and a device
 make_filesystem(){
+  echo_info "$FUNCNAME";
   local fs_type=$1
   local device=$2
   case $fs_type in
@@ -367,6 +372,7 @@ make_filesystem(){
 #rsync for local copy
 #arguments $1 - to $2 - from
 rsync_local(){
+  echo_info "$FUNCNAME";
   echo_info "starting copy of ${@}";
   if rsync --hard-links --archive --partial --info=progress2 "${@}"; then
     echo_info "finished copy of ${@}";
@@ -411,7 +417,7 @@ disk_chroot_teardown(){
 #mount dev,sys,proc in chroot so they are available for apt 
 chroot_mount(){
   local chroot_dir="$1"
-  echo_info "preparing chroot mount structure at '${chroot_dir}'."
+  echo_info "$FUNCNAME";
   # mount binds
   
   mount -o bind /dev "${chroot_dir}/dev/";
@@ -442,7 +448,7 @@ chroot_mount(){
 #unmount dev,sys,proc in chroot
 chroot_umount(){
   local chroot_dir="$1"
-  echo_info "unmounting chroot mount structure at '${chroot_dir}'";
+  echo_info "$FUNCNAME";
   
   #umount /dev /dev/pts  
   if umount -R "${chroot_dir}/dev/"; then
@@ -467,6 +473,7 @@ chroot_umount(){
 #run apt update
 chroot_update_apt(){
   #Force https on initial use of apt for the main kali repo
+  echo_info "$FUNCNAME";
   local chroot_root="$1"
   sed -i 's|http:|https:|g' ${chroot_root}/etc/apt/sources.list;
 
@@ -519,7 +526,7 @@ chroot_execute(){
 
 chroot_mkinitramfs(){
   local chroot_dir="$1"
-  echo_debug "building new initramfs (CHROOT is ${chroot_dir})";
+  echo_info "$FUNCNAME";
 
   #Point crypttab to the current physical device during mkinitramfs
   echo_debug "creating symbolic links from current physical device to crypttab device (if not using sd card mmcblk0p)";

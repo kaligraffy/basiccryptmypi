@@ -276,7 +276,7 @@ vpn_client_setup(){
   chroot_package_install "$_CHROOT_ROOT" openvpn
   mkdir -p ${_CHROOT_ROOT}/etc/openvpn
 
-  echo_debug "Unzipping provided files into configuraiton dir"
+  echo_debug "Unzipping provided files into configuration dir"
   unzip ${_OPENVPN_CONFIG_ZIPPATH} -d ${_CHROOT_ROOT}/etc/openvpn/
 
   echo_debug "Setting AUTOSTART to ALL on OPENVPN config"
@@ -486,9 +486,9 @@ dns_setup(){
   sed -i "s|^#LLMNR=yes|LLMNR=no|" "${_DISK_CHROOT_ROOT}/etc/systemd/resolved.conf";
   
   cat <<- EOT > ${_DISK_CHROOT_ROOT}/etc/NetworkManager/conf.d/dns.conf
-  [main]
-  dns=none
-  systemd-resolved=false
+    [main]
+    dns=none
+    systemd-resolved=false
 EOT
 
   #add resolved dns to top of /etc/systemd/resolved.conf for use with NetworkManager:
@@ -531,9 +531,9 @@ firewall_setup(){
 #chkboot setup detects boot changes on startup
 chkboot_setup()
 {
-    chroot_package_install "$_CHROOT_ROOT" chkboot;
-    sed -i "s#BOOTDISK=/dev/sda#BOOTDISK=${_CHKBOOT_BOOTDISK}#" "${_CHROOT_ROOT}/etc/default/chkboot";
-    sed -i "s#BOOTPART=/dev/sda1#BOOTPART=${_CHKBOOT_BOOTPART}#" "${_CHROOT_ROOT}/etc/default/chkboot";
-    chroot_execute "$_CHROOT_ROOT" systemctl enable chkboot
-
+  echo_info "$FUNCNAME";
+  chroot_package_install "$_CHROOT_ROOT" chkboot;
+  sed -i "s#BOOTDISK=/dev/sda#BOOTDISK=${_CHKBOOT_BOOTDISK}#" "${_CHROOT_ROOT}/etc/default/chkboot";
+  sed -i "s#BOOTPART=/dev/sda1#BOOTPART=${_CHKBOOT_BOOTPART}#" "${_CHROOT_ROOT}/etc/default/chkboot";
+  chroot_execute "$_CHROOT_ROOT" systemctl enable chkboot
 }
