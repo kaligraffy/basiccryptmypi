@@ -24,7 +24,7 @@ Testing is 'ad hoc' and only for the RPI4. Oher kernels might work if set in env
 
 ISSUES
 
-Mounts don't get cleaned up properly, if this is the case run: losetup -D; umount /dev/loop/*;
+Mounts don't get cleaned up properly sometimes.
 
 HOW DOES IT WORK
 
