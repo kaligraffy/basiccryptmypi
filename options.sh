@@ -14,7 +14,7 @@ locale_setup(){
   sed -i 's/^# *\(en_US.UTF-8\)/\1/' "${_CHROOT_ROOT}/etc/locale.gen";
 
   echo_debug "Updating /etc/default/locale";
-  echo "LANG=${_LOCALE}" >> "${_CHROOT_ROOT}/etc/default/locale";
+  atomic_append "LANG=${_LOCALE}" "${_CHROOT_ROOT}/etc/default/locale";
 
   chroot_package_install "${_CHROOT_ROOT}" locales
   
@@ -24,10 +24,8 @@ locale_setup(){
     export LANGUAGE="${_LOCALE}"
 EOT
 
-  cat <<- EOT >> ${_CHROOT_ROOT}/.bashrc;
-    export LANG="${_LOCALE}"
-    export LANGUAGE="${_LOCALE}"
-EOT
+  atomic_append "export LANG=${_LOCALE}" "${_CHROOT_ROOT}/.bashrc"
+  atomic_append "export LANGUAGE=${_LOCALE}"  "${_CHROOT_ROOT}/.bashrc"
 
   echo_debug "Generating locale"
   chroot_execute "${_CHROOT_ROOT}" locale-gen
@@ -93,7 +91,7 @@ EOT
 
   # Adding modules to initramfs modules
   for driver in ${_INITRAMFS_WIFI_DRIVERS}; do
-    echo ${driver} >> "${_CHROOT_ROOT}/etc/initramfs-tools/modules"
+    atomic_append "${driver}" "${_CHROOT_ROOT}/etc/initramfs-tools/modules"
   done
   echo_debug "initramfs wifi completed";
 }
@@ -126,8 +124,10 @@ wifi_setup(){
 EOT
 
   echo_debug "Updating /etc/network/interfaces file"
-  cat <<- EOT >> ${_CHROOT_ROOT}/etc/network/interfaces
-    # The buildin wireless interface
+  grep -w "# The wifi interface" "${_CHROOT_ROOT}/etc/network/interfaces"
+  if [ $? != 0 ]; then
+    cat <<- EOT >> "${_CHROOT_ROOT}/etc/network/interfaces"
+    # The wifi interface
     auto ${_WIFI_INTERFACE}
     allow-hotplug ${_WIFI_INTERFACE}
     iface ${_WIFI_INTERFACE} inet dhcp
@@ -135,7 +135,8 @@ EOT
     # pre-up wpa_supplicant -B -Dwext -i${_WIFI_INTERFACE} -c/etc/wpa_supplicant.conf
     # post-down killall -q wpa_supplicant
 EOT
-
+  fi
+  
   echo_debug "Create connection script /usr/local/bin/sys-wifi-connect.sh"
   cp -p "${_FILE_DIR}/wifi-scripts/sys-wifi-connect.sh" "${_CHROOT_ROOT}/usr/local/bin/sys-wifi-connect.sh"
   sed -i "s|_WIFI_INTERFACE|${_WIFI_INTERFACE}|" "${_CHROOT_ROOT}/usr/local/bin/sys-wifi-connect.sh";
@@ -163,10 +164,11 @@ dropbear_setup(){
   # Installing packages
   chroot_package_install "$_CHROOT_ROOT" dropbear dropbear-initramfs cryptsetup-initramfs
 
-  echo "DROPBEAR_OPTIONS='-p $_SSH_PORT -RFEjk -c /bin/cryptroot-unlock'" >> ${_CHROOT_ROOT}/etc/dropbear-initramfs/config;
+  atomic_append "DROPBEAR_OPTIONS='-p $_SSH_PORT -RFEjk -c /bin/cryptroot-unlock'" "${_CHROOT_ROOT}/etc/dropbear-initramfs/config";
 
   # Now append our key to dropbear authorized_keys file
-  cat "${_SSH_LOCAL_KEYFILE}.pub" >> ${_CHROOT_ROOT}/etc/dropbear-initramfs/authorized_keys;
+  #TODO NONATOMIC fix when testing headless setup
+  cat "${_SSH_LOCAL_KEYFILE}.pub" >> "${_CHROOT_ROOT}/etc/dropbear-initramfs/authorized_keys";
   chmod 600 ${_CHROOT_ROOT}/etc/dropbear-initramfs/authorized_keys;
 
   # Update dropbear for some sleep in initramfs
@@ -220,14 +222,17 @@ ssh_setup(){
 
   # Update sshd settings
   cp -p "${sshd_config}" "${sshd_config}.bak"
-
+  grep -w "#New SSH Config" "${sshd_config}"
+  if [ $? != 0 ]; then
   cat <<- EOT >> "${sshd_config}"
+    #New SSH Config
     PasswordAuthentication $(echo $_SSH_PASSWORD_AUTHENTICATION)
     Port $(echo $_SSH_PORT)
     ChallengeResponseAuthentication no
     PubkeyAuthentication yes
     AuthorizedKeysFile .ssh/authorized_keys
 EOT
+  fi
   
   #OPENS UP YOUR SSH PORT
   if (( $_UFW_SETUP == 1 )) ; then

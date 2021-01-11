@@ -238,7 +238,7 @@ encryption_setup(){
       echo_debug "- Setting up btrfs-progs in chroot"
       chroot_package_install "${_CHROOT_ROOT}" btrfs-progs
       echo_debug "- Adding btrfs module to initramfs-tools/modules"
-      echo 'btrfs' >> ${_CHROOT_ROOT}/etc/initramfs-tools/modules
+      atomic_append "btrfs" "${_CHROOT_ROOT}/etc/initramfs-tools/modules";
   fi
 
   chroot_package_install "${_CHROOT_ROOT}" cryptsetup busybox
@@ -247,8 +247,7 @@ encryption_setup(){
   chroot ${_CHROOT_ROOT} /bin/bash -c "test -L /sbin/fsck.luks || ln -s /sbin/e2fsck /sbin/fsck.luks"
 
   # Indicate kernel to use initramfs (facilitates loading drivers)
-  #TODO Make atomic so it doesn't get put in twice on partial build
-  echo "initramfs initramfs.gz followkernel" >> ${_CHROOT_ROOT}/boot/config.txt
+  atomic_append "initramfs initramfs.gz followkernel" "${_CHROOT_ROOT}/boot/config.txt";
   
   # Update /boot/cmdline.txt to boot crypt
   sed -i "s|root=/dev/mmcblk0p2|root=${_ENCRYPTED_VOLUME_PATH} cryptdevice=/dev/mmcblk0p2:$(basename ${_ENCRYPTED_VOLUME_PATH})|g" ${_CHROOT_ROOT}/boot/cmdline.txt
@@ -256,15 +255,16 @@ encryption_setup(){
   
   # Makes sure journalling is on, needed to use btrfs also
   sed -i "s|rootflags=noload|""|g" ${_CHROOT_ROOT}/boot/cmdline.txt
+  
   # Enable cryptsetup when building initramfs
-  echo "CRYPTSETUP=y" >> ${_CHROOT_ROOT}/etc/cryptsetup-initramfs/conf-hook
-
+  atomic_append "CRYPTSETUP=y" "${_CHROOT_ROOT}/etc/cryptsetup-initramfs/conf-hook"  
+  
   # Update /etc/fstab
   sed -i "s|/dev/mmcblk0p2|${_ENCRYPTED_VOLUME_PATH}|g" ${_CHROOT_ROOT}/etc/fstab
   sed -i "s#ext3#${fs_type}#g" ${_CHROOT_ROOT}/etc/fstab
 
   # Update /etc/crypttab
-  echo "$(basename ${_ENCRYPTED_VOLUME_PATH})    /dev/mmcblk0p2    none    luks" > ${_CHROOT_ROOT}/etc/crypttab
+  atomic_append "$(basename ${_ENCRYPTED_VOLUME_PATH})    /dev/mmcblk0p2    none    luks" "${_CHROOT_ROOT}/etc/crypttab"
 
   # Create a hook to include our crypttab in the initramfs
   cp -p "${_FILE_DIR}/initramfs-scripts/zz-cryptsetup" "${_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-cryptsetup";
@@ -274,8 +274,8 @@ encryption_setup(){
   sed -i "s#ENCRYPTED_VOLUME_PATH#${_ENCRYPTED_VOLUME_PATH}#" "${_CHROOT_ROOT}/etc/initramfs-tools/unlock.sh";
 
   # Adding dm_mod to initramfs modules
-  echo 'dm_crypt' >> ${_CHROOT_ROOT}/etc/initramfs-tools/modules;
-
+  atomic_append "dm_crypt" "${_CHROOT_ROOT}/etc/initramfs-tools/modules";
+  
   # Disable autoresize
   chroot_execute "${_CHROOT_ROOT}" systemctl disable rpi-resizerootfs.service
 }
@@ -388,6 +388,7 @@ rsync_local(){
 ####CHROOT FUNCTIONS####
 #TODO fix chroot being passed into everything, make it a global, and set it up disk_chroot when it's in stage 2
 chroot_setup(){
+  cp /usr/bin/qemu-aarch64-static ${_BUILD_DIR}/root/usr/bin/
   chroot_mount "$_CHROOT_ROOT"
 }
 
@@ -576,4 +577,14 @@ echo_debug(){
   fi
   #even if output is suppressed by log level output it to the log file
   echo "$(date '+%H:%M:%S'): $@" >> "${_LOG_FILE}";
+}
+
+#####HELPER FUNCTIONS#####
+#appends config to a file after checking if it's already in the file
+#$1 the config value $2 the filename
+atomic_append(){
+  grep -w "$1" "$2"
+  if [ $? != 0 ]; then
+    echo "$1" >> "$2";
+  fi
 }
