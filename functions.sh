@@ -21,61 +21,53 @@ export _COLOR_DEBUG='\033[0;37m' #grey
 export _COLOR_NORMAL='\033[0m' # No Color
 export _LOG_FILE="${_BASE_DIR}/build-$(date '+%Y-%m-%d-%H:%M:%S').log"
 
-trap 'trap_on_error $LINENO' ERR;
-trap 'trap_on_interrupt' SIGINT;
-
-#TODO temporarily set dns in chroot resolv.conf, to force it to use that during updates/package installs
-
 # Runs on script exit, tidies up the mounts.
-trap_on_error() {
-  echo_error "error on line $1";
-  exit 1;
-}
-
-# Runs on script exit, tidies up the mounts.
-trap_on_interrupt() {
-  echo_error "script interrupted by user";
-  trap_on_exit
-}
-
-# Runs on script exit, tidies up the mounts.
-trap_on_exit() {
-  echo_debug "checking if cleanup scripts need running";
+trap_on_exit(){
+  echo_info "Running trap on exit";
   if (( $1 == 1 )); then 
     cleanup_image_prep; 
   fi
   if (( $2 == 1 )); then 
     cleanup_write_disk; 
   fi
-  echo_info_time "$(basename $0) finished";
+  echo_info "$(basename $0) finished";
 }
 
-# Cleanup on exit
+# Cleanup stage 1
 cleanup_image_prep(){
-  echo_info_time "$FUNCNAME";
+  echo_info "$FUNCNAME";
   chroot_teardown;
-  umount "${_BUILD_DIR}/mount" || true
-  umount "${_BUILD_DIR}/boot" || true
-  loopdev=$(losetup -a | grep $_EXTRACTED_IMAGE | cut -d':' -f 1);
-  if [ ! -z $loopdev ]; then
-    umount $loopdev* || true;
-    losetup -d $loopdev*  || true
-  fi
-  rm -rf ${_BUILD_DIR}/mount || true
-  rm -rf ${_BUILD_DIR}/boot || true
+  umount "${_BUILD_DIR}/mount" || true;
+  umount "${_BUILD_DIR}/boot" || true;
+  cleanup_loop_device;
+  rm -rf ${_BUILD_DIR}/mount || true;
+  rm -rf ${_BUILD_DIR}/boot || true;
 }
-# Cleanup on exit
+
+# Cleanup stage 2
 cleanup_write_disk(){
-  echo_info_time "$FUNCNAME";
+  echo_info "$FUNCNAME";
   disk_chroot_teardown;
   umount "${_BLOCK_DEVICE_BOOT}" || true
   cryptsetup -v luksClose "${_ENCRYPTED_VOLUME_PATH}" || true
   umount "${_ENCRYPTED_VOLUME_PATH}" || true
   umount "${_BLOCK_DEVICE_ROOT}" || true
   umount "${_OUTPUT_BLOCK_DEVICE}" || true
-  umount "${_DISK_CHROOT_ROOT}" 
-  if [ $? == 0 ]; then 
+  if umount "${_DISK_CHROOT_ROOT}"; then 
     rm -rf "${_DISK_CHROOT_ROOT}" || true;
+  fi
+}
+
+#auxiliary method for detaching loopdevice in cleanup method 
+cleanup_loop_device(){
+  loopdev=$(losetup -a | grep $_EXTRACTED_IMAGE | cut -d':' -f 1);
+  if [ ! -z ${loopdev} ]; then
+    umount ${loopdev}p1 || true;
+    umount ${loopdev}p2 || true;
+    umount ${loopdev} || true;
+    losetup -d "${loopdev}p1" || true;
+    losetup -d "${loopdev}p2" || true;
+    losetup -d "${loopdev}" || true;
   fi
 }
 
@@ -103,7 +95,7 @@ check_build_dir_exists(){
 
 #checks if script was run with root
 check_run_as_root(){
-  echo_info_time "$FUNCNAME";
+  echo_info "$FUNCNAME";
   if (( $EUID != 0 )); then
     echo_error "This script must be run as root/sudo";
     exit 1;
@@ -113,7 +105,7 @@ check_run_as_root(){
 #Fix for using mmcblk0pX devices, adds a p used later on
 fix_block_device_names(){
   # check device exists/folder exists
-  echo_info_time "$FUNCNAME";
+  echo_info "$FUNCNAME";
   if [ ! -b "${_OUTPUT_BLOCK_DEVICE}" ] || [ -z "${_OUTPUT_BLOCK_DEVICE+x}" ] || [ -z "${_OUTPUT_BLOCK_DEVICE}"  ]; then
     echo_error "No Output Block Device Set";
     exit;
@@ -131,7 +123,7 @@ fix_block_device_names(){
 }
 
 create_build_directory_structure(){
-  echo_info_time "$FUNCNAME";
+  echo_info "$FUNCNAME";
   #deletes only build directory first if it exists
   rm -rf "${_BUILD_DIR}" || true ;
   mkdir "${_BUILD_DIR}"; 
@@ -142,7 +134,7 @@ create_build_directory_structure(){
 
 #extracts the image so it can be mounted
 extract_image() {
-  echo_info_time "$FUNCNAME";
+  echo_info "$FUNCNAME";
 
   local image_name="$(basename ${_IMAGE_URL})";
   local image_path="${_FILE_DIR}/${image_name}";
@@ -161,16 +153,16 @@ extract_image() {
     fi
   fi
 
-  echo_info_time "starting extract";
+  echo_info "starting extract";
   #If theres a problem extracting, delete the partially extracted file and exit
   trap 'rm $(echo $extracted_image); exit 1' ERR SIGINT;
   case ${image_path} in
     *.xz)
-        echo_info_time "extracting with xz";
+        echo_info "extracting with xz";
         pv ${image_path} | xz --decompress --stdout > "$extracted_image";
         ;;
     *.zip)
-        echo_info_time "extracting with unzip";
+        echo_info "extracting with unzip";
         unzip -p $image_path > "$extracted_image";
         ;;
     *)
@@ -179,12 +171,12 @@ extract_image() {
         ;;
   esac
   trap - ERR SIGINT;
-  echo_info_time "finished extract";
+  echo_info "finished extract";
 }
 
 #mounts the extracted image via losetup
 mount_image_on_loopback(){
-  echo_info_time "$FUNCNAME";
+  echo_info "$FUNCNAME";
   local extracted_image="${_EXTRACTED_IMAGE}";
   loopdev=$(losetup -P -f --read-only --show "$extracted_image");
   partprobe ${loopdev};
@@ -194,18 +186,9 @@ mount_image_on_loopback(){
 
 #rsyncs the mounted image to a new folder
 copy_extracted_image_to_chroot_dir(){
-  echo_info_time "$FUNCNAME";
-
+  echo_info "$FUNCNAME";
   rsync_local "${_BUILD_DIR}/boot" "${_CHROOT_ROOT}/"
-  if [ ! -e  "${_CHROOT_ROOT}/boot" ]; then
-    echo_error 'rsync has failed'
-    exit 1;
-  fi
   rsync_local "${_BUILD_DIR}/mount/"* "${_CHROOT_ROOT}"
-  if [ ! -e  "${_CHROOT_ROOT}/var" ]; then
-    echo_error 'rsync has failed'
-    exit 1;
-  fi
 }
 
 #prompts to check disk is correct before writing out to disk, 
@@ -213,9 +196,8 @@ copy_extracted_image_to_chroot_dir(){
 check_disk_is_correct(){
   if [ "${_NO_PROMPTS}" != "1" ]; then
         local continue
-        echo_warn "CHECK DISK IS CORRECT"
-        echo_info_time "$(lsblk)"
-        echo_info_time ""
+        echo_info "$(lsblk)";
+        echo_warn "CHECK THE DISK IS CORRECT";
         read -p "Type 'YES' if the selected device is correct:  ${_OUTPUT_BLOCK_DEVICE}  " continue
         if [ "${continue}" != 'YES' ] ; then
             exit 0
@@ -225,28 +207,26 @@ check_disk_is_correct(){
 
 #Download an image file to the file directory
 download_image(){
-  echo_info_time "$FUNCNAME";
+  echo_info "$FUNCNAME";
 
   local image_name=$(basename ${_IMAGE_URL})
   local image_out_file=${_FILE_DIR}/${image_name}
-  echo_info_time "starting download"
   wget -nc "${_IMAGE_URL}" -O "${image_out_file}" || true
-  echo_info_time "completed download"
   if [ -z ${_IMAGE_SHA256} ]; then
     return 0
   fi
-  echo_info_time "checksumming image"
+  echo_info "checksumming image";
   echo ${_IMAGE_SHA256}  $image_out_file | sha256sum --check --status
   if [ $? != '0' ]; then
-    echo_error "invalid Checksum";
+    echo_error "invalid checksum";
     exit;
   fi
-  echo_info_time "valid Checksum"
+  echo_info "valid checksum";
 }
 
 #sets up encryption settings in chroot
 encryption_setup(){
-  echo_info_time "$FUNCNAME";
+  echo_info "$FUNCNAME";
   
   # Check if btrfs is the file system, if so install required packages
   fs_type="${_FILESYSTEM_TYPE}"
@@ -299,7 +279,7 @@ encryption_setup(){
 
 # Encrypt & Write SD
 copy_to_disk(){  
-  echo_info_time "$FUNCNAME";
+  echo_info "$FUNCNAME";
 
   fs_type=$_FILESYSTEM_TYPE;
   
@@ -319,12 +299,17 @@ copy_to_disk(){
 
   # Mount LUKS
   echo_debug "Mounting ${_ENCRYPTED_VOLUME_PATH} to ${_DISK_CHROOT_ROOT}"
-  mkdir ${_DISK_CHROOT_ROOT}
+  if [ ! -d ${_DISK_CHROOT_ROOT} ]; then 
+    mkdir ${_DISK_CHROOT_ROOT};
+  fi
   mount ${_ENCRYPTED_VOLUME_PATH} ${_DISK_CHROOT_ROOT} && echo_debug "- Mounted ${_ENCRYPTED_VOLUME_PATH} to ${_DISK_CHROOT_ROOT}"
 
   # Mount boot partition
   echo_debug "Attempting to mount ${_BLOCK_DEVICE_BOOT} to ${_DISK_CHROOT_ROOT}/boot "
-  mkdir ${_DISK_CHROOT_ROOT}/boot
+  
+  if [ ! -d "${_DISK_CHROOT_ROOT}/boot" ]; then 
+    mkdir "${_DISK_CHROOT_ROOT}/boot";
+  fi
   mount ${_BLOCK_DEVICE_BOOT} ${_DISK_CHROOT_ROOT}/boot && echo_debug "- Mounted ${_BLOCK_DEVICE_BOOT} to ${_DISK_CHROOT_ROOT}/boot"
 
   # Attempt to copy files from build to mounted device
@@ -382,10 +367,15 @@ make_filesystem(){
 #rsync for local copy
 #arguments $1 - to $2 - from
 rsync_local(){
-  echo_info_time "starting copy of ${@}";
-  rsync --hard-links  --archive --partial --info=progress2 "${@}"
-  echo_info_time "finished copy of ${@}";
-  sync;
+  echo_info "starting copy of ${@}";
+  if rsync --hard-links --archive --partial --info=progress2 "${@}"; then
+    echo_info "finished copy of ${@}";
+    sync;
+  else
+    echo_error 'rsync has failed';
+    exit 1;
+  fi
+  
 }
 
 ####CHROOT FUNCTIONS####
@@ -421,7 +411,7 @@ disk_chroot_teardown(){
 #mount dev,sys,proc in chroot so they are available for apt 
 chroot_mount(){
   local chroot_dir="$1"
-  echo_info_time "preparing chroot mount structure at '${chroot_dir}'."
+  echo_info "preparing chroot mount structure at '${chroot_dir}'."
   # mount binds
   
   mount -o bind /dev "${chroot_dir}/dev/";
@@ -452,25 +442,25 @@ chroot_mount(){
 #unmount dev,sys,proc in chroot
 chroot_umount(){
   local chroot_dir="$1"
-  echo_info_time "unmounted chroot mount structure at '${chroot_dir}'. For a clean mount, reboot your computer"
+  echo_info "unmounting chroot mount structure at '${chroot_dir}'";
   
   #umount /dev /dev/pts  
-  umount -R "${chroot_dir}/dev/"
-  if [ $? -ne 0 ]; then
+  if umount -R "${chroot_dir}/dev/"; then
+    echo_info "umounting ${chroot_dir}/dev/";
+  else
     echo_error "umounting ${chroot_dir}/dev/";
-    exit 1;
   fi
   
-  umount "${chroot_dir}/sys/"
-  if [ $? -ne 0 ]; then
+  if umount "${chroot_dir}/sys/"; then
+    echo_info "umounting ${chroot_dir}/sys/";
+  else
     echo_error "umounting ${chroot_dir}/sys/";
-    exit 1;
   fi
   
-  umount "${chroot_dir}/proc/"
-  if [ $? -ne 0 ]; then
+  if umount "${chroot_dir}/proc/"; then
+    echo_info "umounting ${chroot_dir}/proc/";
+  else
     echo_error "umounting ${chroot_dir}/proc/";
-    exit 1;
   fi
 }
 
@@ -498,7 +488,7 @@ chroot_package_install(){
   PACKAGES="$@"
   for package in $PACKAGES
   do
-    echo_info_time "installing $package";
+    echo_info "installing $package";
     chroot_execute "${chroot_dir}" apt-get -qq -y install $package 
   done
 }
@@ -511,7 +501,7 @@ chroot_package_purge(){
   PACKAGES="$@"
   for package in $PACKAGES
   do
-    echo_info_time "purging $package";
+    echo_info "purging $package";
     chroot_execute "${chroot_dir}" apt-get -qq -y purge $package 
   done
   chroot_execute "${chroot_dir}" apt-get -qq -y autoremove ;
@@ -522,17 +512,17 @@ chroot_execute(){
   shift;
   chroot ${chroot_dir} "$@";
   if [ $? -ne 0 ]; then
-      echo_error "Command in chroot failed"
+      echo_error "command in chroot failed"
       exit 1;
   fi
 }
 
 chroot_mkinitramfs(){
   local chroot_dir="$1"
-  echo_debug "Building new initramfs (CHROOT is ${chroot_dir})";
+  echo_debug "building new initramfs (CHROOT is ${chroot_dir})";
 
   #Point crypttab to the current physical device during mkinitramfs
-  echo_debug "  Creating symbolic links from current physical device to crypttab device (if not using sd card mmcblk0p)";
+  echo_debug "creating symbolic links from current physical device to crypttab device (if not using sd card mmcblk0p)";
   test -e "/dev/mmcblk0p1" || (test -e "${_BLOCK_DEVICE_BOOT}" && ln -s "${_BLOCK_DEVICE_BOOT}" "/dev/mmcblk0p1");
   test -e "/dev/mmcblk0p2" || (test -e "${_BLOCK_DEVICE_ROOT}" && ln -s "${_BLOCK_DEVICE_ROOT}" "/dev/mmcblk0p2");
   # determining the kernel
@@ -545,30 +535,25 @@ chroot_mkinitramfs(){
   echo_debug "Cleaning up symbolic links";
   test -L "/dev/mmcblk0p1" && unlink "/dev/mmcblk0p1";
   test -L "/dev/mmcblk0p2" && unlink "/dev/mmcblk0p2";
-
 }
 
 ####PRINT FUNCTIONS####
 echo_error(){ 
-  echo -e "${_COLOR_ERROR}ERROR: $*${_COLOR_NORMAL}";
+  echo -e "${_COLOR_ERROR}$(date '+%H:%M:%S'):ERROR - $*${_COLOR_NORMAL}" | tee -a ${_LOG_FILE};
 }
 
 echo_warn(){ 
-  echo -e "${_COLOR_WARN}WARNING: $@${_COLOR_NORMAL}";
+  echo -e "${_COLOR_WARN}$(date '+%H:%M:%S'):WARNING - $@${_COLOR_NORMAL}" | tee -a ${_LOG_FILE};
 }
 
 echo_info(){
-  echo -e "${_COLOR_INFO}$@${_COLOR_NORMAL}";
+  echo -e "${_COLOR_INFO}$(date '+%H:%M:%S'): $@${_COLOR_NORMAL}" | tee -a ${_LOG_FILE};
 }
 
 echo_debug(){
   if [ $_LOG_LEVEL -lt 1 ]; then
-    echo -e "${_COLOR_DEBUG}$@${_COLOR_NORMAL}";
+    echo -e "${_COLOR_DEBUG}$(date '+%H:%M:%S'): $@${_COLOR_NORMAL}";
   fi
   #even if output is suppressed by log level output it to the log file
-  echo "$@" >> "${_LOG_FILE}";
-}
-
-echo_info_time(){
-  echo_info "$(date '+%H:%M:%S'): $@";
+  echo "$(date '+%H:%M:%S'): $@" >> "${_LOG_FILE}";
 }

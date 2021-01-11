@@ -1,7 +1,7 @@
 #!/bin/bash
 set -eu
 install_dependencies() {
-  echo_info_time "$FUNCNAME";
+  echo_info "$FUNCNAME";
   apt-get -qq install \
         binfmt-support \
         coreutils \

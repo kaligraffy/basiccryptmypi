@@ -12,8 +12,9 @@ set -eu
 
 #Program logic
 main(){
-  echo_info_time "$(basename $0) started";
+  echo_info "$(basename $0) started";
   #Setup
+  trap 'trap_on_exit 0 0' EXIT;
   check_run_as_root;
   install_dependencies;
 
@@ -23,7 +24,7 @@ main(){
     #Stage 1 - Unpack and modify the image
     trap 'trap_on_exit 1 0' EXIT;
     #useful when your build fails during one of the extra setups
-    cleanup_image_prep;
+    
     if (( $rebuild != 2 )); then
       create_build_directory_structure;
       download_image;
@@ -31,7 +32,7 @@ main(){
       mount_image_on_loopback;
       copy_extracted_image_to_chroot_dir;
     fi
-    #TODO investigate move locale_setup, encryption_setup, extra_setup to stage 2 so any additional setup is applied directly to disk
+    #TODO investigate encryption_setup, extra_setup to stage 2 so any additional setup is applied directly to disk
     chroot_setup;
     chroot_update_apt_setup;
     encryption_setup;
@@ -42,7 +43,7 @@ main(){
   
   #Stage 2 - Write to physical disk
   trap 'trap_on_exit 1 1' EXIT;
-  cleanup_write_disk;
+  
   fix_block_device_names;
   check_disk_is_correct;
   copy_to_disk;
@@ -57,4 +58,4 @@ main(){
 # Run program
 #TODO Bats testing
 #TODO Create an image file functionality rather than writing to sd card
-main | tee "${_LOG_FILE}";
+main; #| tee "${_LOG_FILE}";
