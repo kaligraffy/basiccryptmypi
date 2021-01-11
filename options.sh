@@ -5,7 +5,7 @@
 # shellcheck disable=SC2068
 # shellcheck disable=SC2128
 set -eu
-export _UFW_SETUP='0';
+export _UFW_SETUP=0;
 
 #sets the locale (e.g. en_US, en_UK)
 locale_setup(){
@@ -230,8 +230,9 @@ ssh_setup(){
 EOT
   
   #OPENS UP YOUR SSH PORT
-  if [ "${_UFW_SETUP}" = "1" ]; then
+  if (( $_UFW_SETUP == 1 )) ; then
     chroot_execute "$_CHROOT_ROOT" ufw allow in "${_SSH_PORT}/tcp";
+    chroot_execute "$_CHROOT_ROOT" ufw enable;
   fi
 }
 
@@ -379,8 +380,9 @@ ntpsec_setup(){
   sed -i "s|^pool 1.debian.pool.ntp.org iburst|#pool 1.debian.pool.ntp.org iburst|" "${_CHROOT_ROOT}/etc/ntpsec/ntp.conf"
   sed -i "s|^pool 2.debian.pool.ntp.org iburst|#pool 2.debian.pool.ntp.org iburst|" "${_CHROOT_ROOT}/etc/ntpsec/ntp.conf"
   sed -i "s|^pool 3.debian.pool.ntp.org iburst|#pool 3.debian.pool.ntp.org iburst|" "${_CHROOT_ROOT}/etc/ntpsec/ntp.conf"
-  if [ "${_UFW_SETUP}" = "1" ]; then
+  if (( $_UFW_SETUP == 1 )) ; then
     chroot_execute "$_CHROOT_ROOT" ufw allow out 123/tcp;
+    chroot_execute "$_CHROOT_ROOT" ufw enable;
   fi
 }
 
@@ -441,7 +443,7 @@ passwordless_login_setup(){
   sed -i "s|^#autologin-user-timeout=0|autologin-user-timeout=0|" "${_CHROOT_ROOT}/etc/lightdm/lightdm.conf"
 }
 
-#set default shell to zsh
+#set default shell to a shell of your choice
 default_shell_setup(){
   echo_info "$FUNCNAME";
   local main_user='kali'
@@ -505,10 +507,9 @@ EOT
   mv "${_DISK_CHROOT_ROOT}/etc/resolv.conf" "${_DISK_CHROOT_ROOT}/etc/resolv.conf.backup";
   chroot_execute "${_DISK_CHROOT_ROOT}" ln -s "/etc/systemd/resolved.conf" "/etc/resolv.conf";
   echo_debug "DNS configured - remember to keep your clock up to date (date -s XX:XX) or DNSSEC Certificate errors may occur";
-  if [ "${_UFW_SETUP}" = "1" ]; then
+  if (( $_UFW_SETUP == 1 )); then
     chroot_execute "$_CHROOT_ROOT" ufw allow out 853/tcp;
-    ufw=$(chroot_execute "$_CHROOT_ROOT" ufw status verbose) ;
-    echo_warn $(cat $ufw | grep 853);
+    chroot_execute "$_CHROOT_ROOT" ufw enable;
   fi
   #needs: 853/tcp, doesn't need as we disable llmnr and mdns: 5353/udp,5355/udp
 }
@@ -516,6 +517,8 @@ EOT
 #installs a basic firewall
 #TODO fix ufw logging so it doesn't log to syslog
 #TODO replace with a new nftables script for more granular control
+#this must be called before ssh_setup, dns_setup, ntpsec_setup or the script 
+#will not work correctly
 firewall_setup(){
   echo_info "$FUNCNAME";
 
