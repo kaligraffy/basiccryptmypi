@@ -60,4 +60,9 @@ main(){
 #TODO Bats testing
 #TODO Create an image file functionality rather than writing to sd card
 #TODO investigate moving encryption_setup, extra_setup to stage 2 so any additional setup is applied directly to disk
+#TODO replace stage 1, stage 2 logic, so there is only one mkinitramfs call to deduplicate calls to mkinitramfs and copying data out of the extracted image
+#in this re-envisioned script, stage 1 would create an image file on disk, format it and copy files to it.
+#all setup would occur inside a chroot of this image file, including the call to mkinitramfs
+#the final product of stage 1 will be an image file containing all extra setup and extra extra setup
+#stage 2 no setup or mkinitramfs will occur. stage 2 will simply dd the image file to the selected disk.
 main;
