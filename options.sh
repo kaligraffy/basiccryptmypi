@@ -315,7 +315,7 @@ apt_upgrade(){
 }
 
 #install and configure docker
-#TODO Test this
+#TODO Test docker
 docker_setup(){
 # REFERENCES
 #   https://www.docker.com/blog/happy-pi-day-docker-raspberry-pi/
@@ -433,7 +433,7 @@ mount_boot_readonly_setup(){
   echo_warn "Remember to remount when running mkinitramfs!";
 } 
 
-#automatically log you in after unlocking your encrypted drive, without a password...somehow.
+#automatically log you in after unlocking your encrypted drive, without a password...somehow. GUI only.
 passwordless_login_setup(){
   echo_info "$FUNCNAME";
   sed -i "s|^#greeter-hide-users=false|greeter-hide-users=false|" "${_CHROOT_ROOT}/etc/lightdm/lightdm.conf"
@@ -442,10 +442,12 @@ passwordless_login_setup(){
 }
 
 #set default shell to zsh
-set_default_shell_zsh(){
+default_shell_setup(){
   echo_info "$FUNCNAME";
-  sed -i "s#root:x:0:0:root:/root:/usr/bin/bash#root:x:0:0:root:/root:/usr/bin/zsh#" "${_CHROOT_ROOT}/etc/passwd";
-  sed -i "s#kali:x:1000:1000::/home/kali:/usr/bin/zsh#kali:x:1000:1000::/home/kali:/usr/bin/zsh#" "${_CHROOT_ROOT}/etc/passwd";
+  local main_user='kali'
+  sed -i "s#root:x:0:0:root:/root:/usr/bin/bash#root:x:0:0:root:/root:/usr/bin/$_SHELL#" "${_CHROOT_ROOT}/etc/passwd";
+  sed -i "s#$main_user:x:1000:1000::/home/$main_user:/usr/bin/bash#$main_user:x:1000:1000::/home/kali:/usr/bin/$_SHELL#" "${_CHROOT_ROOT}/etc/passwd";
+  sed -i "s#$main_user:x:1000:1000::/home/$main_user:/usr/bin/zsh#$main_user:x:1000:1000::/home/kali:/usr/bin/$_SHELL#" "${_CHROOT_ROOT}/etc/passwd";
 }
 
 #enable bluetooth
@@ -453,13 +455,15 @@ bluetooth_setup(){
   echo_info "$FUNCNAME";
   chroot_package_install "$_CHROOT_ROOT" bluez
   chroot_execute "$_CHROOT_ROOT" systemctl enable bluetooth               
-  #TODO setup some devices you might have already
+  #TODO setup some bluetooth devices you might have already
 }
 
-#TODO Write function for apparmor integration
+#TODO Finish apparmor setup method off
+# Installs apparmor
 apparmor_setup(){
   echo_info "$FUNCNAME";
-  echo_warn "NOT YET IMPLEMENTED";
+  chroot_package_install "$_CHROOT_ROOT" apparmor apparmor-profiles-extra apparmor_utils
+  echo_warn "PACKAGES INSTALLED, NO KERNEL PARAMS CONFIGURED. PLEASE CONFIGURE MANUALLY";
 }
 
 #randomize mac on reboot
@@ -507,7 +511,7 @@ EOT
 }
 
 #installs a basic firewall
-#TODO fix logging so it doesn't log to syslog
+#TODO fix ufw logging so it doesn't log to syslog
 #TODO replace with a new nftables script for more granular control
 firewall_setup(){
   echo_info "$FUNCNAME";
@@ -537,3 +541,9 @@ chkboot_setup()
   sed -i "s#BOOTPART=/dev/sda1#BOOTPART=${_CHKBOOT_BOOTPART}#" "${_CHROOT_ROOT}/etc/default/chkboot";
   chroot_execute "$_CHROOT_ROOT" systemctl enable chkboot
 }
+
+#TODO new method for a new main user (not 'kali')
+user_setup(){
+
+}
+

@@ -23,8 +23,8 @@ main(){
   if (( $rebuild >= 1 )); then
     #Stage 1 - Unpack and modify the image
     trap 'trap_on_exit 1 0' EXIT;
-    #useful when your build fails during one of the extra setups
-    
+
+    #useful when your build fails during one of the extra setups,selecting 'p' in the check skips the extract  
     if (( $rebuild != 2 )); then
       create_build_directory_structure;
       download_image;
@@ -32,7 +32,6 @@ main(){
       mount_image_on_loopback;
       copy_extracted_image_to_chroot_dir;
     fi
-    #TODO investigate encryption_setup, extra_setup to stage 2 so any additional setup is applied directly to disk
     chroot_setup;
     chroot_update_apt_setup;
     encryption_setup;
@@ -54,8 +53,8 @@ main(){
   exit;
 }
 
-
 # Run program
 #TODO Bats testing
 #TODO Create an image file functionality rather than writing to sd card
-main; #| tee "${_LOG_FILE}";
+#TODO investigate moving encryption_setup, extra_setup to stage 2 so any additional setup is applied directly to disk
+main;
