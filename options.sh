@@ -462,7 +462,7 @@ bluetooth_setup(){
 # Installs apparmor
 apparmor_setup(){
   echo_info "$FUNCNAME";
-  chroot_package_install "$_CHROOT_ROOT" apparmor apparmor-profiles-extra apparmor_utils
+  chroot_package_install "$_CHROOT_ROOT" apparmor apparmor-profiles-extra apparmor-utils
   echo_warn "PACKAGES INSTALLED, NO KERNEL PARAMS CONFIGURED. PLEASE CONFIGURE MANUALLY";
 }
 
@@ -493,12 +493,15 @@ dns_setup(){
     [main]
     dns=none
     systemd-resolved=false
+    [connection]
+    llmnr=no
+    mdns=no
 EOT
 
   #add resolved dns to top of /etc/systemd/resolved.conf for use with NetworkManager:
   echo -e "nameserver 127.0.0.53\n$(cat "${_DISK_CHROOT_ROOT}/etc/systemd/resolved.conf")" > "${_DISK_CHROOT_ROOT}/etc/systemd/resolved.conf"
 
-  #symlink
+  echo_debug "creating symlink";
   mv "${_DISK_CHROOT_ROOT}/etc/resolv.conf" "${_DISK_CHROOT_ROOT}/etc/resolv.conf.backup";
   chroot_execute "${_DISK_CHROOT_ROOT}" ln -s "/etc/systemd/resolved.conf" "/etc/resolv.conf";
   echo_debug "DNS configured - remember to keep your clock up to date (date -s XX:XX) or DNSSEC Certificate errors may occur";
@@ -544,6 +547,7 @@ chkboot_setup()
 
 #TODO new method for a new main user (not 'kali')
 user_setup(){
-
+  echo_info "$FUNCNAME";
+  echo_warn "Feature not implemented";
 }
 

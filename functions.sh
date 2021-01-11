@@ -73,7 +73,7 @@ cleanup_loop_device(){
 
 #check if theres a build directory already
 check_build_dir_exists(){
-  echo_info "$FUNCNAME";
+  #no echo as interferes with return echos
   if [ "${_NO_PROMPTS}" -eq 1 ] ; then
     echo '1';
     return;
@@ -247,6 +247,7 @@ encryption_setup(){
   chroot ${_CHROOT_ROOT} /bin/bash -c "test -L /sbin/fsck.luks || ln -s /sbin/e2fsck /sbin/fsck.luks"
 
   # Indicate kernel to use initramfs (facilitates loading drivers)
+  #TODO Make atomic so it doesn't get put in twice on partial build
   echo "initramfs initramfs.gz followkernel" >> ${_CHROOT_ROOT}/boot/config.txt
   
   # Update /boot/cmdline.txt to boot crypt
@@ -403,11 +404,11 @@ chroot_teardown(){
 }
 
 disk_chroot_setup(){
-  chroot_mount "${_DISK_CHROOT_ROOT}"
+  chroot_mount "${_DISK_CHROOT_ROOT}";
 }
 
 disk_chroot_mkinitramfs_setup(){
-  chroot_mkinitramfs "${_DISK_CHROOT_ROOT}"
+  chroot_mkinitramfs "${_DISK_CHROOT_ROOT}";
 }
 
 disk_chroot_teardown(){
@@ -530,18 +531,30 @@ chroot_mkinitramfs(){
 
   #Point crypttab to the current physical device during mkinitramfs
   echo_debug "creating symbolic links from current physical device to crypttab device (if not using sd card mmcblk0p)";
-  test -e "/dev/mmcblk0p1" || (test -e "${_BLOCK_DEVICE_BOOT}" && ln -s "${_BLOCK_DEVICE_BOOT}" "/dev/mmcblk0p1");
-  test -e "/dev/mmcblk0p2" || (test -e "${_BLOCK_DEVICE_ROOT}" && ln -s "${_BLOCK_DEVICE_ROOT}" "/dev/mmcblk0p2");
-  # determining the kernel
+  #if [ -e "/dev/mmcblk0p1" ] || [ -e "${_BLOCK_DEVICE_BOOT}" ]; then
+   # ln -s "${_BLOCK_DEVICE_BOOT}" "/dev/mmcblk0p1" || true; #fail peacefully if the link is already there
+  #fi
+  
+  #if [ -e "/dev/mmcblk0p2" ] || [ -e "${_BLOCK_DEVICE_ROOT}" ]; then
+   # ln -s "${_BLOCK_DEVICE_ROOT}" "/dev/mmcblk0p2" || true; #fail peacefully if the link is already there
+  #fi
+  
+  echo_debug "determine kernel version"
   local kernel_version=$(ls ${chroot_dir}/lib/modules/ | grep "${_KERNEL_VERSION_FILTER}" | tail -n 1);
   echo_debug "kernel is '${kernel_version}'";
+  echo_debug "running update-initramfs, mkinitramfs"
   chroot_execute "${chroot_dir}" update-initramfs -u -k all;
   chroot_execute "${chroot_dir}" mkinitramfs -o /boot/initramfs.gz -v ${kernel_version};
 
-  # cleanup
   echo_debug "Cleaning up symbolic links";
-  test -L "/dev/mmcblk0p1" && unlink "/dev/mmcblk0p1";
-  test -L "/dev/mmcblk0p2" && unlink "/dev/mmcblk0p2";
+  #if [ -L "/dev/mmcblk0p1" ]; then
+   # unlink "/dev/mmcblk0p1";
+  #fi
+  
+  #if [ -L "/dev/mmcblk0p2" ]; then 
+   # unlink "/dev/mmcblk0p2";
+  #fi
+  echo_debug "finished $FUNCNAME";
 }
 
 ####PRINT FUNCTIONS####

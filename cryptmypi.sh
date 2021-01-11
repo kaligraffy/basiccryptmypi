@@ -17,6 +17,10 @@ main(){
   trap 'trap_on_exit 0 0' EXIT;
   check_run_as_root;
   install_dependencies;
+  #TODO fix_block_device_names must run before stage1 due to the chroot_mkinitramfs_setup script
+  #in stage1, it would be nice to be able to run stage1 without having to specify a 'real' device name'.
+  # atm, it'll exit if the device is invalid
+  fix_block_device_names;
 
   #Check for a build directory
   local rebuild=$(check_build_dir_exists);
@@ -43,7 +47,6 @@ main(){
   #Stage 2 - Write to physical disk
   trap 'trap_on_exit 1 1' EXIT;
   
-  fix_block_device_names;
   check_disk_is_correct;
   copy_to_disk;
   disk_chroot_setup;
