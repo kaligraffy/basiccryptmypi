@@ -107,7 +107,7 @@ check_run_as_root(){
 fix_block_device_names(){
   # check device exists/folder exists
   echo_info "$FUNCNAME";
-  if [ ! -b "${_OUTPUT_BLOCK_DEVICE}" ] || [ -z "${_OUTPUT_BLOCK_DEVICE+x}" ] || [ -z "${_OUTPUT_BLOCK_DEVICE}"  ]; then
+  if [ -z "${_OUTPUT_BLOCK_DEVICE+x}" ] || [ -z "${_OUTPUT_BLOCK_DEVICE}"  ]; then
     echo_error "No Output Block Device Set";
     exit;
   fi
@@ -122,6 +122,8 @@ fix_block_device_names(){
   export _BLOCK_DEVICE_BOOT="${_OUTPUT_BLOCK_DEVICE}${prefix}1"
   export _BLOCK_DEVICE_ROOT="${_OUTPUT_BLOCK_DEVICE}${prefix}2"
 }
+
+
 
 create_build_directory_structure(){
   echo_info "$FUNCNAME";
@@ -195,15 +197,20 @@ copy_extracted_image_to_chroot_dir(){
 #prompts to check disk is correct before writing out to disk, 
 #if no prompts is set, it skips the check
 check_disk_is_correct(){
+  if [ ! -b "${_OUTPUT_BLOCK_DEVICE}" ]; then
+    echo_error "${_OUTPUT_BLOCK_DEVICE} is not a block device" 
+    exit 0
+  fi
+  
   echo_info "$FUNCNAME";
   if [ "${_NO_PROMPTS}" -eq 0 ]; then
-        local continue
-        echo_info "$(lsblk)";
-        echo_warn "CHECK THE DISK IS CORRECT";
-        read -p "Type 'YES' if the selected device is correct:  ${_OUTPUT_BLOCK_DEVICE}  " continue
-        if [ "${continue}" != 'YES' ] ; then
-            exit 0
-        fi
+    local continue
+    echo_info "$(lsblk)";
+    echo_warn "CHECK THE DISK IS CORRECT";
+    read -p "Type 'YES' if the selected device is correct:  ${_OUTPUT_BLOCK_DEVICE}  " continue
+    if [ "${continue}" != 'YES' ] ; then
+        exit 0
+    fi
   fi
 }
 
@@ -421,22 +428,22 @@ chroot_mount(){
   local chroot_dir="$1"
   echo_info "$FUNCNAME";
   # mount binds
-  if [ $(mount -o bind /dev "${chroot_dir}/dev/") -gt 0 ]; then
+  if [[ "$(mount -o bind /dev "${chroot_dir}/dev/"; echo $?)" != 0 ]]; then
     echo_error "failure mounting ${chroot_dir}/dev/";
     exit 1;
   fi
   
-  if [ $(mount -o bind /dev/pts "${chroot_dir}/dev/pts") -gt 0 ]; then
+  if [[ $(mount -o bind /dev/pts "${chroot_dir}/dev/pts"; echo $?) != 0 ]]; then
     echo_error "failure mounting ${chroot_dir}/dev/pts";
     exit 1;
   fi
   
-  if [ $(mount -o bind /sys "${chroot_dir}/sys/") -gt 0 ]; then
+  if [[ $(mount -o bind /sys "${chroot_dir}/sys/"; echo $?) != 0 ]]; then
     echo_error "failure mounting ${chroot_dir}/sys/";
     exit 1;
   fi
   
-  if [ $(mount -t proc /proc "${chroot_dir}/proc/") -gt 0]; then
+  if [[ $(mount -t proc /proc "${chroot_dir}/proc/"; echo $?) != 0 ]]; then
     echo_error "failure mounting ${chroot_dir}/proc/";
     exit 1;
   fi
