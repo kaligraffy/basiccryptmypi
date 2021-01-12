@@ -254,7 +254,7 @@ encryption_setup(){
   chroot ${_CHROOT_ROOT} /bin/bash -c "test -L /sbin/fsck.luks || ln -s /sbin/e2fsck /sbin/fsck.luks"
 
   # Indicate kernel to use initramfs (facilitates loading drivers)
-  atomic_append "initramfs initramfs.gz followkernel" "${_CHROOT_ROOT}/boot/config.txt";
+  atomic_append 'initramfs initramfs.gz followkernel' "${_CHROOT_ROOT}/boot/config.txt";
   
   # Update /boot/cmdline.txt to boot crypt
   sed -i "s|root=/dev/mmcblk0p2|root=${_ENCRYPTED_VOLUME_PATH} cryptdevice=/dev/mmcblk0p2:$(basename ${_ENCRYPTED_VOLUME_PATH})|g" ${_CHROOT_ROOT}/boot/cmdline.txt
@@ -264,7 +264,7 @@ encryption_setup(){
   sed -i "s|rootflags=noload|""|g" ${_CHROOT_ROOT}/boot/cmdline.txt
   
   # Enable cryptsetup when building initramfs
-  atomic_append "CRYPTSETUP=y" "${_CHROOT_ROOT}/etc/cryptsetup-initramfs/conf-hook"  
+  atomic_append 'CRYPTSETUP=y' "${_CHROOT_ROOT}/etc/cryptsetup-initramfs/conf-hook"  
   
   # Update /etc/fstab
   sed -i "s|/dev/mmcblk0p2|${_ENCRYPTED_VOLUME_PATH}|g" ${_CHROOT_ROOT}/etc/fstab
@@ -281,7 +281,7 @@ encryption_setup(){
   sed -i "s#ENCRYPTED_VOLUME_PATH#${_ENCRYPTED_VOLUME_PATH}#" "${_CHROOT_ROOT}/etc/initramfs-tools/unlock.sh";
 
   # Adding dm_mod to initramfs modules
-  atomic_append "dm_crypt" "${_CHROOT_ROOT}/etc/initramfs-tools/modules";
+  atomic_append 'dm_crypt' "${_CHROOT_ROOT}/etc/initramfs-tools/modules";
   
   # Disable autoresize
   chroot_execute "${_CHROOT_ROOT}" systemctl disable rpi-resizerootfs.service
