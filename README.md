@@ -9,7 +9,7 @@ USAGE
 - Leave aside about 20GB of disk space 
 - git clone https://github.com/kaligraffy/basiccryptmypi.git
 - cd cryptmypi
--  Rename an example .env file or fill in the template.env file
+- Rename an example .env file or fill in the template.env file
 - ./cryptmypi
 - Follow the prompts
 
