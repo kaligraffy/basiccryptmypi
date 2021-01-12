@@ -587,8 +587,9 @@ echo_debug(){
 #appends config to a file after checking if it's already in the file
 #$1 the config value $2 the filename
 atomic_append(){
-  
-  if [[ ! $(grep -w "$1" "$2") ]]; then
-    echo "$1" >> "$2";
+  CONFIG="$1";
+  FILE="$2";
+  if [[ ! $(grep -w "${CONFIG}" "${FILE}") ]]; then
+    echo "${CONFIG}" >> "${FILE}";
   fi
 }

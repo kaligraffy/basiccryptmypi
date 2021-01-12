@@ -163,6 +163,7 @@ dropbear_setup(){
   # Installing packages
   chroot_package_install "$_CHROOT_ROOT" dropbear dropbear-initramfs cryptsetup-initramfs
 
+  #TODO check this works
   atomic_append "DROPBEAR_OPTIONS='-p $_SSH_PORT -RFEjk -c /bin/cryptroot-unlock'" "${_CHROOT_ROOT}/etc/dropbear-initramfs/config";
 
   # Now append our key to dropbear authorized_keys file
