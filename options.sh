@@ -480,6 +480,7 @@ random_mac_on_reboot_setup(){
   echo_info "$FUNCNAME";
   chroot_package_install "$_CHROOT_ROOT" macchanger 
   cp -p "${_FILE_DIR}/random-mac-scripts/macspoof" "${_CHROOT_ROOT}/etc/systemd/system/macspoof@${_WIFI_INTERFACE}.service";
+  chroot_execute "$_CHROOT_ROOT" systemctl enable macspoof@${_WIFI_INTERFACE}
 }
 
 #configures two ipv4 ip addresses as your global dns
