@@ -558,10 +558,15 @@ firewall_setup(){
 chkboot_setup()
 {
   echo_info "$FUNCNAME";
+  
+  #TODO Investigate: touch: cannot touch '/var/lib/chkboot/needs-update': No such file or directory whilst performing apt install
+  chroot_execute "$_CHROOT_ROOT" mkdir -p /var/lib/chkboot
+  
   chroot_package_install "$_CHROOT_ROOT" chkboot;
   sed -i "s#BOOTDISK=/dev/sda#BOOTDISK=${_CHKBOOT_BOOTDISK}#" "${_CHROOT_ROOT}/etc/default/chkboot";
   sed -i "s#BOOTPART=/dev/sda1#BOOTPART=${_CHKBOOT_BOOTPART}#" "${_CHROOT_ROOT}/etc/default/chkboot";
   chroot_execute "$_CHROOT_ROOT" systemctl enable chkboot
+  #TODO Investigate: touch: cannot touch '/var/lib/chkboot/needs-update': No such file or directory whilst performing apt install
 }
 
 #TODO new method for a new main user (not 'kali')
