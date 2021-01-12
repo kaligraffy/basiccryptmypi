@@ -378,11 +378,14 @@ ntpsec_setup(){
   echo_info "$FUNCNAME";
   chroot_package_install "${_CHROOT_ROOT}" ntpsec ntpsec-doc ntpsec-ntpdate
   chroot_execute "$_CHROOT_ROOT" systemctl enable ntpsec.service
-  sed -i "s|^#server time.cloudflare.com nts|server time.cloudflare.com:123 iburst nts \nserver nts.sth1.ntp.se:123 iburst nts\nserver nts.sth2.ntp.se:123 iburst nts|" "/etc/ntpsec/ntp.conf" "${_CHROOT_ROOT}/etc/ntpsec/ntp.conf"
+  sed -i "s|^# server time.cloudflare.com nts|server time.cloudflare.com:123 iburst nts \nserver nts.sth1.ntp.se:123 iburst nts\nserver nts.sth2.ntp.se:123 iburst nts|" "/etc/ntpsec/ntp.conf" "${_CHROOT_ROOT}/etc/ntpsec/ntp.conf"
   sed -i "s|^pool 0.debian.pool.ntp.org iburst|#pool 0.debian.pool.ntp.org iburst|" "${_CHROOT_ROOT}/etc/ntpsec/ntp.conf"
   sed -i "s|^pool 1.debian.pool.ntp.org iburst|#pool 1.debian.pool.ntp.org iburst|" "${_CHROOT_ROOT}/etc/ntpsec/ntp.conf"
   sed -i "s|^pool 2.debian.pool.ntp.org iburst|#pool 2.debian.pool.ntp.org iburst|" "${_CHROOT_ROOT}/etc/ntpsec/ntp.conf"
   sed -i "s|^pool 3.debian.pool.ntp.org iburst|#pool 3.debian.pool.ntp.org iburst|" "${_CHROOT_ROOT}/etc/ntpsec/ntp.conf"
+  chroot_execute "$_CHROOT_ROOT" mkdir /var/log/ntpsec
+  chroot_execute "$_CHROOT_ROOT" chown ntpsec:ntpsec /var/log/ntpsec
+
   if (( $_UFW_SETUP == 1 )) ; then
     chroot_execute "$_CHROOT_ROOT" ufw allow out 123/tcp;
     chroot_execute "$_CHROOT_ROOT" ufw enable;
