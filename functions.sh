@@ -421,54 +421,49 @@ chroot_mount(){
   local chroot_dir="$1"
   echo_info "$FUNCNAME";
   # mount binds
-  
-  mount -o bind /dev "${chroot_dir}/dev/";
-  if [ $? -ne 0 ]; then
-    echo_error "mounting ${chroot_dir}/dev/";
+  if [ $(mount -o bind /dev "${chroot_dir}/dev/") -gt 0 ]; then
+    echo_error "failure mounting ${chroot_dir}/dev/";
     exit 1;
   fi
   
-  mount -o bind /dev/pts "${chroot_dir}/dev/pts";
-  if [ $? -ne 0 ]; then
-    echo_error "mounting ${chroot_dir}/dev/pts";
+  if [ $(mount -o bind /dev/pts "${chroot_dir}/dev/pts") -gt 0 ]; then
+    echo_error "failure mounting ${chroot_dir}/dev/pts";
     exit 1;
   fi
   
-  mount -o bind /sys "${chroot_dir}/sys/";
-  if [ $? -ne 0 ]; then
-    echo_error "mounting ${chroot_dir}/sys/";
+  if [ $(mount -o bind /sys "${chroot_dir}/sys/") -gt 0 ]; then
+    echo_error "failure mounting ${chroot_dir}/sys/";
     exit 1;
   fi
   
-  mount -t proc /proc "${chroot_dir}/proc/";
-  if [ $? -ne 0 ]; then
-    echo_error "mounting ${chroot_dir}/proc/";
+  if [ $(mount -t proc /proc "${chroot_dir}/proc/") -gt 0]; then
+    echo_error "failure mounting ${chroot_dir}/proc/";
     exit 1;
   fi
 }
 
 #unmount dev,sys,proc in chroot
 chroot_umount(){
-  local chroot_dir="$1"
   echo_info "$FUNCNAME";
-  
-  #umount /dev /dev/pts  
+  local chroot_dir="$1"
+
+  echo_debug "unmounting binds"
   if umount -R "${chroot_dir}/dev/"; then
     echo_info "umounting ${chroot_dir}/dev/";
   else
-    echo_error "umounting ${chroot_dir}/dev/";
+    echo_warn "problem umounting ${chroot_dir}/dev/ or was already umounted";
   fi
   
   if umount "${chroot_dir}/sys/"; then
     echo_info "umounting ${chroot_dir}/sys/";
   else
-    echo_error "umounting ${chroot_dir}/sys/";
+    echo_warn "problem umounting ${chroot_dir}/sys/ or was already umounted";
   fi
   
   if umount "${chroot_dir}/proc/"; then
     echo_info "umounting ${chroot_dir}/proc/";
   else
-    echo_error "umounting ${chroot_dir}/proc/";
+    echo_warn "problem umounting ${chroot_dir}/proc/ or was already umounted";
   fi
 }
 
@@ -560,20 +555,20 @@ chroot_mkinitramfs(){
 
 ####PRINT FUNCTIONS####
 echo_error(){ 
-  echo -e "${_COLOR_ERROR}$(date '+%H:%M:%S'):ERROR - $*${_COLOR_NORMAL}" | tee -a ${_LOG_FILE};
+  echo -e "${_COLOR_ERROR}$(date '+%H:%M:%S'): ERROR: $*${_COLOR_NORMAL}" | tee -a ${_LOG_FILE};
 }
 
 echo_warn(){ 
-  echo -e "${_COLOR_WARN}$(date '+%H:%M:%S'):WARNING - $@${_COLOR_NORMAL}" | tee -a ${_LOG_FILE};
+  echo -e "${_COLOR_WARN}$(date '+%H:%M:%S'): WARNING: $@${_COLOR_NORMAL}" | tee -a ${_LOG_FILE};
 }
 
 echo_info(){
-  echo -e "${_COLOR_INFO}$(date '+%H:%M:%S'): $@${_COLOR_NORMAL}" | tee -a ${_LOG_FILE};
+  echo -e "${_COLOR_INFO}$(date '+%H:%M:%S'): INFO: $@${_COLOR_NORMAL}" | tee -a ${_LOG_FILE};
 }
 
 echo_debug(){
   if [ $_LOG_LEVEL -lt 1 ]; then
-    echo -e "${_COLOR_DEBUG}$(date '+%H:%M:%S'): $@${_COLOR_NORMAL}";
+    echo -e "${_COLOR_DEBUG}$(date '+%H:%M:%S'): DEBUG: $@${_COLOR_NORMAL}";
   fi
   #even if output is suppressed by log level output it to the log file
   echo "$(date '+%H:%M:%S'): $@" >> "${_LOG_FILE}";
@@ -583,8 +578,8 @@ echo_debug(){
 #appends config to a file after checking if it's already in the file
 #$1 the config value $2 the filename
 atomic_append(){
-  grep -w "$1" "$2"
-  if [ $? != 0 ]; then
+  
+  if [ ! $(grep -w "$1" "$2") ]; then
     echo "$1" >> "$2";
   fi
 }

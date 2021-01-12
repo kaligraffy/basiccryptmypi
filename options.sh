@@ -124,8 +124,7 @@ wifi_setup(){
 EOT
 
   echo_debug "Updating /etc/network/interfaces file"
-  grep -w "# The wifi interface" "${_CHROOT_ROOT}/etc/network/interfaces"
-  if [ $? != 0 ]; then
+  if [ ! $(grep -w "# The wifi interface" "${_CHROOT_ROOT}/etc/network/interfaces") ]; then
     cat <<- EOT >> "${_CHROOT_ROOT}/etc/network/interfaces"
     # The wifi interface
     auto ${_WIFI_INTERFACE}
@@ -222,8 +221,7 @@ ssh_setup(){
 
   # Update sshd settings
   cp -p "${sshd_config}" "${sshd_config}.bak"
-  grep -w "#New SSH Config" "${sshd_config}"
-  if [ $? != 0 ]; then
+  if [ ! $( grep -w "#New SSH Config" "${sshd_config}") ]; then
   cat <<- EOT >> "${sshd_config}"
     #New SSH Config
     PasswordAuthentication $(echo $_SSH_PASSWORD_AUTHENTICATION)
