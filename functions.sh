@@ -253,14 +253,14 @@ encryption_setup(){
   # Creating symbolic link to e2fsck
   chroot ${_CHROOT_ROOT} /bin/bash -c "test -L /sbin/fsck.luks || ln -s /sbin/e2fsck /sbin/fsck.luks"
 
-  # Indicate kernel to use initramfs (facilitates loading drivers)
-  atomic_append 'initramfs initramfs.gz followkernel' "${_CHROOT_ROOT}/boot/config.txt";
+  # Indicate kernel to use initramfs - facilitates loading drivers
+  atomic_append 'initramfs\ initramfs.gz\ followkernel' "${_CHROOT_ROOT}/boot/config.txt";
   
   # Update /boot/cmdline.txt to boot crypt
   sed -i "s|root=/dev/mmcblk0p2|root=${_ENCRYPTED_VOLUME_PATH} cryptdevice=/dev/mmcblk0p2:$(basename ${_ENCRYPTED_VOLUME_PATH})|g" ${_CHROOT_ROOT}/boot/cmdline.txt
   sed -i "s|rootfstype=ext3|rootfstype=${fs_type}|g" ${_CHROOT_ROOT}/boot/cmdline.txt
   
-  # Makes sure journalling is on, needed to use btrfs also
+  # Makes sure journalling is on - needed to use btrfs
   sed -i "s|rootflags=noload|""|g" ${_CHROOT_ROOT}/boot/cmdline.txt
   
   # Enable cryptsetup when building initramfs
@@ -489,6 +489,8 @@ chroot_update_apt(){
 
   echo_debug "Updating apt-get";
   chroot_execute ${chroot_root} apt-get -qq update;
+  chroot_execute ${chroot_root} apt --fix-broken -qq -y install;
+
 }
 
 #installs packages from build
@@ -586,7 +588,7 @@ echo_debug(){
 #$1 the config value $2 the filename
 atomic_append(){
   
-  if [ ! $(grep -w "$1" "$2") ]; then
+  if [[ ! $(grep -w "$1" "$2") ]]; then
     echo "$1" >> "$2";
   fi
 }
