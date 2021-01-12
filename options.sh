@@ -20,8 +20,8 @@ locale_setup(){
   
   echo_debug "Updating env variables";
   chroot "${_CHROOT_ROOT}" /bin/bash -x <<- EOT
-    export LANG="${_LOCALE}"
-    export LANGUAGE="${_LOCALE}"
+export LANG="${_LOCALE}"
+export LANGUAGE="${_LOCALE}"
 EOT
 
   atomic_append "export LANG=${_LOCALE}" "${_CHROOT_ROOT}/.bashrc"
@@ -80,13 +80,13 @@ initramfs_wifi_setup(){
  
   echo_debug "Creating wpa_supplicant file";
   cat <<- EOT > ${_CHROOT_ROOT}/etc/initramfs-tools/wpa_supplicant.conf
-    ctrl_interface=/tmp/wpa_supplicant
-    network={
-        ssid="${_WIFI_SSID}"
-        psk="${_WIFI_PSK}"
-        scan_ssid=1
-        key_mgmt=WPA-PSK
-    }
+ctrl_interface=/tmp/wpa_supplicant
+network={
+ ssid="${_WIFI_SSID}"
+ psk="${_WIFI_PSK}"
+ scan_ssid=1
+ key_mgmt=WPA-PSK
+}
 EOT
 
   # Adding modules to initramfs modules
@@ -111,28 +111,28 @@ wifi_setup(){
 
   echo_debug "Creating wpa_supplicant file"
   cat <<- EOT > ${_CHROOT_ROOT}/etc/wpa_supplicant.conf
-    ctrl_interface=/var/run/wpa_supplicant
-    network={
-      ssid="${_WIFI_SSID}"
-      scan_ssid=1
-      proto=WPA RSN
-      key_mgmt=WPA-PSK
-      pairwise=CCMP TKIP
-      group=CCMP TKIP
-      ${_WIFI_PSK}
-    }
+ctrl_interface=/var/run/wpa_supplicant
+network={
+ ssid="${_WIFI_SSID}"
+ scan_ssid=1
+ proto=WPA RSN
+ key_mgmt=WPA-PSK
+ pairwise=CCMP TKIP
+ group=CCMP TKIP
+ ${_WIFI_PSK}
+}
 EOT
 
   echo_debug "Updating /etc/network/interfaces file"
   if [ ! $(grep -w "# The wifi interface" "${_CHROOT_ROOT}/etc/network/interfaces") ]; then
     cat <<- EOT >> "${_CHROOT_ROOT}/etc/network/interfaces"
-    # The wifi interface
-    auto ${_WIFI_INTERFACE}
-    allow-hotplug ${_WIFI_INTERFACE}
-    iface ${_WIFI_INTERFACE} inet dhcp
-    wpa-conf /etc/wpa_supplicant.conf
-    # pre-up wpa_supplicant -B -Dwext -i${_WIFI_INTERFACE} -c/etc/wpa_supplicant.conf
-    # post-down killall -q wpa_supplicant
+# The wifi interface
+auto ${_WIFI_INTERFACE}
+allow-hotplug ${_WIFI_INTERFACE}
+iface ${_WIFI_INTERFACE} inet dhcp
+wpa-conf /etc/wpa_supplicant.conf
+# pre-up wpa_supplicant -B -Dwext -i${_WIFI_INTERFACE} -c/etc/wpa_supplicant.conf
+# post-down killall -q wpa_supplicant
 EOT
   fi
   
@@ -188,8 +188,8 @@ luks_nuke_setup(){
     echo_debug "Attempting to install and configure encrypted pi cryptsetup nuke password."
     chroot_package_install "${_CHROOT_ROOT}" cryptsetup-nuke-password
     chroot ${_CHROOT_ROOT} /bin/bash -c "debconf-set-selections <<- EOT
-    cryptsetup-nuke-password cryptsetup-nuke-password/password string ${_LUKS_NUKE_PASSWORD}
-    cryptsetup-nuke-password cryptsetup-nuke-password/password-again string ${_LUKS_NUKE_PASSWORD}
+cryptsetup-nuke-password cryptsetup-nuke-password/password string ${_LUKS_NUKE_PASSWORD}
+cryptsetup-nuke-password cryptsetup-nuke-password/password-again string ${_LUKS_NUKE_PASSWORD}
 EOT
 "
   chroot_execute "$_CHROOT_ROOT" dpkg-reconfigure -f noninteractive cryptsetup-nuke-password
@@ -223,12 +223,12 @@ ssh_setup(){
   cp -p "${sshd_config}" "${sshd_config}.bak"
   if [ ! $( grep -w "#New SSH Config" "${sshd_config}") ]; then
   cat <<- EOT >> "${sshd_config}"
-    #New SSH Config
-    PasswordAuthentication $(echo $_SSH_PASSWORD_AUTHENTICATION)
-    Port $(echo $_SSH_PORT)
-    ChallengeResponseAuthentication no
-    PubkeyAuthentication yes
-    AuthorizedKeysFile .ssh/authorized_keys
+#New SSH Config
+PasswordAuthentication $(echo $_SSH_PASSWORD_AUTHENTICATION)
+Port $(echo $_SSH_PORT)
+ChallengeResponseAuthentication no
+PubkeyAuthentication yes
+AuthorizedKeysFile .ssh/authorized_keys
 EOT
   fi
   
@@ -495,12 +495,12 @@ dns_setup(){
   sed -i "s|^#LLMNR=yes|LLMNR=no|" "${_DISK_CHROOT_ROOT}/etc/systemd/resolved.conf";
   
   cat <<- EOT > ${_DISK_CHROOT_ROOT}/etc/NetworkManager/conf.d/dns.conf
-    [main]
-    dns=none
-    systemd-resolved=false
-    [connection]
-    llmnr=no
-    mdns=no
+[main]
+dns=none
+systemd-resolved=false
+[connection]
+llmnr=no
+mdns=no
 EOT
 
   #add resolved dns to top of /etc/systemd/resolved.conf for use with NetworkManager:
@@ -511,8 +511,8 @@ EOT
   chroot_execute "${_DISK_CHROOT_ROOT}" ln -s "/etc/systemd/resolved.conf" "/etc/resolv.conf";
   echo_debug "DNS configured - remember to keep your clock up to date (date -s XX:XX) or DNSSEC Certificate errors may occur";
   if (( $_UFW_SETUP == 1 )); then
-    chroot_execute "$_CHROOT_ROOT" ufw allow out 853/tcp;
-    chroot_execute "$_CHROOT_ROOT" ufw enable;
+    chroot_execute "${_DISK_CHROOT_ROOT}" ufw allow out 853/tcp;
+    chroot_execute "${_DISK_CHROOT_ROOT}" ufw enable;
   fi
   #needs: 853/tcp, doesn't need as we disable llmnr and mdns: 5353/udp,5355/udp
 }
