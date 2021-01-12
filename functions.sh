@@ -492,8 +492,7 @@ chroot_update_apt(){
   
   #Corrupt package install fix code
   if [[ $(chroot_execute ${chroot_root} apt --fix-broken -qq -y install ; echo $?) != 0 ]]; then
-    chroot_execute ${chroot_root} dpkg --configure -a
-    if [[ $(chroot_execute ${chroot_root} apt --fix-broken -qq -y install ; echo $?) != 0 ]]; then
+    if [[ $(chroot_execute ${chroot_root} dpkg --configure -a ; echo $?) != 0 ]]; then
         echo_error "apt corrupted, manual intervention required";
         exit 1;
     fi
