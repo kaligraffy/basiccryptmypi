@@ -166,8 +166,10 @@ dropbear_setup(){
   atomic_append "DROPBEAR_OPTIONS='-p $_SSH_PORT -RFEjk -c /bin/cryptroot-unlock'" "${_CHROOT_ROOT}/etc/dropbear-initramfs/config";
 
   # Now append our key to dropbear authorized_keys file
-  #TODO NONATOMIC fix when testing headless setup
-  cat "${_SSH_LOCAL_KEYFILE}.pub" >> "${_CHROOT_ROOT}/etc/dropbear-initramfs/authorized_keys";
+  echo_debug "checking ssh key for root@hostname. make sure any host key has this comment.";
+  if [ ! $( grep -w "root@${_HOSTNAME}" "${_CHROOT_ROOT}/etc/dropbear-initramfs/authorized_keys") ]; then
+    cat "${_SSH_LOCAL_KEYFILE}.pub" >> "${_CHROOT_ROOT}/etc/dropbear-initramfs/authorized_keys";
+  fi
   chmod 600 ${_CHROOT_ROOT}/etc/dropbear-initramfs/authorized_keys;
 
   # Update dropbear for some sleep in initramfs
@@ -502,20 +504,22 @@ dns_setup(){
 [main]
 dns=none
 systemd-resolved=false
+
 [connection]
 llmnr=no
 mdns=no
 EOT
 
   #add resolved dns to top of /etc/systemd/resolved.conf for use with NetworkManager:
-  echo -e "nameserver 127.0.0.53\n$(cat "${_DISK_CHROOT_ROOT}/etc/systemd/resolved.conf")" > "${_DISK_CHROOT_ROOT}/etc/systemd/resolved.conf"
-
+  atomic_append "nameserver 127.0.0.53" "${_DISK_CHROOT_ROOT}/etc/systemd/resolved.conf"
+  
   echo_debug "creating symlink";
   mv "${_DISK_CHROOT_ROOT}/etc/resolv.conf" "${_DISK_CHROOT_ROOT}/etc/resolv.conf.backup";
   chroot_execute "${_DISK_CHROOT_ROOT}" ln -s "/etc/systemd/resolved.conf" "/etc/resolv.conf";
   echo_debug "DNS configured - remember to keep your clock up to date (date -s XX:XX) or DNSSEC Certificate errors may occur";
   if (( $_UFW_SETUP == 1 )); then
     chroot_execute "${_DISK_CHROOT_ROOT}" ufw allow out 853/tcp;
+    #chroot_execute "${_DISK_CHROOT_ROOT}" ufw allow in 853/tcp;
     chroot_execute "${_DISK_CHROOT_ROOT}" ufw enable;
   fi
   #needs: 853/tcp, doesn't need as we disable llmnr and mdns: 5353/udp,5355/udp
@@ -526,6 +530,7 @@ EOT
 #TODO replace with a new nftables script for more granular control
 #this must be called before ssh_setup, dns_setup, ntpsec_setup or the script 
 #will not work correctly
+#TODO remove flags for ufw and check if ufw is installed instead using chroot_execute
 firewall_setup(){
   echo_info "$FUNCNAME";
 

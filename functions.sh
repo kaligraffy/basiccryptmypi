@@ -336,7 +336,7 @@ create_ssh_key(){
   
   if [ ! -f "${id_rsa}" ]; then 
     echo_debug "generating ${id_rsa}";
-    ssh-keygen -b "${_SSH_BLOCK_SIZE}" -N "${_SSH_KEY_PASSPHRASE}" -f "${id_rsa}";
+    ssh-keygen -b "${_SSH_BLOCK_SIZE}" -N "${_SSH_KEY_PASSPHRASE}" -f "${id_rsa}" -C "root@${_HOSTNAME}";
   fi
   
   chmod 600 "${id_rsa}";
