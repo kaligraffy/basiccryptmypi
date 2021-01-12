@@ -24,7 +24,7 @@ Testing is 'ad hoc' and only for the RPI4. Oher kernels might work if set in env
 
 ISSUES
 
-Mounts don't get cleaned up properly sometimes.
+Mounts need manually unmounting, sometimes
 
 HOW DOES IT WORK
 
