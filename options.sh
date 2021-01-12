@@ -312,8 +312,8 @@ fake_hwclock_setup(){
   # sed -i "s|^#FORCE=force|FORCE=force|"  "$_CHROOT_ROOT/etc/default/fake-hwclock"
   chroot_execute "$_CHROOT_ROOT" systemctl enable fake-hwclock
   NOW="$(date "+%Y-%m-%d %H:%M")" 
-  chroot_execute date --set "$NOW"                                                                                                                                                                                               
-  chroot_execute fake-hwclock save
+  chroot_execute "$_CHROOT_ROOT" date --set "$NOW"                                                                                                                                                                                               
+  chroot_execute "$_CHROOT_ROOT" fake-hwclock save
 }
 
 #update system
