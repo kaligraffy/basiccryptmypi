@@ -496,7 +496,7 @@ random_mac_on_reboot_setup(){
 #credits: https://andrea.corbellini.name/2020/04/28/ubuntu-global-dns/
 dns_setup(){
   echo_info "$FUNCNAME";
-  chroot_execute "$_DISK_CHROOT_ROOT" systemctl disable resolvconf                                                                                                            
+  chroot_execute "$_DISK_CHROOT_ROOT" systemctl disable resolvconf || true                                                                                                            
   chroot_execute "$_DISK_CHROOT_ROOT" systemctl enable systemd-resolved
   sed -i "s|^#DNS=|DNS=${_DNS1}|" "${_DISK_CHROOT_ROOT}/etc/systemd/resolved.conf";
   sed -i "s|^#FallbackDNS=|FallbackDNS=${_DNS2}|" "${_DISK_CHROOT_ROOT}/etc/systemd/resolved.conf";
