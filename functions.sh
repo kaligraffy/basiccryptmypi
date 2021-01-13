@@ -526,6 +526,8 @@ chroot_package_purge(){
   chroot_execute "${chroot_dir}" apt-get -qq -y autoremove ;
 }
 
+#run a command in chroot
+#TODO log messages from chroot_execute
 chroot_execute(){
   local chroot_dir=$1;
   shift;

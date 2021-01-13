@@ -389,7 +389,8 @@ ntpsec_setup(){
   sed -i "s|^pool 1.debian.pool.ntp.org iburst|#pool 1.debian.pool.ntp.org iburst|" "${_CHROOT_ROOT}/etc/ntpsec/ntp.conf"
   sed -i "s|^pool 2.debian.pool.ntp.org iburst|#pool 2.debian.pool.ntp.org iburst|" "${_CHROOT_ROOT}/etc/ntpsec/ntp.conf"
   sed -i "s|^pool 3.debian.pool.ntp.org iburst|#pool 3.debian.pool.ntp.org iburst|" "${_CHROOT_ROOT}/etc/ntpsec/ntp.conf"
-  chroot_execute "$_CHROOT_ROOT" mkdir /var/log/ntpsec
+  
+  chroot_execute "$_CHROOT_ROOT" mkdir -p /var/log/ntpsec
   chroot_execute "$_CHROOT_ROOT" chown ntpsec:ntpsec /var/log/ntpsec
 
   if (( $_UFW_SETUP == 1 )) ; then
@@ -560,7 +561,7 @@ chkboot_setup()
   echo_info "$FUNCNAME";
   
   #TODO Investigate: touch: cannot touch '/var/lib/chkboot/needs-update': No such file or directory whilst performing apt install
-  chroot_execute "$_CHROOT_ROOT" mkdir -p /var/lib/chkboot
+  chroot_execute "$_CHROOT_ROOT" mkdir -p /var/lib/chkboot || true
   
   chroot_package_install "$_CHROOT_ROOT" chkboot;
   sed -i "s#BOOTDISK=/dev/sda#BOOTDISK=${_CHKBOOT_BOOTDISK}#" "${_CHROOT_ROOT}/etc/default/chkboot";
