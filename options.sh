@@ -7,6 +7,15 @@
 set -eu
 export _UFW_SETUP=0;
 
+#group of functions that enable headless functioning
+headless_setup(){
+  display_manager_setup;
+  initramfs_wifi_setup;
+  wifi_setup;
+  dropbear_setup;
+  ssh_setup;
+}
+
 #sets the locale (e.g. en_US, en_UK)
 locale_setup(){
   echo_info "$FUNCNAME";
@@ -24,8 +33,8 @@ export LANG="${_LOCALE}"
 export LANGUAGE="${_LOCALE}"
 EOT
 
-  atomic_append "export LANG=${_LOCALE}" "${_CHROOT_ROOT}/.bashrc"
-  atomic_append "export LANGUAGE=${_LOCALE}"  "${_CHROOT_ROOT}/.bashrc"
+  #atomic_append "export LANG=${_LOCALE}" "${_CHROOT_ROOT}/root/.bashrc"
+  #atomic_append "export LANGUAGE=${_LOCALE}"  "${_CHROOT_ROOT}/root/.bashrc"
 
   echo_debug "Generating locale"
   chroot_execute "${_CHROOT_ROOT}" locale-gen
@@ -64,10 +73,11 @@ initramfs_wifi_setup(){
   fi
 
   # Update /boot/cmdline.txt to boot crypt
-  sed -i "s#rootwait#ip=${_INITRAMFS_WIFI_IP} rootwait#g" ${_CHROOT_ROOT}/boot/cmdline.txt
-
+  if [[ ! $(grep "${_INITRAMFS_WIFI_IP}" "${_CHROOT_ROOT}/boot/cmdline.txt") ]]; then
+    sed -i "s#rootwait#ip=${_INITRAMFS_WIFI_IP} rootwait#g" ${_CHROOT_ROOT}/boot/cmdline.txt
+  fi
   echo_debug "Generating PSK for '${_WIFI_SSID}' '${_WIFI_PASSWORD}'";
-  _WIFI_PSK=$(wpa_passphrase "${_WIFI_SSID}" "${_WIFI_PASSWORD}" | grep "psk=" | grep -v "#psk")
+  _WIFI_PSK=$(wpa_passphrase "${_WIFI_SSID}" "${_WIFI_PASSWORD}" | grep "psk=" | grep -v "#psk" | sed 's/^[\t]*//g')
 
   echo_debug "Copying scripts";
   cp -p "${_FILE_DIR}/initramfs-scripts/zz-brcm" "${_CHROOT_ROOT}/etc/initramfs-tools/hooks/"
@@ -75,15 +85,15 @@ initramfs_wifi_setup(){
   cp -p "${_FILE_DIR}/initramfs-scripts/enable_wireless" "${_CHROOT_ROOT}/etc/initramfs-tools/hooks/"
   cp -p "${_FILE_DIR}/initramfs-scripts/kill_wireless" "${_CHROOT_ROOT}/etc/initramfs-tools/scripts/local-bottom/"
   
-  sed -i "#_WIFI_INTERFACE#${_WIFI_INTERFACE}#" "${_CHROOT_ROOT}/etc/initramfs-tools/scripts/init-premount/a_enable_wireless";
-  sed -i "#_INITRAMFS_WIFI_DRIVERS#${_INITRAMFS_WIFI_DRIVERS}#" "${_CHROOT_ROOT}/etc/initramfs-tools/hooks/enable_wireless";
+  sed -i "s#_WIFI_INTERFACE#${_WIFI_INTERFACE}#g" "${_CHROOT_ROOT}/etc/initramfs-tools/scripts/init-premount/a_enable_wireless";
+  sed -i "s#_INITRAMFS_WIFI_DRIVERS#${_INITRAMFS_WIFI_DRIVERS}#g" "${_CHROOT_ROOT}/etc/initramfs-tools/hooks/enable_wireless";
  
   echo_debug "Creating wpa_supplicant file";
   cat <<- EOT > ${_CHROOT_ROOT}/etc/initramfs-tools/wpa_supplicant.conf
 ctrl_interface=/tmp/wpa_supplicant
 network={
  ssid="${_WIFI_SSID}"
- psk="${_WIFI_PSK}"
+ ${_WIFI_PSK}
  scan_ssid=1
  key_mgmt=WPA-PSK
 }
@@ -107,7 +117,7 @@ wifi_setup(){
   fi
 
   echo_debug "Generating PSK for '${_WIFI_SSID}' '${_WIFI_PASSWORD}'"
-  _WIFI_PSK=$(wpa_passphrase "${_WIFI_SSID}" "${_WIFI_PASSWORD}" | grep "psk=" | grep -v "#psk")
+  _WIFI_PSK=$(wpa_passphrase "${_WIFI_SSID}" "${_WIFI_PASSWORD}" | grep "psk=" | grep -v "#psk" | sed 's/^[\t]*//g')
 
   echo_debug "Creating wpa_supplicant file"
   cat <<- EOT > ${_CHROOT_ROOT}/etc/wpa_supplicant.conf
@@ -124,7 +134,7 @@ network={
 EOT
 
   echo_debug "Updating /etc/network/interfaces file"
-  if [ ! $(grep -w "# The wifi interface" "${_CHROOT_ROOT}/etc/network/interfaces") ]; then
+  if [[ ! $(grep -w "# The wifi interface" "${_CHROOT_ROOT}/etc/network/interfaces") ]]; then
     cat <<- EOT >> "${_CHROOT_ROOT}/etc/network/interfaces"
 # The wifi interface
 auto ${_WIFI_INTERFACE}
@@ -137,8 +147,8 @@ EOT
   fi
   
   echo_debug "Create connection script /usr/local/bin/sys-wifi-connect.sh"
-  cp -p "${_FILE_DIR}/wifi-scripts/sys-wifi-connect.sh" "${_CHROOT_ROOT}/usr/local/bin/sys-wifi-connect.sh"
-  sed -i "s|_WIFI_INTERFACE|${_WIFI_INTERFACE}|" "${_CHROOT_ROOT}/usr/local/bin/sys-wifi-connect.sh";
+  cp -pr "${_FILE_DIR}/wifi-scripts/sys-wifi-connect.sh" "${_CHROOT_ROOT}/usr/local/bin/sys-wifi-connect.sh"
+  sed -i "s|_WIFI_INTERFACE|${_WIFI_INTERFACE}|g" "${_CHROOT_ROOT}/usr/local/bin/sys-wifi-connect.sh";
   echo_debug "Add to cron to start at boot (before login)"
   echo "@reboot root /bin/sh /usr/local/bin/sys-wifi-connect.sh" > "${_CHROOT_ROOT}/etc/cron.d/sys-wifi"
   chmod 755 "${_CHROOT_ROOT}/etc/cron.d/sys-wifi";
@@ -156,7 +166,7 @@ display_manager_setup(){
 dropbear_setup(){
   echo_info "$FUNCNAME";
   if [ ! -f "${_SSH_LOCAL_KEYFILE}" ]; then
-      echo_error "ERROR: Obligatory SSH keyfile '${_SSH_LOCAL_KEYFILE}' could not be found. Exiting";
+      echo_error "SSH keyfile '${_SSH_LOCAL_KEYFILE}' could not be found. Exiting";
       exit 1;
   fi
 
@@ -168,7 +178,7 @@ dropbear_setup(){
 
   # Now append our key to dropbear authorized_keys file
   echo_debug "checking ssh key for root@hostname. make sure any host key has this comment.";
-  if [ ! $( grep -w "root@${_HOSTNAME}" "${_CHROOT_ROOT}/etc/dropbear-initramfs/authorized_keys") ]; then
+  if [[ ! $( grep -w "root@${_HOSTNAME}" "${_CHROOT_ROOT}/etc/dropbear-initramfs/authorized_keys") ]]; then
     cat "${_SSH_LOCAL_KEYFILE}.pub" >> "${_CHROOT_ROOT}/etc/dropbear-initramfs/authorized_keys";
   fi
   chmod 600 ${_CHROOT_ROOT}/etc/dropbear-initramfs/authorized_keys;
@@ -178,9 +188,44 @@ dropbear_setup(){
 
   # Using provided dropbear keys (or backuping generating ones for later usage)
   # Don't use weak key ciphers
-  rm ${_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_dss_host_key;
-  rm ${_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_ecdsa_host_key;
+  rm ${_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_dss_host_key || true;
+  rm ${_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_ecdsa_host_key || true;
   backup_dropbear_key "${_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_rsa_host_key";
+}
+
+#TODO sensible ssh default configuration
+ssh_setup(){
+  echo_info "$FUNCNAME";
+
+  sshd_config="${_CHROOT_ROOT}/etc/ssh/sshd_config"
+  ssh_authorized_keys="${_CHROOT_ROOT}/root/.ssh/authorized_keys"
+
+   # Creating box's default user own key
+  create_ssh_key;
+
+  # Append our key to the default user's authorized_keys file
+  echo_debug "Creating authorized_keys file"
+  cat "${_SSH_LOCAL_KEYFILE}.pub" > "${ssh_authorized_keys}"
+  chmod 600 "${ssh_authorized_keys}"
+
+  # Update sshd settings
+  cp -p "${sshd_config}" "${sshd_config}.bak"
+  if [[ ! $( grep -w "#New SSH Config" "${sshd_config}") ]]; then
+  cat <<- EOT >> "${sshd_config}"
+#New SSH Config
+PasswordAuthentication $(echo $_SSH_PASSWORD_AUTHENTICATION)
+Port $(echo $_SSH_PORT)
+ChallengeResponseAuthentication no
+PubkeyAuthentication yes
+AuthorizedKeysFile .ssh/authorized_keys
+EOT
+  fi
+  
+  #OPENS UP YOUR SSH PORT
+  if (( $_UFW_SETUP == 1 )) ; then
+    chroot_execute "$_CHROOT_ROOT" ufw allow in "${_SSH_PORT}/tcp";
+    chroot_execute "$_CHROOT_ROOT" ufw enable;
+  fi
 }
 
 luks_nuke_setup(){
@@ -198,47 +243,6 @@ EOT
   chroot_execute "$_CHROOT_ROOT" dpkg-reconfigure -f noninteractive cryptsetup-nuke-password
   else
       echo_warn "Nuke password _LUKS_NUKE_PASSWORD not set. Skipping."
-  fi
-}
-
-#TODO sensible ssh default configuration
-ssh_setup(){
-  echo_info "$FUNCNAME";
-
-  sshd_config="${_CHROOT_ROOT}/etc/ssh/sshd_config"
-  ssh_authorized_keys="${_CHROOT_ROOT}/.ssh/authorized_keys"
-
-  if [ ! -f "${_SSH_LOCAL_KEYFILE}" ]; then
-      echo_error "SSH keyfile '${_SSH_LOCAL_KEYFILE}' could not be found"
-      exit 1;
-  fi
-
-  # Append our key to the default user's authorized_keys file
-  echo_debug "Creating authorized_keys file"
-  mkdir -p "${_CHROOT_ROOT}/.ssh/"
-  cat "${_SSH_LOCAL_KEYFILE}.pub" > "${ssh_authorized_keys}"
-  chmod 600 "${ssh_authorized_keys}"
-
-  # Creating box's default user own key
-  create_ssh_key;
-
-  # Update sshd settings
-  cp -p "${sshd_config}" "${sshd_config}.bak"
-  if [ ! $( grep -w "#New SSH Config" "${sshd_config}") ]; then
-  cat <<- EOT >> "${sshd_config}"
-#New SSH Config
-PasswordAuthentication $(echo $_SSH_PASSWORD_AUTHENTICATION)
-Port $(echo $_SSH_PORT)
-ChallengeResponseAuthentication no
-PubkeyAuthentication yes
-AuthorizedKeysFile .ssh/authorized_keys
-EOT
-  fi
-  
-  #OPENS UP YOUR SSH PORT
-  if (( $_UFW_SETUP == 1 )) ; then
-    chroot_execute "$_CHROOT_ROOT" ufw allow in "${_SSH_PORT}/tcp";
-    chroot_execute "$_CHROOT_ROOT" ufw enable;
   fi
 }
 
@@ -482,6 +486,7 @@ apparmor_setup(){
 }
 
 #randomize mac on reboot
+#TODO random mac on boot config for wpa_supplicant
 random_mac_on_reboot_setup(){
 #https://wiki.archlinux.org/index.php/MAC_address_spoofing#Automatically
   echo_info "$FUNCNAME";
@@ -531,8 +536,7 @@ EOT
 }
 
 #installs a basic firewall
-#TODO fix ufw logging so it doesn't log to syslog
-#TODO replace with a new nftables script for more granular control
+#TODO replace with firewalld
 #this must be called before ssh_setup, dns_setup, ntpsec_setup or the script 
 #will not work correctly
 #TODO remove flags for ufw and check if ufw is installed instead using chroot_execute
@@ -573,6 +577,9 @@ chkboot_setup()
 #TODO new method for a new main user (not 'kali')
 user_setup(){
   echo_info "$FUNCNAME";
-  echo_warn "Feature not implemented";
+  echo_warn "NOT YET IMPLEMENTED";
 }
+
+#TODO DNS simple setup
+#set dns in resolv.conf for setup only or none dnssec setup
 

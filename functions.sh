@@ -13,7 +13,7 @@ export _FILE_DIR=${_BASE_DIR}/files
 export _EXTRACTED_IMAGE="${_FILE_DIR}/extracted.img"
 export _CHROOT_ROOT=${_BUILD_DIR}/root
 export _DISK_CHROOT_ROOT=/mnt/cryptmypi
-export _ENCRYPTED_VOLUME_PATH="/dev/mapper/crypt-1"
+export _ENCRYPTED_VOLUME_PATH="/dev/mapper/crypt-2"
 export _COLOR_ERROR='\033[0;31m' #red
 export _COLOR_WARN='\033[1;33m' #orange
 export _COLOR_INFO='\033[0;35m' #purple
@@ -254,7 +254,7 @@ encryption_setup(){
   chroot ${_CHROOT_ROOT} /bin/bash -c "test -L /sbin/fsck.luks || ln -s /sbin/e2fsck /sbin/fsck.luks"
 
   # Indicate kernel to use initramfs - facilitates loading drivers
-  atomic_append 'initramfs\ initramfs.gz\ followkernel' "${_CHROOT_ROOT}/boot/config.txt";
+  atomic_append 'initramfs initramfs.gz followkernel' "${_CHROOT_ROOT}/boot/config.txt";
   
   # Update /boot/cmdline.txt to boot crypt
   sed -i "s|root=/dev/mmcblk0p2|root=${_ENCRYPTED_VOLUME_PATH} cryptdevice=/dev/mmcblk0p2:$(basename ${_ENCRYPTED_VOLUME_PATH})|g" ${_CHROOT_ROOT}/boot/cmdline.txt
@@ -342,8 +342,9 @@ create_ssh_key(){
   chmod 600 "${id_rsa}";
   chmod 644 "${id_rsa}.pub";
   echo_debug "copying keyfile ${id_rsa} to box's default user .ssh directory";
-  cp -p "${id_rsa}" "${_CHROOT_ROOT}/.ssh/id_rsa";
-  cp -p "${id_rsa}.pub" "${_CHROOT_ROOT}/.ssh/id_rsa.pub";
+  mkdir -p "${_CHROOT_ROOT}/root/.ssh/" || true
+  cp -p "${id_rsa}" "${_CHROOT_ROOT}/root/.ssh/id_rsa";
+  cp -p "${id_rsa}.pub" "${_CHROOT_ROOT}/root/.ssh/id_rsa.pub";
 
 }
 
@@ -447,6 +448,11 @@ chroot_mount(){
     echo_error "failure mounting ${chroot_dir}/proc/";
     exit 1;
   fi
+  
+  if [[ $(mount -o bind /tmp "${chroot_dir}/tmp/"; echo $?) != 0 ]]; then
+    echo_error "failure mounting ${chroot_dir}/tmp/";
+    exit 1;
+  fi
 }
 
 #unmount dev,sys,proc in chroot
@@ -471,6 +477,12 @@ chroot_umount(){
     echo_info "umounting ${chroot_dir}/proc/";
   else
     echo_warn "problem umounting ${chroot_dir}/proc/ or was already umounted";
+  fi
+  
+  if umount "${chroot_dir}/tmp/"; then
+    echo_info "umounting ${chroot_dir}/tmp/";
+  else
+    echo_warn "problem umounting ${chroot_dir}/tmp/ or was already umounted";
   fi
 }
 

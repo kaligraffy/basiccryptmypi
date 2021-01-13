@@ -5,8 +5,8 @@ set -eu
 # Creates a configurable kali pi build
 
 # Load functions, environment variables and dependencies
-. env.sh;
 . functions.sh;
+. env.sh;
 . options.sh;
 . dependencies.sh;
 
