@@ -189,7 +189,7 @@ dropbear_setup(){
   # Using provided dropbear keys (or backuping generating ones for later usage)
   # Don't use weak key ciphers
   rm ${_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_dss_host_key || true;
-  rm ${_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_ecdsa_host_key || true;
+  rm ${_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_ecdsa25519_host_key || true;
   backup_dropbear_key "${_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_rsa_host_key";
 }
 
@@ -582,4 +582,12 @@ user_setup(){
 
 #TODO DNS simple setup
 #set dns in resolv.conf for setup only or none dnssec setup
+simple_dns_setup(){
+  echo_info "$FUNCNAME";
+  echo_warn "NOT YET IMPLEMENTED";
+}
 
+#TODO enforce option ordering so if the script order is not correct, the script doesn't run
+#preliminary thoughts: create a list of methods which are ordered, then grep the methods in env.sh and compare their order
+#if a method exists not in the list warn but skip exit
+#if a method is in the wrong order exit
