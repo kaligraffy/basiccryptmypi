@@ -189,7 +189,9 @@ dropbear_setup(){
   # Using provided dropbear keys (or backuping generating ones for later usage)
   # Don't use weak key ciphers
   rm ${_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_dss_host_key || true;
-  rm ${_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_ecdsa25519_host_key || true;
+  rm ${_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_ed25519_host_key || true;
+  rm ${_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_ecdsa_host_key || true;
+
   backup_dropbear_key "${_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_rsa_host_key";
 }
 
