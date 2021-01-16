@@ -20,24 +20,24 @@ headless_setup(){
 locale_setup(){
   echo_info "$FUNCNAME";
   echo_debug "Uncommenting locale ${_LOCALE} for inclusion in generation"
-  sed -i 's/^# *\(en_US.UTF-8\)/\1/' "${_CHROOT_ROOT}/etc/locale.gen";
+  sed -i 's/^# *\(en_US.UTF-8\)/\1/' "${_DISK_CHROOT_ROOT}/etc/locale.gen";
 
   echo_debug "Updating /etc/default/locale";
-  atomic_append "LANG=${_LOCALE}" "${_CHROOT_ROOT}/etc/default/locale";
+  atomic_append "LANG=${_LOCALE}" "${_DISK_CHROOT_ROOT}/etc/default/locale";
 
-  chroot_package_install "${_CHROOT_ROOT}" locales
+  chroot_package_install locales
   
   echo_debug "Updating env variables";
-  chroot "${_CHROOT_ROOT}" /bin/bash -x <<- EOT
+  chroot "${_DISK_CHROOT_ROOT}" /bin/bash -x <<- EOT
 export LANG="${_LOCALE}"
 export LANGUAGE="${_LOCALE}"
 EOT
 
-  #atomic_append "export LANG=${_LOCALE}" "${_CHROOT_ROOT}/root/.bashrc"
-  #atomic_append "export LANGUAGE=${_LOCALE}"  "${_CHROOT_ROOT}/root/.bashrc"
+  #atomic_append "export LANG=${_LOCALE}" "${_DISK_CHROOT_ROOT}/root/.bashrc"
+  #atomic_append "export LANGUAGE=${_LOCALE}"  "${_DISK_CHROOT_ROOT}/root/.bashrc"
 
   echo_debug "Generating locale"
-  chroot_execute "${_CHROOT_ROOT}" locale-gen
+  chroot_execute locale-gen
 }
 
 #create wifi connection to a router/hotspot on boot
@@ -73,23 +73,23 @@ initramfs_wifi_setup(){
   fi
 
   # Update /boot/cmdline.txt to boot crypt
-  if [[ ! $(grep "${_INITRAMFS_WIFI_IP}" "${_CHROOT_ROOT}/boot/cmdline.txt") ]]; then
-    sed -i "s#rootwait#ip=${_INITRAMFS_WIFI_IP} rootwait#g" ${_CHROOT_ROOT}/boot/cmdline.txt
+  if [[ ! $(grep "${_INITRAMFS_WIFI_IP}" "${_DISK_CHROOT_ROOT}/boot/cmdline.txt") ]]; then
+    sed -i "s#rootwait#ip=${_INITRAMFS_WIFI_IP} rootwait#g" ${_DISK_CHROOT_ROOT}/boot/cmdline.txt
   fi
   echo_debug "Generating PSK for '${_WIFI_SSID}' '${_WIFI_PASSWORD}'";
   _WIFI_PSK=$(wpa_passphrase "${_WIFI_SSID}" "${_WIFI_PASSWORD}" | grep "psk=" | grep -v "#psk" | sed 's/^[\t]*//g')
 
   echo_debug "Copying scripts";
-  cp -p "${_FILE_DIR}/initramfs-scripts/zz-brcm" "${_CHROOT_ROOT}/etc/initramfs-tools/hooks/"
-  cp -p "${_FILE_DIR}/initramfs-scripts/a_enable_wireless" "${_CHROOT_ROOT}/etc/initramfs-tools/scripts/init-premount/";
-  cp -p "${_FILE_DIR}/initramfs-scripts/enable_wireless" "${_CHROOT_ROOT}/etc/initramfs-tools/hooks/"
-  cp -p "${_FILE_DIR}/initramfs-scripts/kill_wireless" "${_CHROOT_ROOT}/etc/initramfs-tools/scripts/local-bottom/"
+  cp -p "${_FILE_DIR}/initramfs-scripts/zz-brcm" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/hooks/"
+  cp -p "${_FILE_DIR}/initramfs-scripts/a_enable_wireless" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/scripts/init-premount/";
+  cp -p "${_FILE_DIR}/initramfs-scripts/enable_wireless" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/hooks/"
+  cp -p "${_FILE_DIR}/initramfs-scripts/kill_wireless" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/scripts/local-bottom/"
   
-  sed -i "s#_WIFI_INTERFACE#${_WIFI_INTERFACE}#g" "${_CHROOT_ROOT}/etc/initramfs-tools/scripts/init-premount/a_enable_wireless";
-  sed -i "s#_INITRAMFS_WIFI_DRIVERS#${_INITRAMFS_WIFI_DRIVERS}#g" "${_CHROOT_ROOT}/etc/initramfs-tools/hooks/enable_wireless";
+  sed -i "s#_WIFI_INTERFACE#${_WIFI_INTERFACE}#g" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/scripts/init-premount/a_enable_wireless";
+  sed -i "s#_INITRAMFS_WIFI_DRIVERS#${_INITRAMFS_WIFI_DRIVERS}#g" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/hooks/enable_wireless";
  
   echo_debug "Creating wpa_supplicant file";
-  cat <<- EOT > ${_CHROOT_ROOT}/etc/initramfs-tools/wpa_supplicant.conf
+  cat <<- EOT > ${_DISK_CHROOT_ROOT}/etc/initramfs-tools/wpa_supplicant.conf
 ctrl_interface=/tmp/wpa_supplicant
 network={
  ssid="${_WIFI_SSID}"
@@ -101,7 +101,7 @@ EOT
 
   # Adding modules to initramfs modules
   for driver in ${_INITRAMFS_WIFI_DRIVERS}; do
-    atomic_append "${driver}" "${_CHROOT_ROOT}/etc/initramfs-tools/modules"
+    atomic_append "${driver}" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/modules"
   done
   echo_debug "initramfs wifi completed";
 }
@@ -120,7 +120,7 @@ wifi_setup(){
   _WIFI_PSK=$(wpa_passphrase "${_WIFI_SSID}" "${_WIFI_PASSWORD}" | grep "psk=" | grep -v "#psk" | sed 's/^[\t]*//g')
 
   echo_debug "Creating wpa_supplicant file"
-  cat <<- EOT > ${_CHROOT_ROOT}/etc/wpa_supplicant.conf
+  cat <<- EOT > ${_DISK_CHROOT_ROOT}/etc/wpa_supplicant.conf
 ctrl_interface=/var/run/wpa_supplicant
 network={
  ssid="${_WIFI_SSID}"
@@ -134,8 +134,8 @@ network={
 EOT
 
   echo_debug "Updating /etc/network/interfaces file"
-  if [[ ! $(grep -w "# The wifi interface" "${_CHROOT_ROOT}/etc/network/interfaces") ]]; then
-    cat <<- EOT >> "${_CHROOT_ROOT}/etc/network/interfaces"
+  if [[ ! $(grep -w "# The wifi interface" "${_DISK_CHROOT_ROOT}/etc/network/interfaces") ]]; then
+    cat <<- EOT >> "${_DISK_CHROOT_ROOT}/etc/network/interfaces"
 # The wifi interface
 auto ${_WIFI_INTERFACE}
 allow-hotplug ${_WIFI_INTERFACE}
@@ -147,18 +147,18 @@ EOT
   fi
   
   echo_debug "Create connection script /usr/local/bin/sys-wifi-connect.sh"
-  cp -pr "${_FILE_DIR}/wifi-scripts/sys-wifi-connect.sh" "${_CHROOT_ROOT}/usr/local/bin/sys-wifi-connect.sh"
-  sed -i "s|_WIFI_INTERFACE|${_WIFI_INTERFACE}|g" "${_CHROOT_ROOT}/usr/local/bin/sys-wifi-connect.sh";
+  cp -pr "${_FILE_DIR}/wifi-scripts/sys-wifi-connect.sh" "${_DISK_CHROOT_ROOT}/usr/local/bin/sys-wifi-connect.sh"
+  sed -i "s|_WIFI_INTERFACE|${_WIFI_INTERFACE}|g" "${_DISK_CHROOT_ROOT}/usr/local/bin/sys-wifi-connect.sh";
   echo_debug "Add to cron to start at boot (before login)"
-  echo "@reboot root /bin/sh /usr/local/bin/sys-wifi-connect.sh" > "${_CHROOT_ROOT}/etc/cron.d/sys-wifi"
-  chmod 755 "${_CHROOT_ROOT}/etc/cron.d/sys-wifi";
+  echo "@reboot root /bin/sh /usr/local/bin/sys-wifi-connect.sh" > "${_DISK_CHROOT_ROOT}/etc/cron.d/sys-wifi"
+  chmod 755 "${_DISK_CHROOT_ROOT}/etc/cron.d/sys-wifi";
 
 }
 
 #disable the gui 
 display_manager_setup(){
   echo_info "$FUNCNAME";
-  chroot_execute "$_CHROOT_ROOT" systemctl set-default multi-user
+  chroot_execute systemctl set-default multi-user
   echo_warn "To get a gui run startxfce4 on command line"
 }
 
@@ -171,36 +171,36 @@ dropbear_setup(){
   fi
 
   # Installing packages
-  chroot_package_install "$_CHROOT_ROOT" dropbear dropbear-initramfs cryptsetup-initramfs
+ chroot_package_install dropbear dropbear-initramfs cryptsetup-initramfs
 
   #TODO check this works
-  atomic_append "DROPBEAR_OPTIONS='-p $_SSH_PORT -RFEjk -c /bin/cryptroot-unlock'" "${_CHROOT_ROOT}/etc/dropbear-initramfs/config";
+  atomic_append "DROPBEAR_OPTIONS='-p $_SSH_PORT -RFEjk -c /bin/cryptroot-unlock'" "${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/config";
 
   # Now append our key to dropbear authorized_keys file
   echo_debug "checking ssh key for root@hostname. make sure any host key has this comment.";
-  if [[ ! $( grep -w "root@${_HOSTNAME}" "${_CHROOT_ROOT}/etc/dropbear-initramfs/authorized_keys") ]]; then
-    cat "${_SSH_LOCAL_KEYFILE}.pub" >> "${_CHROOT_ROOT}/etc/dropbear-initramfs/authorized_keys";
+  if [[ ! $( grep -w "root@${_HOSTNAME}" "${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/authorized_keys") ]]; then
+    cat "${_SSH_LOCAL_KEYFILE}.pub" >> "${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/authorized_keys";
   fi
-  chmod 600 ${_CHROOT_ROOT}/etc/dropbear-initramfs/authorized_keys;
+  chmod 600 ${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/authorized_keys;
 
   # Update dropbear for some sleep in initramfs
-  sed -i 's#run_dropbear \&#sleep 5\nrun_dropbear \&#g' ${_CHROOT_ROOT}/usr/share/initramfs-tools/scripts/init-premount/dropbear;
+  sed -i 's#run_dropbear \&#sleep 5\nrun_dropbear \&#g' ${_DISK_CHROOT_ROOT}/usr/share/initramfs-tools/scripts/init-premount/dropbear;
 
   # Using provided dropbear keys (or backuping generating ones for later usage)
   # Don't use weak key ciphers
-  rm ${_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_dss_host_key || true;
-  rm ${_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_ed25519_host_key || true;
-  rm ${_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_ecdsa_host_key || true;
+  rm ${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_dss_host_key || true;
+  rm ${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_ed25519_host_key || true;
+  rm ${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_ecdsa_host_key || true;
 
-  backup_dropbear_key "${_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_rsa_host_key";
+  backup_dropbear_key "${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_rsa_host_key";
 }
 
 #TODO sensible ssh default configuration
 ssh_setup(){
   echo_info "$FUNCNAME";
 
-  sshd_config="${_CHROOT_ROOT}/etc/ssh/sshd_config"
-  ssh_authorized_keys="${_CHROOT_ROOT}/root/.ssh/authorized_keys"
+  sshd_config="${_DISK_CHROOT_ROOT}/etc/ssh/sshd_config"
+  ssh_authorized_keys="${_DISK_CHROOT_ROOT}/root/.ssh/authorized_keys"
 
    # Creating box's default user own key
   create_ssh_key;
@@ -225,8 +225,8 @@ EOT
   
   #OPENS UP YOUR SSH PORT
   if (( $_UFW_SETUP == 1 )) ; then
-    chroot_execute "$_CHROOT_ROOT" ufw allow in "${_SSH_PORT}/tcp";
-    chroot_execute "$_CHROOT_ROOT" ufw enable;
+    chroot_execute ufw allow in "${_SSH_PORT}/tcp";
+    chroot_execute ufw enable;
   fi
 }
 
@@ -236,13 +236,13 @@ luks_nuke_setup(){
 # Install and configure cryptsetup nuke package if we were given a password
   if [ -n "${_LUKS_NUKE_PASSWORD}" ]; then
     echo_debug "Attempting to install and configure encrypted pi cryptsetup nuke password."
-    chroot_package_install "${_CHROOT_ROOT}" cryptsetup-nuke-password
-    chroot ${_CHROOT_ROOT} /bin/bash -c "debconf-set-selections <<- EOT
+    chroot_package_install cryptsetup-nuke-password
+    chroot ${_DISK_CHROOT_ROOT} /bin/bash -c "debconf-set-selections <<- EOT
 cryptsetup-nuke-password cryptsetup-nuke-password/password string ${_LUKS_NUKE_PASSWORD}
 cryptsetup-nuke-password cryptsetup-nuke-password/password-again string ${_LUKS_NUKE_PASSWORD}
 EOT
 "
-  chroot_execute "$_CHROOT_ROOT" dpkg-reconfigure -f noninteractive cryptsetup-nuke-password
+  chroot_execute dpkg-reconfigure -f noninteractive cryptsetup-nuke-password
   else
       echo_warn "Nuke password _LUKS_NUKE_PASSWORD not set. Skipping."
   fi
@@ -251,31 +251,31 @@ EOT
 #sets cpu performance mode (useful for running off battery)
 cpu_governor_setup(){
   echo_info "$FUNCNAME";
-  chroot_package_install "${_CHROOT_ROOT}" cpufrequtils;
+  chroot_package_install cpufrequtils;
   echo_warn "Use cpufreq-info/systemctl status cpufrequtils to confirm the changes when the device is running";
-  echo "GOVERNOR=${_CPU_GOVERNOR}" | tee ${_CHROOT_ROOT}/etc/default/cpufrequtils;
-  chroot_execute "$_CHROOT_ROOT" systemctl enable cpufrequtils;
+  echo "GOVERNOR=${_CPU_GOVERNOR}" | tee ${_DISK_CHROOT_ROOT}/etc/default/cpufrequtils;
+  chroot_execute systemctl enable cpufrequtils;
 }
 
 #custom hostname setup
 hostname_setup(){
   echo_info "$FUNCNAME";
   # Overwrites /etc/hostname
-  echo "${_HOSTNAME}" > "${_CHROOT_ROOT}/etc/hostname";
+  echo "${_HOSTNAME}" > "${_DISK_CHROOT_ROOT}/etc/hostname";
   # Updates /etc/hosts
-  sed -i "s#^127.0.0.1       kali#127.0.0.1  ${_HOSTNAME}#" "${_CHROOT_ROOT}/etc/hosts";
+  sed -i "s#^127.0.0.1       kali#127.0.0.1  ${_HOSTNAME}#" "${_DISK_CHROOT_ROOT}/etc/hosts";
 }
 
 #sets the root password
 root_password_setup(){
   echo_info "$FUNCNAME";
-  chroot ${_CHROOT_ROOT} /bin/bash -c "echo root:${_ROOT_PASSWORD} | /usr/sbin/chpasswd"
+  chroot ${_DISK_CHROOT_ROOT} /bin/bash -c "echo root:${_ROOT_PASSWORD} | /usr/sbin/chpasswd"
 }
 
 #sets the kali user password
 user_password_setup(){
   echo_info "$FUNCNAME";
-  chroot ${_CHROOT_ROOT} /bin/bash -c "echo kali:${_KALI_PASSWORD} | /usr/sbin/chpasswd"
+  chroot ${_DISK_CHROOT_ROOT} /bin/bash -c "echo kali:${_KALI_PASSWORD} | /usr/sbin/chpasswd"
 }
 
 #setup a vpn client
@@ -286,48 +286,48 @@ vpn_client_setup(){
   _OPENVPN_CONFIG_ZIPPATH="${_FILE_DIR}/${_OPENVPN_CONFIG_ZIPFILE}"
 
   echo_debug "Assuring openvpn installation and config dir"
-  chroot_package_install "$_CHROOT_ROOT" openvpn
-  mkdir -p ${_CHROOT_ROOT}/etc/openvpn
+ chroot_package_install openvpn
+  mkdir -p ${_DISK_CHROOT_ROOT}/etc/openvpn
 
   echo_debug "Unzipping provided files into configuration dir"
-  unzip ${_OPENVPN_CONFIG_ZIPPATH} -d ${_CHROOT_ROOT}/etc/openvpn/
+  unzip ${_OPENVPN_CONFIG_ZIPPATH} -d ${_DISK_CHROOT_ROOT}/etc/openvpn/
 
   echo_debug "Setting AUTOSTART to ALL on OPENVPN config"
-  sed -i '/^AUTOSTART=/s/^/#/' ${_CHROOT_ROOT}/etc/default/openvpn
-  sed -i '/^#AUTOSTART="all"/s/^#//' ${_CHROOT_ROOT}/etc/default/openvpn
+  sed -i '/^AUTOSTART=/s/^/#/' ${_DISK_CHROOT_ROOT}/etc/default/openvpn
+  sed -i '/^#AUTOSTART="all"/s/^#//' ${_DISK_CHROOT_ROOT}/etc/default/openvpn
 
   echo_debug "Enabling service "
-  chroot_execute "$_CHROOT_ROOT" systemctl enable openvpn@client.service
+  chroot_execute systemctl enable openvpn@client.service
 }
 
 
 #installs clamav and update/scanning daemons, updates to most recent definitions
 clamav_setup(){
   echo_info "$FUNCNAME";
-  chroot_package_install "$_CHROOT_ROOT" clamav clamav-daemon
-  chroot_execute "$_CHROOT_ROOT" systemctl enable clamav-freshclam.service
-  chroot_execute "$_CHROOT_ROOT" systemctl enable clamav-daemon.service
-  chroot_execute "$_CHROOT_ROOT" freshclam
+ chroot_package_install clamav clamav-daemon
+  chroot_execute systemctl enable clamav-freshclam.service
+  chroot_execute systemctl enable clamav-daemon.service
+  chroot_execute freshclam
   echo_debug "clamav installed"
 }
 
 #simulates a hardware clock
 fake_hwclock_setup(){
   echo_info "$FUNCNAME";
-  chroot_package_install "$_CHROOT_ROOT" fake-hwclock
+ chroot_package_install fake-hwclock
   # set clock even if saved value appears to be in the past
-  # sed -i "s|^#FORCE=force|FORCE=force|"  "$_CHROOT_ROOT/etc/default/fake-hwclock"
-  chroot_execute "$_CHROOT_ROOT" systemctl enable fake-hwclock
+  # sed -i "s|^#FORCE=force|FORCE=force|"  "${_DISK_CHROOT_ROOT}/etc/default/fake-hwclock"
+  chroot_execute systemctl enable fake-hwclock
   NOW="$(date "+%Y-%m-%d %H:%M")" 
-  chroot_execute "$_CHROOT_ROOT" date --set "$NOW"                                                                                                                                                                                               
-  chroot_execute "$_CHROOT_ROOT" fake-hwclock save
+  chroot_execute date --set "$NOW"                                                                                                                                                                                               
+  chroot_execute fake-hwclock save
 }
 
 #update system
 apt_upgrade(){
   echo_info "$FUNCNAME";
-  chroot_execute "$_CHROOT_ROOT" apt -qq -y update
-  chroot_execute "$_CHROOT_ROOT" apt -qq -y upgrade
+  chroot_execute apt -qq -y update
+  chroot_execute apt -qq -y upgrade
 }
 
 #install and configure docker
@@ -342,45 +342,45 @@ docker_setup(){
   echo_warn "Docker may conflict with VPN services/connections"
 #   echo_debug "    Updating iptables  (issue: default kali iptables was stalling)"
 #   systemctl start and stop commands would hang/stall due to pristine iptables on kali-linux-2020.1a-rpi3-nexmon-64.img.xz
-#   chroot_package_install "$_CHROOT_ROOT" iptables
-#   chroot_execute "$_CHROOT_ROOT" update-alternatives --set iptables /usr/sbin/iptables-legacy
-#   chroot_execute "$_CHROOT_ROOT" update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
+#  chroot_package_install iptables
+#   chroot_execute update-alternatives --set iptables /usr/sbin/iptables-legacy
+#   chroot_execute update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
 
 # Needed to avoid "cgroups: memory cgroup not supported on this system"
 #   see https://github.com/moby/moby/issues/35587
 #       cgroup_enable works on kernel 4.9 upwards
 #       cgroup_memory will be dropped in 4.14, but works on < 4.9
 #       keeping both for now
-  sed -i "s#rootwait#cgroup_enable=memory cgroup_memory=1 rootwait#g" ${_CHROOT_ROOT}/boot/cmdline.txt
-  chroot_package_install "$_CHROOT_ROOT" docker.io
-  chroot_execute "$_CHROOT_ROOT" systemctl enable docker
+  sed -i "s#rootwait#cgroup_enable=memory cgroup_memory=1 rootwait#g" ${_DISK_CHROOT_ROOT}/boot/cmdline.txt
+  chroot_package_install docker.io
+  chroot_execute systemctl enable docker
   echo_debug "docker installed";
 }
 
 #install and remove custom packages
 packages_setup(){
   echo_info "$FUNCNAME";
-  chroot_package_purge "$_CHROOT_ROOT" "${_PKGS_TO_PURGE}";
-  chroot_package_install "$_CHROOT_ROOT" "${_PKGS_TO_INSTALL}";
+  chroot_package_purge "${_PKGS_TO_PURGE}";
+  chroot_package_install"${_PKGS_TO_INSTALL}";
 }
 
 #sets up aide to run at midnight each night
 aide_setup(){
   echo_info "$FUNCNAME";
-  chroot_package_install "${_DISK_CHROOT_ROOT}" aide
-  chroot_execute "${_DISK_CHROOT_ROOT}" aideinit
-  chroot_execute "${_DISK_CHROOT_ROOT}" mv /var/lib/aide/aide.db.new /var/lib/aide/aide.db
+  chroot_package_install aide
+  chroot_execute aideinit
+  chroot_execute mv /var/lib/aide/aide.db.new /var/lib/aide/aide.db
 
-  echo "0 0 * * * root /usr/sbin/aide --check --config=/etc/aide/aide.conf" > "${_CHROOT_ROOT}/etc/cron.d/aideCheck"
-  chmod 755 "${_CHROOT_ROOT}/etc/cron.d/aideCheck";
+  echo "0 0 * * * root /usr/sbin/aide --check --config=/etc/aide/aide.conf" > "${_DISK_CHROOT_ROOT}/etc/cron.d/aideCheck"
+  chmod 755 "${_DISK_CHROOT_ROOT}/etc/cron.d/aideCheck";
 }
 
 #basic snapper install for use with btrfs, snapshots root directory in its entirety with default settings,
 #snapper-gui errors
 snapper_setup(){
   echo_info "$FUNCNAME";
-  chroot_package_install "${_DISK_CHROOT_ROOT}" snapper 
-  #chroot_execute "${_DISK_CHROOT_ROOT}" snapper create-config /
+  chroot_package_install snapper 
+  #chroot_execute snapper create-config /
   #TODO Set sensible snapper configs for a limited space ssd
   echo_warn "Remember to set a reasonable snapper config";
 }
@@ -388,20 +388,20 @@ snapper_setup(){
 #secure network time protocol configuration, also installs ntpdate client for manually pulling the time
 ntpsec_setup(){
   echo_info "$FUNCNAME";
-  chroot_package_install "${_CHROOT_ROOT}" ntpsec ntpsec-doc ntpsec-ntpdate
-  chroot_execute "$_CHROOT_ROOT" systemctl enable ntpsec.service
-  sed -i "s|^# server time.cloudflare.com nts|server time.cloudflare.com:123 iburst nts \nserver nts.sth1.ntp.se:123 iburst nts\nserver nts.sth2.ntp.se:123 iburst nts|" "/etc/ntpsec/ntp.conf" "${_CHROOT_ROOT}/etc/ntpsec/ntp.conf"
-  sed -i "s|^pool 0.debian.pool.ntp.org iburst|#pool 0.debian.pool.ntp.org iburst|" "${_CHROOT_ROOT}/etc/ntpsec/ntp.conf"
-  sed -i "s|^pool 1.debian.pool.ntp.org iburst|#pool 1.debian.pool.ntp.org iburst|" "${_CHROOT_ROOT}/etc/ntpsec/ntp.conf"
-  sed -i "s|^pool 2.debian.pool.ntp.org iburst|#pool 2.debian.pool.ntp.org iburst|" "${_CHROOT_ROOT}/etc/ntpsec/ntp.conf"
-  sed -i "s|^pool 3.debian.pool.ntp.org iburst|#pool 3.debian.pool.ntp.org iburst|" "${_CHROOT_ROOT}/etc/ntpsec/ntp.conf"
+  chroot_package_install ntpsec ntpsec-doc ntpsec-ntpdate
+  chroot_execute systemctl enable ntpsec.service
+  sed -i "s|^# server time.cloudflare.com nts|server time.cloudflare.com:123 iburst nts \nserver nts.sth1.ntp.se:123 iburst nts\nserver nts.sth2.ntp.se:123 iburst nts|" "/etc/ntpsec/ntp.conf" "${_DISK_CHROOT_ROOT}/etc/ntpsec/ntp.conf"
+  sed -i "s|^pool 0.debian.pool.ntp.org iburst|#pool 0.debian.pool.ntp.org iburst|" "${_DISK_CHROOT_ROOT}/etc/ntpsec/ntp.conf"
+  sed -i "s|^pool 1.debian.pool.ntp.org iburst|#pool 1.debian.pool.ntp.org iburst|" "${_DISK_CHROOT_ROOT}/etc/ntpsec/ntp.conf"
+  sed -i "s|^pool 2.debian.pool.ntp.org iburst|#pool 2.debian.pool.ntp.org iburst|" "${_DISK_CHROOT_ROOT}/etc/ntpsec/ntp.conf"
+  sed -i "s|^pool 3.debian.pool.ntp.org iburst|#pool 3.debian.pool.ntp.org iburst|" "${_DISK_CHROOT_ROOT}/etc/ntpsec/ntp.conf"
   
-  chroot_execute "$_CHROOT_ROOT" mkdir -p /var/log/ntpsec
-  chroot_execute "$_CHROOT_ROOT" chown ntpsec:ntpsec /var/log/ntpsec
+  chroot_execute mkdir -p /var/log/ntpsec
+  chroot_execute chown ntpsec:ntpsec /var/log/ntpsec
 
   if (( $_UFW_SETUP == 1 )) ; then
-    chroot_execute "$_CHROOT_ROOT" ufw allow out 123/tcp;
-    chroot_execute "$_CHROOT_ROOT" ufw enable;
+    chroot_execute ufw allow out 123/tcp;
+    chroot_execute ufw enable;
   fi
 }
 
@@ -410,34 +410,40 @@ iodine_setup(){
   # REFERENCE:
   #   https://davidhamann.de/2019/05/12/tunnel-traffic-over-dns-ssh/
   echo_info "$FUNCNAME";
-  chroot_package_install "$_CHROOT_ROOT" iodine
+ chroot_package_install iodine
 
   # Create initramfs hook file for iodine
-  cp -p "${_FILE_DIR}/initramfs-scripts/zz-iodine" "${_CHROOT_ROOT}/etc/initramfs-tools/hooks/"
+  cp -p "${_FILE_DIR}/initramfs-scripts/zz-iodine" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/hooks/"
 
   # Replace variables in iodine hook file
-  sed -i "s#IODINE_PASSWORD#${_IODINE_PASSWORD}#g" "${_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-iodine"
-  sed -i "s#IODINE_DOMAIN#${_IODINE_DOMAIN}#g" "${_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-iodine"
+  sed -i "s#IODINE_PASSWORD#${_IODINE_PASSWORD}#g" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-iodine"
+  sed -i "s#IODINE_DOMAIN#${_IODINE_DOMAIN}#g" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-iodine"
 
   # Create initramfs script file for iodine
-  cp -p "${_FILE_DIR}/initramfs-scripts/iodine" "${_CHROOT_ROOT}/etc/initramfs-tools/scripts/init-premount/";
+  cp -p "${_FILE_DIR}/initramfs-scripts/iodine" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/scripts/init-premount/";
   echo_debug "iodine setup complete";
 }
 
 #vlc_setup, fix broken audio
 vlc_setup(){
   echo_info "$FUNCNAME";
-  chroot_package_install "$_CHROOT_ROOT" vlc
+  chroot_package_install vlc
+  
   #stuttery audio fix on rpi4
-  sed -i "s|load-module module-udev-detect|load-module module-udev-detect tsched=0|" "${_CHROOT_ROOT}/etc/pulse/default.pa"
-  #TODO stuttery video fix on rpi4
+  if [[ ! $( grep -w "load-module module-udev-detect tsched=0" "${_DISK_CHROOT_ROOT}/etc/pulse/default.pa") ]]; then
+    sed -i "s|load-module module-udev-detect|load-module module-udev-detect tsched=0|" "${_DISK_CHROOT_ROOT}/etc/pulse/default.pa"
+  fi
+  
+  #bump your gpu memory up too (should make video less bumpy
+  atomic_append "gpu_mem=128" "${_DISK_CHROOT_ROOT}/boot/config.txt";
+
 }
 
 #firejail setup
 firejail_setup(){
   echo_info "$FUNCNAME";
-  chroot_package_install "$_CHROOT_ROOT" firejail firejail-profiles firetools
-  chroot_execute "$_CHROOT_ROOT" firecfg
+  chroot_package_install firejail firejail-profiles firetools
+  chroot_execute firecfg
   #TODO firejail configuration for hardened malloc, apparmor integration
 }
 
@@ -457,25 +463,25 @@ mount_boot_readonly_setup(){
 #automatically log you in after unlocking your encrypted drive, without a password...somehow. GUI only.
 passwordless_login_setup(){
   echo_info "$FUNCNAME";
-  sed -i "s|^#greeter-hide-users=false|greeter-hide-users=false|" "${_CHROOT_ROOT}/etc/lightdm/lightdm.conf"
-  sed -i "s|^#autologin-user=$|autologin-user=${_PASSWORDLESS_LOGIN_USER}|" "${_CHROOT_ROOT}/etc/lightdm/lightdm.conf"
-  sed -i "s|^#autologin-user-timeout=0|autologin-user-timeout=0|" "${_CHROOT_ROOT}/etc/lightdm/lightdm.conf"
+  sed -i "s|^#greeter-hide-users=false|greeter-hide-users=false|" "${_DISK_CHROOT_ROOT}/etc/lightdm/lightdm.conf"
+  sed -i "s|^#autologin-user=$|autologin-user=${_PASSWORDLESS_LOGIN_USER}|" "${_DISK_CHROOT_ROOT}/etc/lightdm/lightdm.conf"
+  sed -i "s|^#autologin-user-timeout=0|autologin-user-timeout=0|" "${_DISK_CHROOT_ROOT}/etc/lightdm/lightdm.conf"
 }
 
 #set default shell to a shell of your choice
 default_shell_setup(){
   echo_info "$FUNCNAME";
   local main_user='kali'
-  sed -i "s#root:x:0:0:root:/root:/usr/bin/bash#root:x:0:0:root:/root:/usr/bin/$_SHELL#" "${_CHROOT_ROOT}/etc/passwd";
-  sed -i "s#$main_user:x:1000:1000::/home/$main_user:/usr/bin/bash#$main_user:x:1000:1000::/home/kali:/usr/bin/$_SHELL#" "${_CHROOT_ROOT}/etc/passwd";
-  sed -i "s#$main_user:x:1000:1000::/home/$main_user:/usr/bin/zsh#$main_user:x:1000:1000::/home/kali:/usr/bin/$_SHELL#" "${_CHROOT_ROOT}/etc/passwd";
+  sed -i "s#root:x:0:0:root:/root:/usr/bin/bash#root:x:0:0:root:/root:/usr/bin/$_SHELL#" "${_DISK_CHROOT_ROOT}/etc/passwd";
+  sed -i "s#$main_user:x:1000:1000::/home/$main_user:/usr/bin/bash#$main_user:x:1000:1000::/home/kali:/usr/bin/$_SHELL#" "${_DISK_CHROOT_ROOT}/etc/passwd";
+  sed -i "s#$main_user:x:1000:1000::/home/$main_user:/usr/bin/zsh#$main_user:x:1000:1000::/home/kali:/usr/bin/$_SHELL#" "${_DISK_CHROOT_ROOT}/etc/passwd";
 }
 
 #enable bluetooth
 bluetooth_setup(){
   echo_info "$FUNCNAME";
-  chroot_package_install "$_CHROOT_ROOT" bluez
-  chroot_execute "$_CHROOT_ROOT" systemctl enable bluetooth               
+  chroot_package_install bluez
+  chroot_execute systemctl enable bluetooth               
   #TODO setup some bluetooth devices you might have already
 }
 
@@ -483,7 +489,7 @@ bluetooth_setup(){
 # Installs apparmor
 apparmor_setup(){
   echo_info "$FUNCNAME";
-  chroot_package_install "$_CHROOT_ROOT" apparmor apparmor-profiles-extra apparmor-utils
+  chroot_package_install apparmor apparmor-profiles-extra apparmor-utils
   echo_warn "PACKAGES INSTALLED, NO KERNEL PARAMS CONFIGURED. PLEASE CONFIGURE MANUALLY";
 }
 
@@ -492,9 +498,9 @@ apparmor_setup(){
 random_mac_on_reboot_setup(){
 #https://wiki.archlinux.org/index.php/MAC_address_spoofing#Automatically
   echo_info "$FUNCNAME";
-  chroot_package_install "$_CHROOT_ROOT" macchanger 
-  cp -p "${_FILE_DIR}/random-mac-scripts/macspoof" "${_CHROOT_ROOT}/etc/systemd/system/macspoof@${_WIFI_INTERFACE}.service";
-  chroot_execute "$_CHROOT_ROOT" systemctl enable macspoof@${_WIFI_INTERFACE}
+  chroot_package_install macchanger 
+  cp -p "${_FILE_DIR}/random-mac-scripts/macspoof" "${_DISK_CHROOT_ROOT}/etc/systemd/system/macspoof@${_WIFI_INTERFACE}.service";
+  chroot_execute systemctl enable macspoof@${_WIFI_INTERFACE}
 }
 
 #configures two ipv4 ip addresses as your global dns
@@ -503,8 +509,8 @@ random_mac_on_reboot_setup(){
 #credits: https://andrea.corbellini.name/2020/04/28/ubuntu-global-dns/
 dns_setup(){
   echo_info "$FUNCNAME";
-  chroot_execute "$_DISK_CHROOT_ROOT" systemctl disable resolvconf || true                                                                                                            
-  chroot_execute "$_DISK_CHROOT_ROOT" systemctl enable systemd-resolved
+  chroot_execute systemctl disable resolvconf || true                                                                                                            
+  chroot_execute systemctl enable systemd-resolved
   sed -i "s|^#DNS=|DNS=${_DNS1}|" "${_DISK_CHROOT_ROOT}/etc/systemd/resolved.conf";
   sed -i "s|^#FallbackDNS=|FallbackDNS=${_DNS2}|" "${_DISK_CHROOT_ROOT}/etc/systemd/resolved.conf";
   sed -i "s|^#DNSSEC=no|DNSSEC=true|" "${_DISK_CHROOT_ROOT}/etc/systemd/resolved.conf";
@@ -527,12 +533,12 @@ EOT
   
   echo_debug "creating symlink";
   mv "${_DISK_CHROOT_ROOT}/etc/resolv.conf" "${_DISK_CHROOT_ROOT}/etc/resolv.conf.backup";
-  chroot_execute "${_DISK_CHROOT_ROOT}" ln -s "/etc/systemd/resolved.conf" "/etc/resolv.conf";
+  chroot_execute ln -s "/etc/systemd/resolved.conf" "/etc/resolv.conf";
   echo_debug "DNS configured - remember to keep your clock up to date (date -s XX:XX) or DNSSEC Certificate errors may occur";
   if (( $_UFW_SETUP == 1 )); then
-    chroot_execute "${_DISK_CHROOT_ROOT}" ufw allow out 853/tcp;
-    #chroot_execute "${_DISK_CHROOT_ROOT}" ufw allow in 853/tcp;
-    chroot_execute "${_DISK_CHROOT_ROOT}" ufw enable;
+    chroot_execute ufw allow out 853/tcp;
+    #chroot_execute ufw allow in 853/tcp;
+    chroot_execute ufw enable;
   fi
   #needs: 853/tcp, doesn't need as we disable llmnr and mdns: 5353/udp,5355/udp
 }
@@ -546,18 +552,18 @@ firewall_setup(){
   echo_info "$FUNCNAME";
 
   # Installing packages
-  chroot_package_install "$_CHROOT_ROOT" ufw;
-  chroot_execute "$_CHROOT_ROOT" ufw logging high;
-  chroot_execute "$_CHROOT_ROOT" ufw default deny outgoing;
-  chroot_execute "$_CHROOT_ROOT" ufw default deny incoming;
-  chroot_execute "$_CHROOT_ROOT" ufw default deny routed;
+  chroot_package_install ufw;
+  chroot_execute ufw logging high;
+  chroot_execute ufw default deny outgoing;
+  chroot_execute ufw default deny incoming;
+  chroot_execute ufw default deny routed;
   
-  chroot_execute "$_CHROOT_ROOT" ufw allow out 53/udp;
-  chroot_execute "$_CHROOT_ROOT" ufw allow out 80/tcp;
-  chroot_execute "$_CHROOT_ROOT" ufw allow out 443/tcp;
+  chroot_execute ufw allow out 53/udp;
+  chroot_execute ufw allow out 80/tcp;
+  chroot_execute ufw allow out 443/tcp;
   
-  chroot_execute "$_CHROOT_ROOT" ufw enable;
-  chroot_execute "$_CHROOT_ROOT" ufw status verbose;
+  chroot_execute ufw enable;
+  chroot_execute ufw status verbose;
   export _UFW_SETUP=1;
 }
 
@@ -567,12 +573,12 @@ chkboot_setup()
   echo_info "$FUNCNAME";
   
   #TODO Investigate: touch: cannot touch '/var/lib/chkboot/needs-update': No such file or directory whilst performing apt install
-  chroot_execute "$_CHROOT_ROOT" mkdir -p /var/lib/chkboot || true
+  chroot_execute mkdir -p /var/lib/chkboot || true
   
-  chroot_package_install "$_CHROOT_ROOT" chkboot;
-  sed -i "s#BOOTDISK=/dev/sda#BOOTDISK=${_CHKBOOT_BOOTDISK}#" "${_CHROOT_ROOT}/etc/default/chkboot";
-  sed -i "s#BOOTPART=/dev/sda1#BOOTPART=${_CHKBOOT_BOOTPART}#" "${_CHROOT_ROOT}/etc/default/chkboot";
-  chroot_execute "$_CHROOT_ROOT" systemctl enable chkboot
+  chroot_package_install chkboot;
+  sed -i "s#BOOTDISK=/dev/sda#BOOTDISK=${_CHKBOOT_BOOTDISK}#" "${_DISK_CHROOT_ROOT}/etc/default/chkboot";
+  sed -i "s#BOOTPART=/dev/sda1#BOOTPART=${_CHKBOOT_BOOTPART}#" "${_DISK_CHROOT_ROOT}/etc/default/chkboot";
+  chroot_execute systemctl enable chkboot
   #TODO Investigate: touch: cannot touch '/var/lib/chkboot/needs-update': No such file or directory whilst performing apt install
 }
 
@@ -593,3 +599,13 @@ simple_dns_setup(){
 #preliminary thoughts: create a list of methods which are ordered, then grep the methods in env.sh and compare their order
 #if a method exists not in the list warn but skip exit
 #if a method is in the wrong order exit
+
+#TODO Vnc server
+vnc_setup(){
+  chroot_package_install tightvncserver
+
+  if (( $_UFW_SETUP == 1 )); then
+    chroot_execute ufw allow out 5900/tcp;
+    chroot_execute ufw enable;
+  fi
+}

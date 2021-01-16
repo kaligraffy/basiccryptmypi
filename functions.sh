@@ -12,7 +12,7 @@ export _BUILD_DIR=${_BASE_DIR}/build
 export _FILE_DIR=${_BASE_DIR}/files
 export _EXTRACTED_IMAGE="${_FILE_DIR}/extracted.img"
 export _CHROOT_ROOT=${_BUILD_DIR}/root
-export _DISK_CHROOT_ROOT=/mnt/cryptmypi
+export _DISK_CHROOT_ROOT=${_BUILD_DIR}/disk
 export _ENCRYPTED_VOLUME_PATH="/dev/mapper/crypt-2"
 export _COLOR_ERROR='\033[0;31m' #red
 export _COLOR_WARN='\033[1;33m' #orange
@@ -20,6 +20,7 @@ export _COLOR_INFO='\033[0;35m' #purple
 export _COLOR_DEBUG='\033[0;37m' #grey
 export _COLOR_NORMAL='\033[0m' # No Color
 export _LOG_FILE="${_BASE_DIR}/build-$(date '+%Y-%m-%d-%H:%M:%S').log"
+export _IMAGE_MODE=1; #write to an image rather than directly to disk
 
 # Runs on script exit, tidies up the mounts.
 trap_on_exit(){
@@ -36,7 +37,6 @@ trap_on_exit(){
 # Cleanup stage 1
 cleanup_image_prep(){
   echo_info "$FUNCNAME";
-  chroot_teardown;
   umount "${_BUILD_DIR}/mount" || true;
   umount "${_BUILD_DIR}/boot" || true;
   cleanup_loop_device;
@@ -60,6 +60,7 @@ cleanup_write_disk(){
 
 #auxiliary method for detaching loopdevice in cleanup method 
 cleanup_loop_device(){
+  echo_info "$FUNCNAME";
   loopdev=$(losetup -a | grep $_EXTRACTED_IMAGE | cut -d':' -f 1);
   if [ ! -z ${loopdev} ]; then
     umount ${loopdev}p1 || true;
@@ -81,11 +82,9 @@ check_build_dir_exists(){
   
   if [ -d ${_BUILD_DIR} ]; then
     local continue;
-    read -p "Build directory already exists: ${_BUILD_DIR}. Rebuild Yes,No,Partial (skip extract)? (y/N/p)  " continue;
+    read -p "Build directory already exists: ${_BUILD_DIR}. Rebuild Yes,No? (y/N)  " continue;
     if [ "${continue}" = 'y' ] || [ "${continue}" = 'Y' ]; then
       echo '1';
-    elif [ "${continue}" = 'p' ] || [ "${continue}" = 'P' ]; then
-      echo '2';
     else
       echo '0'; 
     fi
@@ -122,7 +121,6 @@ fix_block_device_names(){
   export _BLOCK_DEVICE_BOOT="${_OUTPUT_BLOCK_DEVICE}${prefix}1"
   export _BLOCK_DEVICE_ROOT="${_OUTPUT_BLOCK_DEVICE}${prefix}2"
 }
-
 
 
 create_build_directory_structure(){
@@ -190,8 +188,8 @@ mount_image_on_loopback(){
 #rsyncs the mounted image to a new folder
 copy_extracted_image_to_chroot_dir(){
   echo_info "$FUNCNAME";
-  rsync_local "${_BUILD_DIR}/boot" "${_CHROOT_ROOT}/"
-  rsync_local "${_BUILD_DIR}/mount/"* "${_CHROOT_ROOT}"
+  rsync_local "${_BUILD_DIR}/boot" "${_DISK_CHROOT_ROOT}/"
+  rsync_local "${_BUILD_DIR}/mount/"* "${_DISK_CHROOT_ROOT}"
 }
 
 #prompts to check disk is correct before writing out to disk, 
@@ -243,48 +241,48 @@ encryption_setup(){
       echo_debug "- Setting up btrfs-progs on build machine"
       apt-get -qq install btrfs-progs
       echo_debug "- Setting up btrfs-progs in chroot"
-      chroot_package_install "${_CHROOT_ROOT}" btrfs-progs
+      chroot_package_install btrfs-progs
       echo_debug "- Adding btrfs module to initramfs-tools/modules"
-      atomic_append "btrfs" "${_CHROOT_ROOT}/etc/initramfs-tools/modules";
+      atomic_append "btrfs" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/modules";
+      echo_debug "- Enabling journalling"
+      sed -i "s|rootflags=noload|""|g" ${_DISK_CHROOT_ROOT}/boot/cmdline.txt
   fi
 
-  chroot_package_install "${_CHROOT_ROOT}" cryptsetup busybox
+  chroot_package_install cryptsetup busybox
 
   # Creating symbolic link to e2fsck
-  chroot ${_CHROOT_ROOT} /bin/bash -c "test -L /sbin/fsck.luks || ln -s /sbin/e2fsck /sbin/fsck.luks"
+  chroot ${_DISK_CHROOT_ROOT} /bin/bash -c "test -L /sbin/fsck.luks || ln -s /sbin/e2fsck /sbin/fsck.luks"
 
   # Indicate kernel to use initramfs - facilitates loading drivers
-  atomic_append 'initramfs initramfs.gz followkernel' "${_CHROOT_ROOT}/boot/config.txt";
+  atomic_append 'initramfs initramfs.gz followkernel' "${_DISK_CHROOT_ROOT}/boot/config.txt";
   
   # Update /boot/cmdline.txt to boot crypt
-  sed -i "s|root=/dev/mmcblk0p2|root=${_ENCRYPTED_VOLUME_PATH} cryptdevice=/dev/mmcblk0p2:$(basename ${_ENCRYPTED_VOLUME_PATH})|g" ${_CHROOT_ROOT}/boot/cmdline.txt
-  sed -i "s|rootfstype=ext3|rootfstype=${fs_type}|g" ${_CHROOT_ROOT}/boot/cmdline.txt
+  sed -i "s|root=/dev/mmcblk0p2|root=${_ENCRYPTED_VOLUME_PATH} cryptdevice=/dev/mmcblk0p2:$(basename ${_ENCRYPTED_VOLUME_PATH})|g" ${_DISK_CHROOT_ROOT}/boot/cmdline.txt
+  sed -i "s|rootfstype=ext3|rootfstype=${fs_type}|g" ${_DISK_CHROOT_ROOT}/boot/cmdline.txt
   
-  # Makes sure journalling is on - needed to use btrfs
-  sed -i "s|rootflags=noload|""|g" ${_CHROOT_ROOT}/boot/cmdline.txt
-  
+
   # Enable cryptsetup when building initramfs
-  atomic_append 'CRYPTSETUP=y' "${_CHROOT_ROOT}/etc/cryptsetup-initramfs/conf-hook"  
+  atomic_append 'CRYPTSETUP=y' "${_DISK_CHROOT_ROOT}/etc/cryptsetup-initramfs/conf-hook"  
   
   # Update /etc/fstab
-  sed -i "s|/dev/mmcblk0p2|${_ENCRYPTED_VOLUME_PATH}|g" ${_CHROOT_ROOT}/etc/fstab
-  sed -i "s#ext3#${fs_type}#g" ${_CHROOT_ROOT}/etc/fstab
+  sed -i "s|/dev/mmcblk0p2|${_ENCRYPTED_VOLUME_PATH}|g" ${_DISK_CHROOT_ROOT}/etc/fstab
+  sed -i "s#ext3#${fs_type}#g" ${_DISK_CHROOT_ROOT}/etc/fstab
 
   # Update /etc/crypttab
-  atomic_append "$(basename ${_ENCRYPTED_VOLUME_PATH})    /dev/mmcblk0p2    none    luks" "${_CHROOT_ROOT}/etc/crypttab"
+  atomic_append "$(basename ${_ENCRYPTED_VOLUME_PATH})    /dev/mmcblk0p2    none    luks" "${_DISK_CHROOT_ROOT}/etc/crypttab"
 
   # Create a hook to include our crypttab in the initramfs
-  cp -p "${_FILE_DIR}/initramfs-scripts/zz-cryptsetup" "${_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-cryptsetup";
+  cp -p "${_FILE_DIR}/initramfs-scripts/zz-cryptsetup" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-cryptsetup";
   
   # Unlock Script
-  cp -p "${_FILE_DIR}/initramfs-scripts/unlock.sh" "${_CHROOT_ROOT}/etc/initramfs-tools/unlock.sh";
-  sed -i "s#ENCRYPTED_VOLUME_PATH#${_ENCRYPTED_VOLUME_PATH}#" "${_CHROOT_ROOT}/etc/initramfs-tools/unlock.sh";
+  cp -p "${_FILE_DIR}/initramfs-scripts/unlock.sh" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/unlock.sh";
+  sed -i "s#ENCRYPTED_VOLUME_PATH#${_ENCRYPTED_VOLUME_PATH}#" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/unlock.sh";
 
   # Adding dm_mod to initramfs modules
-  atomic_append 'dm_crypt' "${_CHROOT_ROOT}/etc/initramfs-tools/modules";
+  atomic_append 'dm_crypt' "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/modules";
   
   # Disable autoresize
-  chroot_execute "${_CHROOT_ROOT}" systemctl disable rpi-resizerootfs.service
+  chroot_execute systemctl disable rpi-resizerootfs.service
 }
 
 # Encrypt & Write SD
@@ -323,9 +321,58 @@ copy_to_disk(){
   mount ${_BLOCK_DEVICE_BOOT} ${_DISK_CHROOT_ROOT}/boot && echo_debug "- Mounted ${_BLOCK_DEVICE_BOOT} to ${_DISK_CHROOT_ROOT}/boot"
 
   # Attempt to copy files from build to mounted device
-  rsync_local "${_CHROOT_ROOT}"/* "${_DISK_CHROOT_ROOT}"
   sync
 }
+
+#makes an image file instead of copying to a disk
+copy_to_image_file(){
+  echo_info "$FUNCNAME";
+
+  local fs_type=$_FILESYSTEM_TYPE;
+  local image_file=${_BUILD_DIR}/image.img
+  local image_file_size=11G
+  local loop_device; 
+  
+  fallocate -l ${image_file_size} ${image_file}
+
+  echo_debug "Partitioning Image"
+  parted ${image_file} --script -- mklabel msdos
+  parted ${image_file} --script -- mkpart primary fat32 0 256
+  parted ${image_file} --script -- mkpart primary 256 -1
+  sync
+
+  loopdev=$(losetup -P -f --show "${image_file}");
+  partprobe ${loopdev};
+  local block_device_boot="${loopdev}p1" 
+  local block_device_root="${loopdev}p2" 
+  
+  # Create LUKS
+  echo_debug "Attempting to create LUKS ${block_device_root} "
+  echo "${_LUKS_PASSWORD}" | cryptsetup -v --cipher ${_LUKS_CONFIGURATION} luksFormat ${block_device_root}
+  echo "${_LUKS_PASSWORD}" | cryptsetup -v luksOpen ${block_device_root} $(basename ${_ENCRYPTED_VOLUME_PATH})
+
+  make_filesystem "vfat" "${block_device_boot}"
+  make_filesystem "${fs_type}" "${_ENCRYPTED_VOLUME_PATH}"
+
+  # Mount LUKS
+  echo_debug "Mounting ${_ENCRYPTED_VOLUME_PATH} to ${_DISK_CHROOT_ROOT}"
+  if [ ! -d ${_DISK_CHROOT_ROOT} ]; then 
+    mkdir ${_DISK_CHROOT_ROOT};
+  fi
+  mount ${_ENCRYPTED_VOLUME_PATH} ${_DISK_CHROOT_ROOT} && echo_debug "- Mounted ${_ENCRYPTED_VOLUME_PATH} to ${_DISK_CHROOT_ROOT}"
+
+  # Mount boot partition
+  echo_debug "Attempting to mount ${block_device_boot} to ${_DISK_CHROOT_ROOT}/boot "
+  
+  if [ ! -d "${_DISK_CHROOT_ROOT}/boot" ]; then 
+    mkdir "${_DISK_CHROOT_ROOT}/boot";
+  fi
+  mount ${block_device_boot} ${_DISK_CHROOT_ROOT}/boot && echo_debug "- Mounted ${block_device_boot} to ${_DISK_CHROOT_ROOT}/boot"
+
+  # Attempt to copy files from build to mounted device
+  sync
+}
+
 
 #### MISC FUNCTIONS####
 
@@ -342,9 +389,9 @@ create_ssh_key(){
   chmod 600 "${id_rsa}";
   chmod 644 "${id_rsa}.pub";
   echo_debug "copying keyfile ${id_rsa} to box's default user .ssh directory";
-  mkdir -p "${_CHROOT_ROOT}/root/.ssh/" || true
-  cp -p "${id_rsa}" "${_CHROOT_ROOT}/root/.ssh/id_rsa";
-  cp -p "${id_rsa}.pub" "${_CHROOT_ROOT}/root/.ssh/id_rsa.pub";
+  mkdir -p "${_DISK_CHROOT_ROOT}/root/.ssh/" || true
+  cp -p "${id_rsa}" "${_DISK_CHROOT_ROOT}/root/.ssh/id_rsa";
+  cp -p "${id_rsa}.pub" "${_DISK_CHROOT_ROOT}/root/.ssh/id_rsa.pub";
 
 }
 
@@ -395,38 +442,14 @@ rsync_local(){
 
 ####CHROOT FUNCTIONS####
 #TODO fix chroot being passed into everything, make it a global, and set it up disk_chroot when it's in stage 2
-chroot_setup(){
-  cp /usr/bin/qemu-aarch64-static ${_BUILD_DIR}/root/usr/bin/
-  chroot_mount "$_CHROOT_ROOT"
-}
-
-chroot_update_apt_setup(){
-  chroot_update_apt "$_CHROOT_ROOT"
-}
-
-chroot_mkinitramfs_setup(){
-  chroot_mkinitramfs "${_CHROOT_ROOT}";
-}
-
-chroot_teardown(){
-  chroot_umount "${_CHROOT_ROOT}";
-}
-
-disk_chroot_setup(){
-  chroot_mount "${_DISK_CHROOT_ROOT}";
-}
-
-disk_chroot_mkinitramfs_setup(){
-  chroot_mkinitramfs "${_DISK_CHROOT_ROOT}";
-}
-
-disk_chroot_teardown(){
-  chroot_umount "${_DISK_CHROOT_ROOT}";
-}
 
 #mount dev,sys,proc in chroot so they are available for apt 
-chroot_mount(){
-  local chroot_dir="$1"
+disk_chroot_setup(){
+  local chroot_dir="${_DISK_CHROOT_ROOT}"
+  
+  #TODO new method needed for this
+  cp /usr/bin/qemu-aarch64-static ${_DISK_CHROOT_ROOT}/usr/bin/
+
   echo_info "$FUNCNAME";
   # mount binds
   if [[ "$(mount -o bind /dev "${chroot_dir}/dev/"; echo $?)" != 0 ]]; then
@@ -456,9 +479,9 @@ chroot_mount(){
 }
 
 #unmount dev,sys,proc in chroot
-chroot_umount(){
+disk_chroot_teardown(){
   echo_info "$FUNCNAME";
-  local chroot_dir="$1"
+  local chroot_dir="${_DISK_CHROOT_ROOT}"
 
   echo_debug "unmounting binds"
   if umount -R "${chroot_dir}/dev/"; then
@@ -487,10 +510,10 @@ chroot_umount(){
 }
 
 #run apt update
-chroot_update_apt(){
+disk_chroot_update_apt_setup(){
   #Force https on initial use of apt for the main kali repo
   echo_info "$FUNCNAME";
-  local chroot_root="$1"
+  local chroot_root="${_DISK_CHROOT_ROOT}"
   sed -i 's|http:|https:|g' ${chroot_root}/etc/apt/sources.list;
 
   if [ ! -f "${chroot_root}/etc/resolv.conf" ]; then
@@ -500,11 +523,11 @@ chroot_update_apt(){
   fi
 
   echo_debug "Updating apt-get";
-  chroot_execute ${chroot_root} apt-get -qq update;
+  chroot_execute apt-get -qq update;
   
   #Corrupt package install fix code
-  if [[ $(chroot_execute ${chroot_root} apt --fix-broken -qq -y install ; echo $?) != 0 ]]; then
-    if [[ $(chroot_execute ${chroot_root} dpkg --configure -a ; echo $?) != 0 ]]; then
+  if [[ $(chroot_execute apt --fix-broken -qq -y install ; echo $?) != 0 ]]; then
+    if [[ $(chroot_execute dpkg --configure -a ; echo $?) != 0 ]]; then
         echo_error "apt corrupted, manual intervention required";
         exit 1;
     fi
@@ -514,35 +537,30 @@ chroot_update_apt(){
 #installs packages from build
 #arguments: a list of packages
 chroot_package_install(){
-  local chroot_dir=$1;
-  shift;
   PACKAGES="$@"
   for package in $PACKAGES
   do
     echo_info "installing $package";
-    chroot_execute "${chroot_dir}" apt-get -qq -y install $package 
+    chroot_execute apt-get -qq -y install $package 
   done
 }
 
 #removes packages from build
 #arguments: a list of packages
 chroot_package_purge(){
-  local chroot_dir=$1;
-  shift;
   PACKAGES="$@"
   for package in $PACKAGES
   do
     echo_info "purging $package";
-    chroot_execute "${chroot_dir}" apt-get -qq -y purge $package 
+    chroot_execute apt-get -qq -y purge $package 
   done
-  chroot_execute "${chroot_dir}" apt-get -qq -y autoremove ;
-}
+  chroot_execute apt-get -qq -y autoremove ;
+} 
 
 #run a command in chroot
 #TODO log messages from chroot_execute
 chroot_execute(){
-  local chroot_dir=$1;
-  shift;
+  local chroot_dir="${_DISK_CHROOT_ROOT}";
   chroot ${chroot_dir} "$@";
   if [ $? -ne 0 ]; then
       echo_error "command in chroot failed"
@@ -550,8 +568,8 @@ chroot_execute(){
   fi
 }
 
-chroot_mkinitramfs(){
-  local chroot_dir="$1"
+disk_chroot_mkinitramfs_setup(){
+  local chroot_dir="${_DISK_CHROOT_ROOT}"
   echo_info "$FUNCNAME";
 
   #Point crypttab to the current physical device during mkinitramfs
@@ -568,8 +586,8 @@ chroot_mkinitramfs(){
   local kernel_version=$(ls ${chroot_dir}/lib/modules/ | grep "${_KERNEL_VERSION_FILTER}" | tail -n 1);
   echo_debug "kernel is '${kernel_version}'";
   echo_debug "running update-initramfs, mkinitramfs"
-  chroot_execute "${chroot_dir}" update-initramfs -u -k all;
-  chroot_execute "${chroot_dir}" mkinitramfs -o /boot/initramfs.gz -v ${kernel_version};
+  chroot_execute update-initramfs -u -k all;
+  chroot_execute mkinitramfs -o /boot/initramfs.gz -v ${kernel_version};
 
   echo_debug "Cleaning up symbolic links";
   #if [ -L "/dev/mmcblk0p1" ]; then
