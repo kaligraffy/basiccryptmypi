@@ -61,7 +61,7 @@ cleanup_write_disk(){
 #auxiliary method for detaching loopdevice in cleanup method 
 cleanup_loop_device(){
   echo_info "$FUNCNAME";
-  loopdev=$(losetup -a | grep $_EXTRACTED_IMAGE | cut -d':' -f 1);
+  local loopdev=$(losetup -a | grep $_EXTRACTED_IMAGE | cut -d':' -f 1);
   if [ ! -z ${loopdev} ]; then
     umount ${loopdev}p1 || true;
     umount ${loopdev}p2 || true;
@@ -179,7 +179,7 @@ extract_image() {
 mount_image_on_loopback(){
   echo_info "$FUNCNAME";
   local extracted_image="${_EXTRACTED_IMAGE}";
-  loopdev=$(losetup -P -f --read-only --show "$extracted_image");
+  local loopdev=$(losetup -P -f --read-only --show "$extracted_image");
   partprobe ${loopdev};
   mount ${loopdev}p2 ${_BUILD_DIR}/mount;
   mount ${loopdev}p1 ${_BUILD_DIR}/boot;
@@ -335,13 +335,14 @@ copy_to_image_file(){
   
   fallocate -l ${image_file_size} ${image_file}
 
+  #TODO check for existing image
   echo_debug "Partitioning Image"
   parted ${image_file} --script -- mklabel msdos
   parted ${image_file} --script -- mkpart primary fat32 0 256
   parted ${image_file} --script -- mkpart primary 256 -1
   sync
 
-  loopdev=$(losetup -P -f --show "${image_file}");
+  local loopdev=$(losetup -P -f --show "${image_file}");
   partprobe ${loopdev};
   local block_device_boot="${loopdev}p1" 
   local block_device_root="${loopdev}p2" 
@@ -391,8 +392,7 @@ create_ssh_key(){
   echo_debug "copying keyfile ${id_rsa} to box's default user .ssh directory";
   mkdir -p "${_DISK_CHROOT_ROOT}/root/.ssh/" || true
   cp -p "${id_rsa}" "${_DISK_CHROOT_ROOT}/root/.ssh/id_rsa";
-  cp -p "${id_rsa}.pub" "${_DISK_CHROOT_ROOT}/root/.ssh/id_rsa.pub";
-
+  cp -p "${id_rsa}.pub" "${_DISK_CHROOT_ROOT}/root/.ssh/id_rsa.pub";        
 }
 
 #puts the sshkey into your files directory for safe keeping
@@ -437,11 +437,9 @@ rsync_local(){
     echo_error 'rsync has failed';
     exit 1;
   fi
-  
 }
 
 ####CHROOT FUNCTIONS####
-#TODO fix chroot being passed into everything, make it a global, and set it up disk_chroot when it's in stage 2
 
 #mount dev,sys,proc in chroot so they are available for apt 
 disk_chroot_setup(){
@@ -563,56 +561,27 @@ chroot_execute(){
   local chroot_dir="${_DISK_CHROOT_ROOT}";
   chroot ${chroot_dir} "$@";
   if [ $? -ne 0 ]; then
-      echo_error "command in chroot failed"
-      exit 1;
+    echo_error "command in chroot failed"
+    exit 1;
   fi
 }
 
 disk_chroot_mkinitramfs_setup(){
   local chroot_dir="${_DISK_CHROOT_ROOT}"
   echo_info "$FUNCNAME";
-
-  #Point crypttab to the current physical device during mkinitramfs
-  echo_debug "creating symbolic links from current physical device to crypttab device (if not using sd card mmcblk0p)";
-  #if [ -e "/dev/mmcblk0p1" ] || [ -e "${_BLOCK_DEVICE_BOOT}" ]; then
-   # ln -s "${_BLOCK_DEVICE_BOOT}" "/dev/mmcblk0p1" || true; #fail peacefully if the link is already there
-  #fi
   
-  #if [ -e "/dev/mmcblk0p2" ] || [ -e "${_BLOCK_DEVICE_ROOT}" ]; then
-   # ln -s "${_BLOCK_DEVICE_ROOT}" "/dev/mmcblk0p2" || true; #fail peacefully if the link is already there
-  #fi
-  
-  echo_debug "determine kernel version"
   local kernel_version=$(ls ${chroot_dir}/lib/modules/ | grep "${_KERNEL_VERSION_FILTER}" | tail -n 1);
   echo_debug "kernel is '${kernel_version}'";
+  
   echo_debug "running update-initramfs, mkinitramfs"
   chroot_execute update-initramfs -u -k all;
   chroot_execute mkinitramfs -o /boot/initramfs.gz -v ${kernel_version};
-
-  echo_debug "Cleaning up symbolic links";
-  #if [ -L "/dev/mmcblk0p1" ]; then
-   # unlink "/dev/mmcblk0p1";
-  #fi
-  
-  #if [ -L "/dev/mmcblk0p2" ]; then 
-   # unlink "/dev/mmcblk0p2";
-  #fi
-  echo_debug "finished $FUNCNAME";
 }
 
 ####PRINT FUNCTIONS####
-echo_error(){ 
-  echo -e "${_COLOR_ERROR}$(date '+%H:%M:%S'): ERROR: $*${_COLOR_NORMAL}" | tee -a ${_LOG_FILE};
-}
-
-echo_warn(){ 
-  echo -e "${_COLOR_WARN}$(date '+%H:%M:%S'): WARNING: $@${_COLOR_NORMAL}" | tee -a ${_LOG_FILE};
-}
-
-echo_info(){
-  echo -e "${_COLOR_INFO}$(date '+%H:%M:%S'): INFO: $@${_COLOR_NORMAL}" | tee -a ${_LOG_FILE};
-}
-
+echo_error(){ echo -e "${_COLOR_ERROR}$(date '+%H:%M:%S'): ERROR: $*${_COLOR_NORMAL}" | tee -a ${_LOG_FILE};}
+echo_warn(){  echo -e "${_COLOR_WARN}$(date '+%H:%M:%S'): WARNING: $@${_COLOR_NORMAL}" | tee -a ${_LOG_FILE};}
+echo_info(){  echo -e "${_COLOR_INFO}$(date '+%H:%M:%S'): INFO: $@${_COLOR_NORMAL}" | tee -a ${_LOG_FILE};}
 echo_debug(){
   if [ $_LOG_LEVEL -lt 1 ]; then
     echo -e "${_COLOR_DEBUG}$(date '+%H:%M:%S'): DEBUG: $@${_COLOR_NORMAL}";
