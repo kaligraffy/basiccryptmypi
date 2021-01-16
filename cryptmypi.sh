@@ -14,23 +14,24 @@ set -eu
 main(){
   echo_info "$(basename $0) started";
   #Setup
-  trap 'trap_on_exit 0 0' EXIT;
+  trap 'trap_on_exit 0' EXIT;
   check_run_as_root;
   install_dependencies;
   fix_block_device_names;
+  create_build_directory_structure;
 
   #Check for a build directory
   local extract=$(check_build_dir_exists);
   if (( $extract >= 1 )); then
     #Stage 1 - Unpack image
-    trap 'trap_on_exit 1 0' EXIT;
-    create_build_directory_structure;
+    rm -rf "${_BUILD_DIR}" || true ;
+    create_build_directory_structure
     download_image;
     extract_image;
   fi
   
   #Stage 2 - Write to physical disk or image and modify it
-  trap 'trap_on_exit 1 1' EXIT;
+  trap 'trap_on_exit 1' EXIT;
   if (( $_IMAGE_MODE == 1 )); then 
     copy_to_image_file;
   else
@@ -44,7 +45,6 @@ main(){
   encryption_setup;
   extra_setup;
   disk_chroot_mkinitramfs_setup;
-  disk_chroot_teardown;
   exit 0;
 }
 

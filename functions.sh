@@ -20,55 +20,64 @@ export _COLOR_INFO='\033[0;35m' #purple
 export _COLOR_DEBUG='\033[0;37m' #grey
 export _COLOR_NORMAL='\033[0m' # No Color
 export _LOG_FILE="${_BASE_DIR}/build-$(date '+%Y-%m-%d-%H:%M:%S').log"
-export _IMAGE_MODE=1; #write to an image rather than directly to disk
+export _IMAGE_FILE="${_BUILD_DIR}/image.img"
+export _IMAGE_FILE_SIZE="11G";
 
 # Runs on script exit, tidies up the mounts.
 trap_on_exit(){
   echo_info "Running trap on exit";
   if (( $1 == 1 )); then 
-    cleanup_image_prep; 
-  fi
-  if (( $2 == 1 )); then 
     cleanup_write_disk; 
   fi
   echo_info "$(basename $0) finished";
 }
 
-# Cleanup stage 1
-cleanup_image_prep(){
-  echo_info "$FUNCNAME";
-  umount "${_BUILD_DIR}/mount" || true;
-  umount "${_BUILD_DIR}/boot" || true;
-  cleanup_loop_device;
-  rm -rf ${_BUILD_DIR}/mount || true;
-  rm -rf ${_BUILD_DIR}/boot || true;
-}
-
 # Cleanup stage 2
 cleanup_write_disk(){
   echo_info "$FUNCNAME";
+  extracted_image_loop_device=$(losetup -a | grep $_EXTRACTED_IMAGE | cut -d':' -f 1);
+  image_file_loop_device=$(losetup -a | grep $_IMAGE_FILE | cut -d':' -f 1);
+  
+  echo_debug "deleting the folders used to mount the extracted image";
+  umount "${_BUILD_DIR}/mount" || true;
+  umount "${_BUILD_DIR}/boot" || true;
+  rmdir ${_BUILD_DIR}/mount || true;
+  rmdir ${_BUILD_DIR}/boot || true;
+  
+  echo_debug "unmounting tmp,dev,sys";
   disk_chroot_teardown;
-  umount "${_BLOCK_DEVICE_BOOT}" || true
-  cryptsetup -v luksClose "${_ENCRYPTED_VOLUME_PATH}" || true
-  umount "${_ENCRYPTED_VOLUME_PATH}" || true
-  umount "${_BLOCK_DEVICE_ROOT}" || true
-  umount "${_OUTPUT_BLOCK_DEVICE}" || true
-  if umount "${_DISK_CHROOT_ROOT}"; then 
-    rm -rf "${_DISK_CHROOT_ROOT}" || true;
+  sleep 50000
+  if (( $_IMAGE_MODE == 1 )); then
+    echo_debug "IMAGE MODE CLEAN UP";
+    cleanup_loop_device $image_file_loop_device;
+  else
+    echo_debug "DISK MODE CLEANUP";
+    umount "${_BLOCK_DEVICE_BOOT}" || true
+    umount "${_BLOCK_DEVICE_ROOT}" || true
   fi
+  
+  cryptsetup -v luksClose "${_ENCRYPTED_VOLUME_PATH}" || true
+
+  echo_debug "deleting the folders used to mount the extracted image and new image";
+  if umount "${_DISK_CHROOT_ROOT}"; then 
+    rmdir "${_DISK_CHROOT_ROOT}" || true;
+  fi
+  echo_debug "clean up extracted image loop device";
+  cleanup_loop_device $extracted_image_loop_device;
 }
 
-#auxiliary method for detaching loopdevice in cleanup method 
+#auxiliary method for detaching loop_device in cleanup method 
 cleanup_loop_device(){
-  echo_info "$FUNCNAME";
-  local loopdev=$(losetup -a | grep $_EXTRACTED_IMAGE | cut -d':' -f 1);
-  if [ ! -z ${loopdev} ]; then
-    umount ${loopdev}p1 || true;
-    umount ${loopdev}p2 || true;
-    umount ${loopdev} || true;
-    losetup -d "${loopdev}p1" || true;
-    losetup -d "${loopdev}p2" || true;
-    losetup -d "${loopdev}" || true;
+  echo_info "$FUNCNAME $1";
+  local loop_device=$1;
+  #TODO forloop through loop devices.
+  if [ ! -z ${loop_device} ]; then
+    umount ${loop_device}p1 || true;
+    umount ${loop_device}p2 || true;
+    umount ${loop_device} || true;
+    losetup -d "${loop_device}p1" || true;
+    losetup -d "${loop_device}p2" || true;
+    losetup -d "${loop_device}" || true;
   fi
 }
 
@@ -125,12 +134,10 @@ fix_block_device_names(){
 
 create_build_directory_structure(){
   echo_info "$FUNCNAME";
-  #deletes only build directory first if it exists
-  rm -rf "${_BUILD_DIR}" || true ;
-  mkdir "${_BUILD_DIR}"; 
-  mkdir "${_BUILD_DIR}/mount"; #where the extracted image's root directory is mounted
-  mkdir "${_BUILD_DIR}/boot";  #where the extracted image's boot directory is mounted
-  mkdir "${_CHROOT_ROOT}"; #where the extracted image's files are copied to to be editted
+  #TODO maybe exit out if its already there
+  mkdir "${_BUILD_DIR}" || true; 
+  mkdir "${_BUILD_DIR}/mount" || true; #where the extracted image's root directory is mounted
+  mkdir "${_BUILD_DIR}/boot" || true;  #where the extracted image's boot directory is mounted
 }
 
 #extracts the image so it can be mounted
@@ -179,10 +186,10 @@ extract_image() {
 mount_image_on_loopback(){
   echo_info "$FUNCNAME";
   local extracted_image="${_EXTRACTED_IMAGE}";
-  local loopdev=$(losetup -P -f --read-only --show "$extracted_image");
-  partprobe ${loopdev};
-  mount ${loopdev}p2 ${_BUILD_DIR}/mount;
-  mount ${loopdev}p1 ${_BUILD_DIR}/boot;
+  local loop_device=$(losetup -P -f --read-only --show "$extracted_image");
+  partprobe ${loop_device};
+  mount ${loop_device}p2 ${_BUILD_DIR}/mount;
+  mount ${loop_device}p1 ${_BUILD_DIR}/boot;
 }
 
 #rsyncs the mounted image to a new folder
@@ -299,6 +306,11 @@ copy_to_disk(){
 
   # Create LUKS
   echo_debug "Attempting to create LUKS ${_BLOCK_DEVICE_ROOT} "
+  
+  #TODO check ${_ENCRYPTED_VOLUME_PATH} already exists, if it does
+  echo_debug "$(dmsetup ls --target crypt | grep ${_ENCRYPTED_VOLUME_PATH})"
+  # warn and ask to overwrite
+  
   echo "${_LUKS_PASSWORD}" | cryptsetup -v --cipher ${_LUKS_CONFIGURATION} luksFormat ${_BLOCK_DEVICE_ROOT}
   echo "${_LUKS_PASSWORD}" | cryptsetup -v luksOpen ${_BLOCK_DEVICE_ROOT} $(basename ${_ENCRYPTED_VOLUME_PATH})
 
@@ -329,9 +341,12 @@ copy_to_image_file(){
   echo_info "$FUNCNAME";
 
   local fs_type=$_FILESYSTEM_TYPE;
-  local image_file=${_BUILD_DIR}/image.img
-  local image_file_size=11G
-  local loop_device; 
+  local image_file=${_IMAGE_FILE};
+  local image_file_size=${_IMAGE_FILE_SIZE};
+  local loop_device=$(losetup -P -f --show "${image_file}");
+  partprobe ${loop_device};
+  local block_device_boot="${loop_device}p1" 
+  local block_device_root="${loop_device}p2" 
   
   fallocate -l ${image_file_size} ${image_file}
 
@@ -341,11 +356,10 @@ copy_to_image_file(){
   parted ${image_file} --script -- mkpart primary fat32 0 256
   parted ${image_file} --script -- mkpart primary 256 -1
   sync
-
-  local loopdev=$(losetup -P -f --show "${image_file}");
-  partprobe ${loopdev};
-  local block_device_boot="${loopdev}p1" 
-  local block_device_root="${loopdev}p2" 
+  
+  #TODO check ${_ENCRYPTED_VOLUME_PATH} already exists, if it does
+  echo_debug "$(dmsetup ls --target crypt | grep ${_ENCRYPTED_VOLUME_PATH})"
+  # warn and ask to overwrite
   
   # Create LUKS
   echo_debug "Attempting to create LUKS ${block_device_root} "
