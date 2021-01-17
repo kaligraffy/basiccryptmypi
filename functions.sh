@@ -46,7 +46,6 @@ cleanup_write_disk(){
   
   echo_debug "unmounting tmp,dev,sys";
   disk_chroot_teardown;
-  sleep 50000
   if (( $_IMAGE_MODE == 1 )); then
     echo_debug "IMAGE MODE CLEAN UP";
     cleanup_loop_device $image_file_loop_device;
