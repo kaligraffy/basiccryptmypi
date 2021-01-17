@@ -49,6 +49,7 @@ cleanup_write_disk(){
   if (( $_IMAGE_MODE == 1 )); then
     echo_debug "IMAGE MODE CLEAN UP";
     cleanup_loop_device $image_file_loop_device;
+    echo_warn "To burn your disk run: dd if=${_IMAGE_FILE} of=${_OUTPUT_BLOCK_DEVICE} bs=512 status=progress && sync";
   else
     echo_debug "DISK MODE CLEANUP";
     umount "${_BLOCK_DEVICE_BOOT}" || true
