@@ -32,14 +32,15 @@ main(){
   #Stage 2 - Write to physical disk or image and modify it
   trap 'trap_on_exit 1' EXIT;
   if (( $_IMAGE_MODE == 1 )); then 
-    copy_to_image_file;
+    format_image_file;
   else
     fix_block_device_names;
     check_disk_is_correct;
-    copy_to_disk;
+    format_disk;
   fi
   mount_image_on_loopback;
   copy_extracted_image_to_chroot_dir;
+  arm_setup;
   disk_chroot_setup;
   disk_chroot_update_apt_setup;
   encryption_setup;

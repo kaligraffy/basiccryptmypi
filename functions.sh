@@ -52,8 +52,8 @@ cleanup_write_disk(){
     echo_warn "To burn your disk run: dd if=${_IMAGE_FILE} of=${_OUTPUT_BLOCK_DEVICE} bs=512 status=progress && sync";
   else
     echo_debug "DISK MODE CLEANUP";
-    umount "${_BLOCK_DEVICE_BOOT}" || true
-    umount "${_BLOCK_DEVICE_ROOT}" || true
+    tidy_umount "${_BLOCK_DEVICE_BOOT}";
+    tidy_umount "${_BLOCK_DEVICE_ROOT}";
   fi
   
   echo_debug "deleting the folders used to mount the extracted image and new image";
@@ -69,12 +69,9 @@ cleanup_loop_device(){
   echo_info "$FUNCNAME";
   if check_variable_is_set "$@"; then
     for loop_device in $@; do
-      umount ${loop_device}p1 || true;
-      umount ${loop_device}p2 || true;
-      umount ${loop_device} || true;
-      losetup -d "${loop_device}p1" || true;
-      losetup -d "${loop_device}p2" || true;
-      losetup -d "${loop_device}" || true;
+      tidy_umount "${loop_device}p1"
+      tidy_umount "${loop_device}p2" 
+      tidy_umount "${loop_device}"
     done
   fi
 }
@@ -133,8 +130,6 @@ fix_block_device_names(){
 create_build_directory_structure(){
   echo_info "$FUNCNAME";
   mkdir "${_BUILD_DIR}" || true; 
-  mkdir "${_BUILD_DIR}/mount" || true; #where the extracted image's root directory is mounted
-  mkdir "${_BUILD_DIR}/boot" || true;  #where the extracted image's boot directory is mounted
 }
 
 #extracts the image so it can be mounted
@@ -287,42 +282,16 @@ encryption_setup(){
 }
 
 # Encrypt & Write SD
-copy_to_disk(){  
+format_disk(){  
   echo_info "$FUNCNAME";
-
   fs_type=$_FILESYSTEM_TYPE;
-  
-  echo_debug "Partitioning SD Card"
-  parted  ${_OUTPUT_BLOCK_DEVICE} --script -- mklabel msdos
-  parted  ${_OUTPUT_BLOCK_DEVICE} --script -- mkpart primary fat32 0 256
-  parted  ${_OUTPUT_BLOCK_DEVICE} --script -- mkpart primary 256 -1
-  sync
-
-  # Create LUKS
-  echo_debug "Attempting to create LUKS ${_BLOCK_DEVICE_ROOT} "
-  
-  #TODO check ${_ENCRYPTED_VOLUME_PATH} already exists, if it does
-  echo_debug "$(dmsetup ls --target crypt | grep ${_ENCRYPTED_VOLUME_PATH})"
-  # warn and ask to overwrite
-  
-  echo "${_LUKS_PASSWORD}" | cryptsetup -v ${_LUKS_CONFIGURATION} luksFormat ${_BLOCK_DEVICE_ROOT}
-  echo "${_LUKS_PASSWORD}" | cryptsetup -v luksOpen ${_BLOCK_DEVICE_ROOT} $(basename ${_ENCRYPTED_VOLUME_PATH})
-
-  make_filesystem "vfat" "${_BLOCK_DEVICE_BOOT}"
-  make_filesystem "${fs_type}" "${_ENCRYPTED_VOLUME_PATH}"
-
-  #Mount luks and boot
-  check_directory_and_mount "${_ENCRYPTED_VOLUME_PATH}" "${_DISK_CHROOT_ROOT}"
-  check_directory_and_mount "${_BLOCK_DEVICE_BOOT}" "${_DISK_CHROOT_ROOT}/boot"
-  # Attempt to copy files from build to mounted device
-  sync
+  parted_disk_setup ${_OUTPUT_BLOCK_DEVICE} 
+  filesystem_setup ${_BLOCK_DEVICE_BOOT} ${_BLOCK_DEVICE_ROOT} ${fs_type};
 }
 
 #makes an image file instead of copying to a disk
-copy_to_image_file(){
+format_image_file(){
   echo_info "$FUNCNAME";
-
-  local fs_type=$_FILESYSTEM_TYPE;
   local image_file=${_IMAGE_FILE};
   local image_file_size=${_IMAGE_FILE_SIZE};
   touch $image_file;
@@ -333,46 +302,43 @@ copy_to_image_file(){
   local block_device_root="${loop_device}p2" 
 
   #TODO check for existing image
-  echo_debug "Partitioning Image"
-  parted ${image_file} --script -- mklabel msdos
-  parted ${image_file} --script -- mkpart primary fat32 0 256
-  parted ${image_file} --script -- mkpart primary 256 -1
-  sync
-  
+  parted_disk_setup ${image_file} 
+  filesystem_setup ${block_device_boot} ${block_device_root} ${fs_type};
+}
+
+####MISC FUNCTIONS####
+#called by the format functions
+#makes a luks container and formats the disk/image
+#also mounts the chroot directory ready for copying
+filesystem_setup(){
   #TODO check ${_ENCRYPTED_VOLUME_PATH} already exists, if it does
   echo_debug "$(dmsetup ls --target crypt | grep ${_ENCRYPTED_VOLUME_PATH})"
   # warn and ask to overwrite
   
   # Create LUKS
-  echo_debug "Attempting to create LUKS ${block_device_root} "
-  echo "${_LUKS_PASSWORD}" | cryptsetup -v --cipher ${_LUKS_CONFIGURATION} luksFormat ${block_device_root}
-  echo "${_LUKS_PASSWORD}" | cryptsetup -v luksOpen ${block_device_root} $(basename ${_ENCRYPTED_VOLUME_PATH})
+  echo_debug "Attempting to create LUKS $2 "
+  echo "${_LUKS_PASSWORD}" | cryptsetup -v --cipher ${_LUKS_CONFIGURATION} luksFormat $2
+  echo "${_LUKS_PASSWORD}" | cryptsetup -v luksOpen $2 $(basename ${_ENCRYPTED_VOLUME_PATH})
 
-  make_filesystem "vfat" "${block_device_boot}"
-  make_filesystem "${fs_type}" "${_ENCRYPTED_VOLUME_PATH}"
+  make_filesystem "vfat" "$1"
+  make_filesystem "$3" "${_ENCRYPTED_VOLUME_PATH}"
   
   #Mounts
   check_directory_and_mount "${_ENCRYPTED_VOLUME_PATH}" "${_DISK_CHROOT_ROOT}"
-  check_directory_and_mount "${block_device_boot}" "${_DISK_CHROOT_ROOT}/boot"
+  check_directory_and_mount "$1" "${_DISK_CHROOT_ROOT}/boot"
   sync
 }
 
-
-####MISC FUNCTIONS####
-check_directory_and_mount(){
-  echo_debug "mounting $1 to $2";
-  if [ ! -d "$2" ]; then 
-    mkdir "$2";
-    echo_debug "created $2";
-  fi
-  
-  if [[ "$(mount $1 $2; echo $?)" != 0 ]]; then
-    echo_error "failure mounting $1 to $2";
-    exit 1;
-  fi
-  echo_debug "mounted $1 to $2";
-
+#formats the disk or image
+parted_disk_setup()
+{
+  echo_debug "Partitioning Image"
+  parted $1 --script -- mklabel msdos
+  parted $1 --script -- mkpart primary fat32 0 256
+  parted $1 --script -- mkpart primary 256 -1
+  sync;
 }
+
 #gets from local filesystem or generates a ssh key and puts it on the build 
 create_ssh_key(){
   echo_info "$FUNCNAME";
@@ -435,15 +401,15 @@ rsync_local(){
   fi
 }
 
+arm_setup(){
+  echo_info "$FUNCNAME";
+  cp /usr/bin/qemu-aarch64-static ${_DISK_CHROOT_ROOT}/usr/bin/
+}
 ####CHROOT FUNCTIONS####
 
 #mount dev,sys,proc in chroot so they are available for apt 
 disk_chroot_setup(){
   local chroot_dir="${_DISK_CHROOT_ROOT}"
-  
-  #TODO new method needed for this
-  cp /usr/bin/qemu-aarch64-static ${_DISK_CHROOT_ROOT}/usr/bin/
-
   echo_info "$FUNCNAME";
   # mount binds
   check_mount_bind "/dev" "${chroot_dir}/dev/"; 
@@ -465,10 +431,10 @@ disk_chroot_teardown(){
   local chroot_dir="${_DISK_CHROOT_ROOT}"
 
   echo_debug "unmounting binds"
-  check_umount_bind "${chroot_dir}/dev/"
-  check_umount_bind "${chroot_dir}/sys/"
-  check_umount_bind "${chroot_dir}/proc/"
-  check_umount_bind "${chroot_dir}/tmp/"
+  tidy_umount "${chroot_dir}/dev/"
+  tidy_umount "${chroot_dir}/sys/"
+  tidy_umount "${chroot_dir}/proc/"
+  tidy_umount "${chroot_dir}/tmp/"
 }
 
 #run apt update
@@ -575,15 +541,6 @@ check_variable_is_set(){
   echo '0';
 }
 
-#umount chroot binds
-check_umount_bind(){
- if umount -R $1; then
-    echo_info "umounting $1";
-  else
-    echo_warn "problem umounting $1 or was already umounted";
-  fi
-}
-
 #mounts a bind, exits on failure
 check_mount_bind(){
   # mount a bind
@@ -593,11 +550,36 @@ check_mount_bind(){
   fi
 }
 
+check_directory_and_mount(){
+  echo_debug "mounting $1 to $2";
+  if [ ! -d "$2" ]; then 
+    mkdir "$2";
+    echo_debug "created $2";
+  fi
+  
+  if [[ "$(mount $1 $2; echo $?)" != 0 ]]; then
+    echo_error "failure mounting $1 to $2";
+    exit 1;
+  fi
+  echo_debug "mounted $1 to $2";
+}
+
 #unmounts and tidies up the folder
 tidy_umount(){
   if umount -R $1; then
     echo_info "umounting $1";
-    rmdir $1
+    
+    if [[ -b $1 ]]; then
+      return;
+    fi
+    if [[ -d $1 ]] && [[ -z "$(ls -A $1)" ]]; then
+      rmdir $1
+      return;
+    fi
+    
+    if $(losetup -a | grep $1 | cut -d':' -f 1); then
+      losetup -d $1 || true;
+    fi
   else
     echo_warn "problem umounting $1 or was already umounted";
   fi

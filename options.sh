@@ -561,7 +561,6 @@ chkboot_setup()
   sed -i "s#BOOTDISK=/dev/sda#BOOTDISK=${_CHKBOOT_BOOTDISK}#" "${_DISK_CHROOT_ROOT}/etc/default/chkboot";
   sed -i "s#BOOTPART=/dev/sda1#BOOTPART=${_CHKBOOT_BOOTPART}#" "${_DISK_CHROOT_ROOT}/etc/default/chkboot";
   chroot_execute systemctl enable chkboot
-  #TODO Investigate: touch: cannot touch '/var/lib/chkboot/needs-update': No such file or directory whilst performing apt install
 }
 
 #TODO new method for a new main user (not 'kali')
