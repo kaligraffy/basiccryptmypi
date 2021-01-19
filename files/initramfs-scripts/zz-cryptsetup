@@ -21,4 +21,4 @@ cat /etc/crypttab >> ${DESTDIR}/cryptroot/crypttab
 cat /etc/fstab >> ${DESTDIR}/cryptroot/fstab
 cat /etc/crypttab >> ${DESTDIR}/etc/crypttab
 cat /etc/fstab >> ${DESTDIR}/etc/fstab
-copy_file config /etc/initramfs-tools/unlock.sh /etc/unlock.sh
+copy_file config /etc/initramfs-tools/scripts/unlock.sh /bin/unlock.sh

@@ -17,7 +17,6 @@ main(){
   trap 'trap_on_exit 0' EXIT;
   check_run_as_root;
   install_dependencies;
-  fix_block_device_names;
   create_build_directory_structure;
 
   #Check for a build directory
@@ -35,6 +34,7 @@ main(){
   if (( $_IMAGE_MODE == 1 )); then 
     copy_to_image_file;
   else
+    fix_block_device_names;
     check_disk_is_correct;
     copy_to_disk;
   fi
@@ -43,7 +43,7 @@ main(){
   disk_chroot_setup;
   disk_chroot_update_apt_setup;
   encryption_setup;
-  extra_setup;
+  optional_setup;
   disk_chroot_mkinitramfs_setup;
   exit 0;
 }

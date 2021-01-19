@@ -21,7 +21,7 @@ export _COLOR_DEBUG='\033[0;37m' #grey
 export _COLOR_NORMAL='\033[0m' # No Color
 export _LOG_FILE="${_BASE_DIR}/build-$(date '+%Y-%m-%d-%H:%M:%S').log"
 export _IMAGE_FILE="${_BUILD_DIR}/image.img"
-export _IMAGE_FILE_SIZE="11G";
+export _IMAGE_FILE_SIZE="11G"; #size of image file, set it near your sd card if you have the space so you don't have to resize your disk
 
 # Runs on script exit, tidies up the mounts.
 trap_on_exit(){
@@ -35,17 +35,17 @@ trap_on_exit(){
 # Cleanup stage 2
 cleanup_write_disk(){
   echo_info "$FUNCNAME";
-  extracted_image_loop_device=$(losetup -a | grep $_EXTRACTED_IMAGE | cut -d':' -f 1);
-  image_file_loop_device=$(losetup -a | grep $_IMAGE_FILE | cut -d':' -f 1);
+  #needs the leading space or is 'unset'
+  extracted_image_loop_device=" $(losetup -a | grep $_EXTRACTED_IMAGE | cut -d':' -f 1)";
+  image_file_loop_device=" $(losetup -a | grep $_IMAGE_FILE | cut -d':' -f 1)";
   
-  echo_debug "deleting the folders used to mount the extracted image";
-  umount "${_BUILD_DIR}/mount" || true;
-  umount "${_BUILD_DIR}/boot" || true;
-  rmdir ${_BUILD_DIR}/mount || true;
-  rmdir ${_BUILD_DIR}/boot || true;
+  tidy_umount "${_BUILD_DIR}/mount" 
+  tidy_umount "${_BUILD_DIR}/boot"
+
   
   echo_debug "unmounting tmp,dev,sys";
   disk_chroot_teardown;
+  
   if (( $_IMAGE_MODE == 1 )); then
     echo_debug "IMAGE MODE CLEAN UP";
     cleanup_loop_device $image_file_loop_device;
@@ -56,28 +56,26 @@ cleanup_write_disk(){
     umount "${_BLOCK_DEVICE_ROOT}" || true
   fi
   
-  cryptsetup -v luksClose "${_ENCRYPTED_VOLUME_PATH}" || true
-
   echo_debug "deleting the folders used to mount the extracted image and new image";
-  if umount "${_DISK_CHROOT_ROOT}"; then 
-    rmdir "${_DISK_CHROOT_ROOT}" || true;
-  fi
+  tidy_umount "${_DISK_CHROOT_ROOT}";
+  cryptsetup -v luksClose "$(basename ${_ENCRYPTED_VOLUME_PATH})" || true
+
   echo_debug "clean up extracted image loop device";
   cleanup_loop_device $extracted_image_loop_device;
 }
 
 #auxiliary method for detaching loop_device in cleanup method 
 cleanup_loop_device(){
-  echo_info "$FUNCNAME $1";
-  local loop_device=$1;
-  #TODO forloop through loop devices.
-  if [ ! -z ${loop_device} ]; then
-    umount ${loop_device}p1 || true;
-    umount ${loop_device}p2 || true;
-    umount ${loop_device} || true;
-    losetup -d "${loop_device}p1" || true;
-    losetup -d "${loop_device}p2" || true;
-    losetup -d "${loop_device}" || true;
+  echo_info "$FUNCNAME";
+  if check_variable_is_set "$@"; then
+    for loop_device in $@; do
+      umount ${loop_device}p1 || true;
+      umount ${loop_device}p2 || true;
+      umount ${loop_device} || true;
+      losetup -d "${loop_device}p1" || true;
+      losetup -d "${loop_device}p2" || true;
+      losetup -d "${loop_device}" || true;
+    done
   fi
 }
 
@@ -91,7 +89,7 @@ check_build_dir_exists(){
   
   if [ -d ${_BUILD_DIR} ]; then
     local continue;
-    read -p "Build directory already exists: ${_BUILD_DIR}. Rebuild Yes,No? (y/N)  " continue;
+    read -p "Build directory already exists: ${_BUILD_DIR}. Rebuild? (y/N)  " continue;
     if [ "${continue}" = 'y' ] || [ "${continue}" = 'Y' ]; then
       echo '1';
     else
@@ -115,13 +113,13 @@ check_run_as_root(){
 fix_block_device_names(){
   # check device exists/folder exists
   echo_info "$FUNCNAME";
-  if [ -z "${_OUTPUT_BLOCK_DEVICE+x}" ] || [ -z "${_OUTPUT_BLOCK_DEVICE}"  ]; then
-    echo_error "No Output Block Device Set";
-    exit;
+  
+  if ! check_variable_is_set "${_OUTPUT_BLOCK_DEVICE}"; then
+    exit 1;
   fi
 
   local prefix=""
-  #if the device contains mmcblk, prefix is set to so the device name is picked up correctly
+  #if the device contains mmcblk, prefix is set so the device name is picked up correctly
   if [[ "${_OUTPUT_BLOCK_DEVICE}" == *'mmcblk'* ]]; then
     prefix='p'
   fi
@@ -134,7 +132,6 @@ fix_block_device_names(){
 
 create_build_directory_structure(){
   echo_info "$FUNCNAME";
-  #TODO maybe exit out if its already there
   mkdir "${_BUILD_DIR}" || true; 
   mkdir "${_BUILD_DIR}/mount" || true; #where the extracted image's root directory is mounted
   mkdir "${_BUILD_DIR}/boot" || true;  #where the extracted image's boot directory is mounted
@@ -188,8 +185,8 @@ mount_image_on_loopback(){
   local extracted_image="${_EXTRACTED_IMAGE}";
   local loop_device=$(losetup -P -f --read-only --show "$extracted_image");
   partprobe ${loop_device};
-  mount ${loop_device}p2 ${_BUILD_DIR}/mount;
-  mount ${loop_device}p1 ${_BUILD_DIR}/boot;
+  check_directory_and_mount "${loop_device}p2" "${_BUILD_DIR}/mount";
+  check_directory_and_mount "${loop_device}p1" "${_BUILD_DIR}/boot";
 }
 
 #rsyncs the mounted image to a new folder
@@ -276,15 +273,12 @@ encryption_setup(){
   sed -i "s#ext3#${fs_type}#g" ${_DISK_CHROOT_ROOT}/etc/fstab
 
   # Update /etc/crypttab
+  echo "# <target name> <source device>         <key file>      <options>" > "${_DISK_CHROOT_ROOT}/etc/crypttab"
   atomic_append "$(basename ${_ENCRYPTED_VOLUME_PATH})    /dev/mmcblk0p2    none    luks" "${_DISK_CHROOT_ROOT}/etc/crypttab"
 
   # Create a hook to include our crypttab in the initramfs
   cp -p "${_FILE_DIR}/initramfs-scripts/zz-cryptsetup" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-cryptsetup";
   
-  # Unlock Script
-  cp -p "${_FILE_DIR}/initramfs-scripts/unlock.sh" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/unlock.sh";
-  sed -i "s#ENCRYPTED_VOLUME_PATH#${_ENCRYPTED_VOLUME_PATH}#" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/unlock.sh";
-
   # Adding dm_mod to initramfs modules
   atomic_append 'dm_crypt' "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/modules";
   
@@ -311,27 +305,15 @@ copy_to_disk(){
   echo_debug "$(dmsetup ls --target crypt | grep ${_ENCRYPTED_VOLUME_PATH})"
   # warn and ask to overwrite
   
-  echo "${_LUKS_PASSWORD}" | cryptsetup -v --cipher ${_LUKS_CONFIGURATION} luksFormat ${_BLOCK_DEVICE_ROOT}
+  echo "${_LUKS_PASSWORD}" | cryptsetup -v ${_LUKS_CONFIGURATION} luksFormat ${_BLOCK_DEVICE_ROOT}
   echo "${_LUKS_PASSWORD}" | cryptsetup -v luksOpen ${_BLOCK_DEVICE_ROOT} $(basename ${_ENCRYPTED_VOLUME_PATH})
 
   make_filesystem "vfat" "${_BLOCK_DEVICE_BOOT}"
   make_filesystem "${fs_type}" "${_ENCRYPTED_VOLUME_PATH}"
 
-  # Mount LUKS
-  echo_debug "Mounting ${_ENCRYPTED_VOLUME_PATH} to ${_DISK_CHROOT_ROOT}"
-  if [ ! -d ${_DISK_CHROOT_ROOT} ]; then 
-    mkdir ${_DISK_CHROOT_ROOT};
-  fi
-  mount ${_ENCRYPTED_VOLUME_PATH} ${_DISK_CHROOT_ROOT} && echo_debug "- Mounted ${_ENCRYPTED_VOLUME_PATH} to ${_DISK_CHROOT_ROOT}"
-
-  # Mount boot partition
-  echo_debug "Attempting to mount ${_BLOCK_DEVICE_BOOT} to ${_DISK_CHROOT_ROOT}/boot "
-  
-  if [ ! -d "${_DISK_CHROOT_ROOT}/boot" ]; then 
-    mkdir "${_DISK_CHROOT_ROOT}/boot";
-  fi
-  mount ${_BLOCK_DEVICE_BOOT} ${_DISK_CHROOT_ROOT}/boot && echo_debug "- Mounted ${_BLOCK_DEVICE_BOOT} to ${_DISK_CHROOT_ROOT}/boot"
-
+  #Mount luks and boot
+  check_directory_and_mount "${_ENCRYPTED_VOLUME_PATH}" "${_DISK_CHROOT_ROOT}"
+  check_directory_and_mount "${_BLOCK_DEVICE_BOOT}" "${_DISK_CHROOT_ROOT}/boot"
   # Attempt to copy files from build to mounted device
   sync
 }
@@ -343,12 +325,12 @@ copy_to_image_file(){
   local fs_type=$_FILESYSTEM_TYPE;
   local image_file=${_IMAGE_FILE};
   local image_file_size=${_IMAGE_FILE_SIZE};
+  touch $image_file;
+  fallocate -l ${image_file_size} ${image_file}
   local loop_device=$(losetup -P -f --show "${image_file}");
   partprobe ${loop_device};
   local block_device_boot="${loop_device}p1" 
   local block_device_root="${loop_device}p2" 
-  
-  fallocate -l ${image_file_size} ${image_file}
 
   #TODO check for existing image
   echo_debug "Partitioning Image"
@@ -368,29 +350,29 @@ copy_to_image_file(){
 
   make_filesystem "vfat" "${block_device_boot}"
   make_filesystem "${fs_type}" "${_ENCRYPTED_VOLUME_PATH}"
-
-  # Mount LUKS
-  echo_debug "Mounting ${_ENCRYPTED_VOLUME_PATH} to ${_DISK_CHROOT_ROOT}"
-  if [ ! -d ${_DISK_CHROOT_ROOT} ]; then 
-    mkdir ${_DISK_CHROOT_ROOT};
-  fi
-  mount ${_ENCRYPTED_VOLUME_PATH} ${_DISK_CHROOT_ROOT} && echo_debug "- Mounted ${_ENCRYPTED_VOLUME_PATH} to ${_DISK_CHROOT_ROOT}"
-
-  # Mount boot partition
-  echo_debug "Attempting to mount ${block_device_boot} to ${_DISK_CHROOT_ROOT}/boot "
   
-  if [ ! -d "${_DISK_CHROOT_ROOT}/boot" ]; then 
-    mkdir "${_DISK_CHROOT_ROOT}/boot";
-  fi
-  mount ${block_device_boot} ${_DISK_CHROOT_ROOT}/boot && echo_debug "- Mounted ${block_device_boot} to ${_DISK_CHROOT_ROOT}/boot"
-
-  # Attempt to copy files from build to mounted device
+  #Mounts
+  check_directory_and_mount "${_ENCRYPTED_VOLUME_PATH}" "${_DISK_CHROOT_ROOT}"
+  check_directory_and_mount "${block_device_boot}" "${_DISK_CHROOT_ROOT}/boot"
   sync
 }
 
 
-#### MISC FUNCTIONS####
+####MISC FUNCTIONS####
+check_directory_and_mount(){
+  echo_debug "mounting $1 to $2";
+  if [ ! -d "$2" ]; then 
+    mkdir "$2";
+    echo_debug "created $2";
+  fi
+  
+  if [[ "$(mount $1 $2; echo $?)" != 0 ]]; then
+    echo_error "failure mounting $1 to $2";
+    exit 1;
+  fi
+  echo_debug "mounted $1 to $2";
 
+}
 #gets from local filesystem or generates a ssh key and puts it on the build 
 create_ssh_key(){
   echo_info "$FUNCNAME";
@@ -464,30 +446,17 @@ disk_chroot_setup(){
 
   echo_info "$FUNCNAME";
   # mount binds
-  if [[ "$(mount -o bind /dev "${chroot_dir}/dev/"; echo $?)" != 0 ]]; then
-    echo_error "failure mounting ${chroot_dir}/dev/";
-    exit 1;
-  fi
-  
-  if [[ $(mount -o bind /dev/pts "${chroot_dir}/dev/pts"; echo $?) != 0 ]]; then
-    echo_error "failure mounting ${chroot_dir}/dev/pts";
-    exit 1;
-  fi
-  
-  if [[ $(mount -o bind /sys "${chroot_dir}/sys/"; echo $?) != 0 ]]; then
-    echo_error "failure mounting ${chroot_dir}/sys/";
-    exit 1;
-  fi
-  
+  check_mount_bind "/dev" "${chroot_dir}/dev/"; 
+  check_mount_bind "/dev/pts" "${chroot_dir}/dev/pts";
+  check_mount_bind "/sys" "${chroot_dir}/sys/";
+  check_mount_bind "/tmp" "${chroot_dir}/tmp/";
+
+  #procs special, so it does it a different way
   if [[ $(mount -t proc /proc "${chroot_dir}/proc/"; echo $?) != 0 ]]; then
-    echo_error "failure mounting ${chroot_dir}/proc/";
-    exit 1;
+      echo_error "failure mounting ${chroot_dir}/proc/";
+      exit 1;
   fi
-  
-  if [[ $(mount -o bind /tmp "${chroot_dir}/tmp/"; echo $?) != 0 ]]; then
-    echo_error "failure mounting ${chroot_dir}/tmp/";
-    exit 1;
-  fi
+
 }
 
 #unmount dev,sys,proc in chroot
@@ -496,29 +465,10 @@ disk_chroot_teardown(){
   local chroot_dir="${_DISK_CHROOT_ROOT}"
 
   echo_debug "unmounting binds"
-  if umount -R "${chroot_dir}/dev/"; then
-    echo_info "umounting ${chroot_dir}/dev/";
-  else
-    echo_warn "problem umounting ${chroot_dir}/dev/ or was already umounted";
-  fi
-  
-  if umount "${chroot_dir}/sys/"; then
-    echo_info "umounting ${chroot_dir}/sys/";
-  else
-    echo_warn "problem umounting ${chroot_dir}/sys/ or was already umounted";
-  fi
-  
-  if umount "${chroot_dir}/proc/"; then
-    echo_info "umounting ${chroot_dir}/proc/";
-  else
-    echo_warn "problem umounting ${chroot_dir}/proc/ or was already umounted";
-  fi
-  
-  if umount "${chroot_dir}/tmp/"; then
-    echo_info "umounting ${chroot_dir}/tmp/";
-  else
-    echo_warn "problem umounting ${chroot_dir}/tmp/ or was already umounted";
-  fi
+  check_umount_bind "${chroot_dir}/dev/"
+  check_umount_bind "${chroot_dir}/sys/"
+  check_umount_bind "${chroot_dir}/proc/"
+  check_umount_bind "${chroot_dir}/tmp/"
 }
 
 #run apt update
@@ -594,8 +544,8 @@ disk_chroot_mkinitramfs_setup(){
 
 ####PRINT FUNCTIONS####
 echo_error(){ echo -e "${_COLOR_ERROR}$(date '+%H:%M:%S'): ERROR: $*${_COLOR_NORMAL}" | tee -a ${_LOG_FILE};}
-echo_warn(){  echo -e "${_COLOR_WARN}$(date '+%H:%M:%S'): WARNING: $@${_COLOR_NORMAL}" | tee -a ${_LOG_FILE};}
-echo_info(){  echo -e "${_COLOR_INFO}$(date '+%H:%M:%S'): INFO: $@${_COLOR_NORMAL}" | tee -a ${_LOG_FILE};}
+echo_warn(){ echo -e "${_COLOR_WARN}$(date '+%H:%M:%S'): WARNING: $@${_COLOR_NORMAL}" | tee -a ${_LOG_FILE};}
+echo_info(){ echo -e "${_COLOR_INFO}$(date '+%H:%M:%S'): INFO: $@${_COLOR_NORMAL}" | tee -a ${_LOG_FILE};}
 echo_debug(){
   if [ $_LOG_LEVEL -lt 1 ]; then
     echo -e "${_COLOR_DEBUG}$(date '+%H:%M:%S'): DEBUG: $@${_COLOR_NORMAL}";
@@ -604,7 +554,7 @@ echo_debug(){
   echo "$(date '+%H:%M:%S'): $@" >> "${_LOG_FILE}";
 }
 
-#####HELPER FUNCTIONS#####
+####HELPER FUNCTIONS####
 #appends config to a file after checking if it's already in the file
 #$1 the config value $2 the filename
 atomic_append(){
@@ -612,5 +562,43 @@ atomic_append(){
   FILE="$2";
   if [[ ! $(grep -w "${CONFIG}" "${FILE}") ]]; then
     echo "${CONFIG}" >> "${FILE}";
+  fi
+}
+
+#checks if a variable is set or empty ''
+check_variable_is_set(){
+  if [[ ! ${1} ]] || [[ -z "${1}" ]]; then
+    echo_info "${1} is not set or is empty";
+    echo '1';
+    return;
+  fi
+  echo '0';
+}
+
+#umount chroot binds
+check_umount_bind(){
+ if umount -R $1; then
+    echo_info "umounting $1";
+  else
+    echo_warn "problem umounting $1 or was already umounted";
+  fi
+}
+
+#mounts a bind, exits on failure
+check_mount_bind(){
+  # mount a bind
+  if [[ "$(mount -o bind $1 $2; echo $?)" != 0 ]]; then
+    echo_error "failure mounting $2";
+    exit 1;
+  fi
+}
+
+#unmounts and tidies up the folder
+tidy_umount(){
+  if umount -R $1; then
+    echo_info "umounting $1";
+    rmdir $1
+  else
+    echo_warn "problem umounting $1 or was already umounted";
   fi
 }

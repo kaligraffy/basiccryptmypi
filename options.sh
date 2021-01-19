@@ -49,28 +49,11 @@ initramfs_wifi_setup(){
   echo_info "$FUNCNAME";
 
   echo_debug "Attempting to set initramfs WIFI up "
-  if [ -z "$_WIFI_SSID" ] || [ -z "$_WIFI_PASSWORD" ]; then
-    echo_warn 'SKIPPING: _WIFI_PASSWORD and/or _WIFI_SSID are not set.'
-    exit 1;
-  fi
-
-  # Checking if WIFI interface was provided
-  if [ -z "${_INITRAMFS_WIFI_INTERFACE}" ]; then
-    _INITRAMFS_WIFI_INTERFACE='wlan0'
-    echo_warn "_INITRAMFS_WIFI_INTERFACE is not set on config: Setting default value ${_INITRAMFS_WIFI_INTERFACE}"
-  fi
-
-  # Checking if WIFI ip kernal param was provided
-  if [ -z "${_INITRAMFS_WIFI_IP}" ]; then
-    _INITRAMFS_WIFI_IP=":::::${_INITRAMFS_WIFI_INTERFACE}:dhcp:${_DNS1}:${_DNS2}"
-    echo_warn "_INITRAMFS_WIFI_IP is not set on config: Setting default value ${_INITRAMFS_WIFI_IP}"
-  fi
-
-  # Checking if WIFI drivers param was provided
-  if [ -z "${_INITRAMFS_WIFI_DRIVERS}" ]; then
-    _INITRAMFS_WIFI_DRIVERS="brcmfmac brcmutil cfg80211 rfkill"
-    echo_warn "_INITRAMFS_WIFI_DRIVERS is not set on config: Setting default value ${_INITRAMFS_WIFI_DRIVERS}"
-  fi
+  check_variable_is_set "${_WIFI_SSID}";
+  check_variable_is_set "${_WIFI_PASSWORD}";
+  check_variable_is_set "${_INITRAMFS_WIFI_INTERFACE}";
+  check_variable_is_set "${_INITRAMFS_WIFI_IP}";
+  check_variable_is_set "${_INITRAMFS_WIFI_DRIVERS}";
 
   # Update /boot/cmdline.txt to boot crypt
   if [[ ! $(grep "${_INITRAMFS_WIFI_IP}" "${_DISK_CHROOT_ROOT}/boot/cmdline.txt") ]]; then
@@ -109,13 +92,8 @@ EOT
 #configure system on decrypt to connect to a hotspot specified in env file
 wifi_setup(){
   echo_info "$FUNCNAME";
-
-  # Checking if WIFI interface was provided
-  if [ -z "${_WIFI_INTERFACE}" ]; then
-    _WIFI_INTERFACE='wlan0'
-    echo_warn "_WIFI_INTERFACE is not set on config: Setting default value ${_WIFI_INTERFACE}"
-  fi
-
+  check_variable_is_set "${_WIFI_INTERFACE}"
+  
   echo_debug "Generating PSK for '${_WIFI_SSID}' '${_WIFI_PASSWORD}'"
   _WIFI_PSK=$(wpa_passphrase "${_WIFI_SSID}" "${_WIFI_PASSWORD}" | grep "psk=" | grep -v "#psk" | sed 's/^[\t]*//g')
 
@@ -174,7 +152,7 @@ dropbear_setup(){
  chroot_package_install dropbear dropbear-initramfs cryptsetup-initramfs
 
   #TODO check this works
-  atomic_append "DROPBEAR_OPTIONS='-p $_SSH_PORT -RFEjk -c /bin/cryptroot-unlock'" "${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/config";
+  atomic_append "DROPBEAR_OPTIONS='-p $_SSH_PORT -RFEjk -c /bin/unlock.sh'" "${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/config";
 
   # Now append our key to dropbear authorized_keys file
   echo_debug "checking ssh key for root@hostname. make sure any host key has this comment.";
@@ -185,8 +163,12 @@ dropbear_setup(){
 
   # Update dropbear for some sleep in initramfs
   sed -i 's#run_dropbear \&#sleep 5\nrun_dropbear \&#g' ${_DISK_CHROOT_ROOT}/usr/share/initramfs-tools/scripts/init-premount/dropbear;
-
-  # Using provided dropbear keys (or backuping generating ones for later usage)
+ 
+ # Unlock Script
+  cp -p "${_FILE_DIR}/initramfs-scripts/unlock.sh" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/scripts/unlock.sh";
+  sed -i "s#ENCRYPTED_VOLUME_PATH#${_ENCRYPTED_VOLUME_PATH}#g" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/scripts/unlock.sh";
+ 
+ # Using provided dropbear keys (or backuping generating ones for later usage)
   # Don't use weak key ciphers
   rm ${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_dss_host_key || true;
   rm ${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_ed25519_host_key || true;
@@ -275,7 +257,7 @@ root_password_setup(){
 #sets the kali user password
 user_password_setup(){
   echo_info "$FUNCNAME";
-  chroot ${_DISK_CHROOT_ROOT} /bin/bash -c "echo kali:${_KALI_PASSWORD} | /usr/sbin/chpasswd"
+  chroot ${_DISK_CHROOT_ROOT} /bin/bash -c "echo kali:${_USER_PASSWORD} | /usr/sbin/chpasswd"
 }
 
 #setup a vpn client
@@ -410,7 +392,7 @@ iodine_setup(){
   # REFERENCE:
   #   https://davidhamann.de/2019/05/12/tunnel-traffic-over-dns-ssh/
   echo_info "$FUNCNAME";
- chroot_package_install iodine
+  chroot_package_install iodine
 
   # Create initramfs hook file for iodine
   cp -p "${_FILE_DIR}/initramfs-scripts/zz-iodine" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/hooks/"
@@ -603,9 +585,36 @@ simple_dns_setup(){
 #TODO Vnc server
 vnc_setup(){
   chroot_package_install tightvncserver
+  chroot_execute vncpasswd
+  
+  if (( $_UFW_SETUP == 1 )); then
+    chroot_execute ufw allow in 5900/tcp;
+    chroot_execute ufw allow in 5901/tcp;
+    chroot_execute ufw enable;
+  fi
+}
+
+#TODO FTP server
+#REQUIRES SSH SETUP
+sftp_setup(){
+  chroot_package_install openssh-sftp-server
+  chroot_execute groupadd sftp_users
+  chroot_execute useradd -g sftp_users -d /data/sftp/upload -s /sbin/nologin sftp
+  chroot ${_DISK_CHROOT_ROOT} /bin/bash -c "echo sftp:${_SFTP_PASSWORD} | /usr/sbin/chpasswd"
+ 
+  chroot_execute mkdir -p /data/sftp/upload
+  chroot_execute chown -R root:sftp_users /data/sftp
+  chroot_execute chown -R sftp:sftp_users /data/sftp/upload
+
+
+  cat <<- EOT > ${_DISK_CHROOT_ROOT}/etc/ssh/ssh_config.d/sftp_config
+Match Group sftp_users
+ChrootDirectory /data/%u
+ForceCommand internal-sftp
+EOT
 
   if (( $_UFW_SETUP == 1 )); then
-    chroot_execute ufw allow out 5900/tcp;
+    chroot_execute ufw allow in ${_SSH_PORT}/tcp;
     chroot_execute ufw enable;
   fi
 }

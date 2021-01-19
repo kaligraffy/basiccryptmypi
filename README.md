@@ -32,7 +32,7 @@ HOW DOES IT WORK
 2. Then it extracts the image (if it's already there it asks if you want to re-extract)
 3. Then it copies the contents to a directory called 'root' in the build directory
 4. Then it runs the normal configuration 
-5. Then it runs the custom configuration specified in .env (in function extra_setup)
+5. Then it runs the custom configuration specified in .env (in function optional_setup)
 6. Finally, it creates an encrypted disk and writes the build to it
 
 LOGGING
