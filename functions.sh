@@ -36,20 +36,17 @@ trap_on_exit(){
 cleanup_write_disk(){
   echo_info "$FUNCNAME";
   #needs the leading space or is 'unset'
-  extracted_image_loop_device=" $(losetup -a | grep $_EXTRACTED_IMAGE | cut -d':' -f 1)";
-  image_file_loop_device=" $(losetup -a | grep $_IMAGE_FILE | cut -d':' -f 1)";
-  
   tidy_umount "${_BUILD_DIR}/mount" 
   tidy_umount "${_BUILD_DIR}/boot"
 
-  
   echo_debug "unmounting tmp,dev,sys";
   disk_chroot_teardown;
   
   if (( $_IMAGE_MODE == 1 )); then
     echo_debug "IMAGE MODE CLEAN UP";
+    image_file_loop_device="$(losetup -a | grep $_IMAGE_FILE | cut -d':' -f 1 | tr '\n' ' ')";
     cleanup_loop_device $image_file_loop_device;
-    echo_warn "To burn your disk run: dd if=${_IMAGE_FILE} of=${_OUTPUT_BLOCK_DEVICE} bs=512 status=progress && sync";
+    echo_info "To burn your disk run: dd if=${_IMAGE_FILE} of=${_OUTPUT_BLOCK_DEVICE} bs=512 status=progress && sync";
   else
     echo_debug "DISK MODE CLEANUP";
     tidy_umount "${_BLOCK_DEVICE_BOOT}";
@@ -61,6 +58,7 @@ cleanup_write_disk(){
   cryptsetup -v luksClose "$(basename ${_ENCRYPTED_VOLUME_PATH})" || true
 
   echo_debug "clean up extracted image loop device";
+  extracted_image_loop_device="$(losetup -a | grep $_EXTRACTED_IMAGE | cut -d':' -f 1 | tr '\n' ' ')";
   cleanup_loop_device $extracted_image_loop_device;
 }
 
@@ -86,7 +84,7 @@ check_build_dir_exists(){
   
   if [ -d ${_BUILD_DIR} ]; then
     local continue;
-    read -p "Build directory already exists: ${_BUILD_DIR}. Rebuild? (y/N)  " continue;
+    read -p "Build directory already exists: ${_BUILD_DIR}. Delete? (y/N)  " continue;
     if [ "${continue}" = 'y' ] || [ "${continue}" = 'Y' ]; then
       echo '1';
     else
@@ -127,9 +125,11 @@ fix_block_device_names(){
 }
 
 
-create_build_directory_structure(){
+create_build_directory(){
   echo_info "$FUNCNAME";
+  rm -rf "${_BUILD_DIR}" || true ;
   mkdir "${_BUILD_DIR}" || true; 
+  sync;
 }
 
 #extracts the image so it can be mounted
@@ -284,9 +284,8 @@ encryption_setup(){
 # Encrypt & Write SD
 format_disk(){  
   echo_info "$FUNCNAME";
-  fs_type=$_FILESYSTEM_TYPE;
   parted_disk_setup ${_OUTPUT_BLOCK_DEVICE} 
-  filesystem_setup ${_BLOCK_DEVICE_BOOT} ${_BLOCK_DEVICE_ROOT} ${fs_type};
+  filesystem_setup ${_BLOCK_DEVICE_BOOT} ${_BLOCK_DEVICE_ROOT} ;
 }
 
 #makes an image file instead of copying to a disk
@@ -294,16 +293,21 @@ format_image_file(){
   echo_info "$FUNCNAME";
   local image_file=${_IMAGE_FILE};
   local image_file_size=${_IMAGE_FILE_SIZE};
+  
   touch $image_file;
   fallocate -l ${image_file_size} ${image_file}
+  sync
+  #TODO check for existing image
+  parted_disk_setup ${image_file} 
+  
   local loop_device=$(losetup -P -f --show "${image_file}");
   partprobe ${loop_device};
+  
   local block_device_boot="${loop_device}p1" 
   local block_device_root="${loop_device}p2" 
 
-  #TODO check for existing image
-  parted_disk_setup ${image_file} 
-  filesystem_setup ${block_device_boot} ${block_device_root} ${fs_type};
+  filesystem_setup ${block_device_boot} ${block_device_root} ;
+  sync;
 }
 
 ####MISC FUNCTIONS####
@@ -312,7 +316,7 @@ format_image_file(){
 #also mounts the chroot directory ready for copying
 filesystem_setup(){
   #TODO check ${_ENCRYPTED_VOLUME_PATH} already exists, if it does
-  echo_debug "$(dmsetup ls --target crypt | grep ${_ENCRYPTED_VOLUME_PATH})"
+  #echo_debug "$(dmsetup ls --target crypt | grep ${_ENCRYPTED_VOLUME_PATH})"
   # warn and ask to overwrite
   
   # Create LUKS
@@ -321,7 +325,7 @@ filesystem_setup(){
   echo "${_LUKS_PASSWORD}" | cryptsetup -v luksOpen $2 $(basename ${_ENCRYPTED_VOLUME_PATH})
 
   make_filesystem "vfat" "$1"
-  make_filesystem "$3" "${_ENCRYPTED_VOLUME_PATH}"
+  make_filesystem "${_FILESYSTEM_TYPE}" "${_ENCRYPTED_VOLUME_PATH}"
   
   #Mounts
   check_directory_and_mount "${_ENCRYPTED_VOLUME_PATH}" "${_DISK_CHROOT_ROOT}"
@@ -567,20 +571,28 @@ check_directory_and_mount(){
 #unmounts and tidies up the folder
 tidy_umount(){
   if umount -R $1; then
-    echo_info "umounting $1";
+    echo_info "umounted $1";
     
+    #if it's a block device, leave it alone
     if [[ -b $1 ]]; then
-      return;
-    fi
-    if [[ -d $1 ]] && [[ -z "$(ls -A $1)" ]]; then
-      rmdir $1
-      return;
+      echo_debug "block device"
+      return 0;
     fi
     
-    if $(losetup -a | grep $1 | cut -d':' -f 1); then
-      losetup -d $1 || true;
+    if [[ $(grep 'dev'  "$1")  ]] || \
+       [[ $(grep 'sys'  "$1")  ]] || \
+       [[ $(grep 'proc' "$1")  ]] || \
+       [[ $(grep 'tmp'  "$1")  ]] ; then
+      echo_debug "binds"
+      return 0;
     fi
-  else
-    echo_warn "problem umounting $1 or was already umounted";
+    #if it's a directory and empty, delete it
+    if [[ -d $1 ]]; then
+      echo_debug "directory"
+      rmdir $1 || true
+    fi
+    
+    losetup -d $1 || true;
+    
   fi
 }

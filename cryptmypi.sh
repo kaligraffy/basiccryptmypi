@@ -17,19 +17,18 @@ main(){
   trap 'trap_on_exit 0' EXIT;
   check_run_as_root;
   install_dependencies;
-  create_build_directory_structure;
-
+  
+  #image extract
+  download_image;
+  extract_image;
+  
   #Check for a build directory
-  local extract=$(check_build_dir_exists);
-  if (( $extract >= 1 )); then
-    #Stage 1 - Unpack image
-    rm -rf "${_BUILD_DIR}" || true ;
-    create_build_directory_structure
-    download_image;
-    extract_image;
+  local delete_build=$(check_build_dir_exists);
+  if (( $delete_build == 1 )); then
+    create_build_directory
   fi
   
-  #Stage 2 - Write to physical disk or image and modify it
+  # Write to physical disk or image and modify it
   trap 'trap_on_exit 1' EXIT;
   if (( $_IMAGE_MODE == 1 )); then 
     format_image_file;
