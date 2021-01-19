@@ -297,7 +297,7 @@ format_image_file(){
   touch $image_file;
   fallocate -l ${image_file_size} ${image_file}
   sync
-  #TODO check for existing image
+  
   parted_disk_setup ${image_file} 
   
   local loop_device=$(losetup -P -f --show "${image_file}");
@@ -315,9 +315,6 @@ format_image_file(){
 #makes a luks container and formats the disk/image
 #also mounts the chroot directory ready for copying
 filesystem_setup(){
-  #TODO check ${_ENCRYPTED_VOLUME_PATH} already exists, if it does
-  #echo_debug "$(dmsetup ls --target crypt | grep ${_ENCRYPTED_VOLUME_PATH})"
-  # warn and ask to overwrite
   
   # Create LUKS
   echo_debug "Attempting to create LUKS $2 "
@@ -422,7 +419,7 @@ disk_chroot_setup(){
   check_mount_bind "/tmp" "${chroot_dir}/tmp/";
 
   #procs special, so it does it a different way
-  if [[ $(mount -t proc /proc "${chroot_dir}/proc/"; echo $?) != 0 ]]; then
+  if [[ $(mount -t proc "/proc" "${chroot_dir}/proc/"; echo $?) != 0 ]]; then
       echo_error "failure mounting ${chroot_dir}/proc/";
       exit 1;
   fi
@@ -578,17 +575,18 @@ tidy_umount(){
       echo_debug "block device"
       return 0;
     fi
-    
-    if [[ $(grep 'dev'  "$1")  ]] || \
-       [[ $(grep 'sys'  "$1")  ]] || \
-       [[ $(grep 'proc' "$1")  ]] || \
-       [[ $(grep 'tmp'  "$1")  ]] ; then
-      echo_debug "binds"
+    read -r
+    if [[ $(grep '/dev'  <<< "$1")  ]] || \
+       [[ $(grep '/sys'  <<< "$1")  ]] || \
+       [[ $(grep '/proc' <<< "$1")  ]] || \
+       [[ $(grep '/tmp'  <<< "$1")  ]] ; then
+      echo_debug "binds (don't delete folders)"
       return 0;
     fi
+    read -r
     #if it's a directory and empty, delete it
     if [[ -d $1 ]]; then
-      echo_debug "directory"
+      echo_debug "directory - tidy up empty directory"
       rmdir $1 || true
     fi
     

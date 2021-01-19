@@ -7,6 +7,9 @@
 set -eu
 export _UFW_SETUP=0;
 
+#used by wifi_setup and initramfs_wifi_setup
+export _WIFI_PSK=$(wpa_passphrase "${_WIFI_SSID}" "${_WIFI_PASSWORD}" | grep "psk=" | grep -v "#psk" | sed 's/^[\t]*//g')
+
 #group of functions that enable headless functioning
 headless_setup(){
   display_manager_setup;
@@ -59,8 +62,6 @@ initramfs_wifi_setup(){
   if [[ ! $(grep "${_INITRAMFS_WIFI_IP}" "${_DISK_CHROOT_ROOT}/boot/cmdline.txt") ]]; then
     sed -i "s#rootwait#ip=${_INITRAMFS_WIFI_IP} rootwait#g" ${_DISK_CHROOT_ROOT}/boot/cmdline.txt
   fi
-  echo_debug "Generating PSK for '${_WIFI_SSID}' '${_WIFI_PASSWORD}'";
-  _WIFI_PSK=$(wpa_passphrase "${_WIFI_SSID}" "${_WIFI_PASSWORD}" | grep "psk=" | grep -v "#psk" | sed 's/^[\t]*//g')
 
   echo_debug "Copying scripts";
   cp -p "${_FILE_DIR}/initramfs-scripts/zz-brcm" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/hooks/"
@@ -76,9 +77,9 @@ initramfs_wifi_setup(){
 ctrl_interface=/tmp/wpa_supplicant
 network={
  ssid="${_WIFI_SSID}"
- ${_WIFI_PSK}
  scan_ssid=1
  key_mgmt=WPA-PSK
+ ${_WIFI_PSK}
 }
 EOT
 
@@ -93,10 +94,6 @@ EOT
 wifi_setup(){
   echo_info "$FUNCNAME";
   check_variable_is_set "${_WIFI_INTERFACE}"
-  
-  echo_debug "Generating PSK for '${_WIFI_SSID}' '${_WIFI_PASSWORD}'"
-  _WIFI_PSK=$(wpa_passphrase "${_WIFI_SSID}" "${_WIFI_PASSWORD}" | grep "psk=" | grep -v "#psk" | sed 's/^[\t]*//g')
-
   echo_debug "Creating wpa_supplicant file"
   cat <<- EOT > ${_DISK_CHROOT_ROOT}/etc/wpa_supplicant.conf
 ctrl_interface=/var/run/wpa_supplicant
@@ -149,7 +146,7 @@ dropbear_setup(){
   fi
 
   # Installing packages
- chroot_package_install dropbear dropbear-initramfs cryptsetup-initramfs
+  chroot_package_install dropbear dropbear-initramfs cryptsetup-initramfs
 
   #TODO check this works
   atomic_append "DROPBEAR_OPTIONS='-p $_SSH_PORT -RFEjk -c /bin/unlock.sh'" "${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/config";
@@ -162,13 +159,13 @@ dropbear_setup(){
   chmod 600 ${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/authorized_keys;
 
   # Update dropbear for some sleep in initramfs
-  sed -i 's#run_dropbear \&#sleep 5\nrun_dropbear \&#g' ${_DISK_CHROOT_ROOT}/usr/share/initramfs-tools/scripts/init-premount/dropbear;
+  sed -i 's#run_dropbear \&#sleep 5\nrun_dropbear \&#g' "${_DISK_CHROOT_ROOT}/usr/share/initramfs-tools/scripts/init-premount/dropbear";
  
- # Unlock Script
+  # Unlock Script
   cp -p "${_FILE_DIR}/initramfs-scripts/unlock.sh" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/scripts/unlock.sh";
   sed -i "s#ENCRYPTED_VOLUME_PATH#${_ENCRYPTED_VOLUME_PATH}#g" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/scripts/unlock.sh";
  
- # Using provided dropbear keys (or backuping generating ones for later usage)
+  # Using provided dropbear keys (or backuping generating ones for later usage)
   # Don't use weak key ciphers
   rm ${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_dss_host_key || true;
   rm ${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_ed25519_host_key || true;
@@ -473,10 +470,11 @@ apparmor_setup(){
   echo_info "$FUNCNAME";
   chroot_package_install apparmor apparmor-profiles-extra apparmor-utils
   echo_warn "PACKAGES INSTALLED, NO KERNEL PARAMS CONFIGURED. PLEASE CONFIGURE MANUALLY";
+  chroot_execute systemctl enable apparmor.service
+
 }
 
 #randomize mac on reboot
-#TODO random mac on boot config for wpa_supplicant
 random_mac_on_reboot_setup(){
 #https://wiki.archlinux.org/index.php/MAC_address_spoofing#Automatically
   echo_info "$FUNCNAME";
@@ -519,7 +517,6 @@ EOT
   echo_debug "DNS configured - remember to keep your clock up to date (date -s XX:XX) or DNSSEC Certificate errors may occur";
   if (( $_UFW_SETUP == 1 )); then
     chroot_execute ufw allow out 853/tcp;
-    #chroot_execute ufw allow in 853/tcp;
     chroot_execute ufw enable;
   fi
   #needs: 853/tcp, doesn't need as we disable llmnr and mdns: 5353/udp,5355/udp
@@ -564,24 +561,22 @@ chkboot_setup()
 }
 
 #TODO new method for a new main user (not 'kali')
+#Test this
 user_setup(){
   echo_info "$FUNCNAME";
   echo_warn "NOT YET IMPLEMENTED";
 }
 
-#TODO DNS simple setup
 #set dns in resolv.conf for setup only or none dnssec setup
 simple_dns_setup(){
   echo_info "$FUNCNAME";
-  echo_warn "NOT YET IMPLEMENTED";
+  echo -e "nameserver $_DNS1\nnameserver $_DNS2" > "${_DISK_CHROOT_ROOT}/etc/resolv.conf";
 }
 
 #TODO enforce option ordering so if the script order is not correct, the script doesn't run
-#preliminary thoughts: create a list of methods which are ordered, then grep the methods in env.sh and compare their order
-#if a method exists not in the list warn but skip exit
-#if a method is in the wrong order exit
 
-#TODO Vnc server
+#TODO Configure vnc password
+#sets up a vnc server on your device
 vnc_setup(){
   chroot_package_install tightvncserver
   chroot_execute vncpasswd
@@ -593,13 +588,13 @@ vnc_setup(){
   fi
 }
 
-#TODO FTP server
-#REQUIRES SSH SETUP
+#TODO Test sftp
+#Requires ssh_setup()
 sftp_setup(){
   chroot_package_install openssh-sftp-server
   chroot_execute groupadd sftp_users
   chroot_execute useradd -g sftp_users -d /data/sftp/upload -s /sbin/nologin sftp
-  chroot ${_DISK_CHROOT_ROOT} /bin/bash -c "echo sftp:${_SFTP_PASSWORD} | /usr/sbin/chpasswd"
+  chroot_execute /bin/bash -c "echo sftp:${_SFTP_PASSWORD} | /usr/sbin/chpasswd"
  
   chroot_execute mkdir -p /data/sftp/upload
   chroot_execute chown -R root:sftp_users /data/sftp
@@ -617,3 +612,6 @@ EOT
     chroot_execute ufw enable;
   fi
 }
+
+#TODO random mac on for wpa_supplicant
+
