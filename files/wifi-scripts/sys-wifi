@@ -1,0 +1,1 @@
+@reboot root /bin/sh /usr/local/bin/sys-wifi-connect.sh

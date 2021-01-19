@@ -125,8 +125,7 @@ EOT
   cp -pr "${_FILE_DIR}/wifi-scripts/sys-wifi-connect.sh" "${_DISK_CHROOT_ROOT}/usr/local/bin/sys-wifi-connect.sh"
   sed -i "s|_WIFI_INTERFACE|${_WIFI_INTERFACE}|g" "${_DISK_CHROOT_ROOT}/usr/local/bin/sys-wifi-connect.sh";
   echo_debug "Add to cron to start at boot (before login)"
-  echo "@reboot root /bin/sh /usr/local/bin/sys-wifi-connect.sh" > "${_DISK_CHROOT_ROOT}/etc/cron.d/sys-wifi"
-  chmod 755 "${_DISK_CHROOT_ROOT}/etc/cron.d/sys-wifi";
+  cp -pr "${_FILE_DIR}/wifi-scripts/sys-wifi" "${_DISK_CHROOT_ROOT}/etc/cron.d/sys-wifi"
 
 }
 
@@ -349,9 +348,7 @@ aide_setup(){
   chroot_package_install aide
   chroot_execute aideinit
   chroot_execute mv /var/lib/aide/aide.db.new /var/lib/aide/aide.db
-
-  echo "0 0 * * * root /usr/sbin/aide --check --config=/etc/aide/aide.conf" > "${_DISK_CHROOT_ROOT}/etc/cron.d/aideCheck"
-  chmod 755 "${_DISK_CHROOT_ROOT}/etc/cron.d/aideCheck";
+  cp -p "${_FILE_DIR}/aide-scripts/aide-check" "${_DISK_CHROOT_ROOT}/etc/cron.d/aide-check"
 }
 
 #basic snapper install for use with btrfs, snapshots root directory in its entirety with default settings,
@@ -418,13 +415,6 @@ vlc_setup(){
 
 }
 
-#firejail setup
-firejail_setup(){
-  echo_info "$FUNCNAME";
-  chroot_package_install firejail firejail-profiles firetools
-  chroot_execute firecfg
-  #TODO firejail configuration for hardened malloc, apparmor integration
-}
 
 #TODO write sysctl.conf hardening here
 sysctl_hardening_setup(){
@@ -470,8 +460,18 @@ apparmor_setup(){
   echo_info "$FUNCNAME";
   chroot_package_install apparmor apparmor-profiles-extra apparmor-utils
   echo_warn "PACKAGES INSTALLED, NO KERNEL PARAMS CONFIGURED. PLEASE CONFIGURE MANUALLY";
+  #add apparmor=1 etc to cmdline.txt
+  #build kernel with apparmor options. WIP
   chroot_execute systemctl enable apparmor.service
 
+}
+
+#firejail setup
+firejail_setup(){
+  echo_info "$FUNCNAME";
+  chroot_package_install firejail firejail-profiles firetools
+  chroot_execute firecfg
+  #TODO firejail configuration for hardened malloc, apparmor integration
 }
 
 #randomize mac on reboot
