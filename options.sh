@@ -365,7 +365,6 @@ snapper_setup(){
 ntpsec_setup(){
   echo_info "$FUNCNAME";
   chroot_package_install ntpsec ntpsec-doc ntpsec-ntpdate
-  chroot_execute systemctl enable ntpsec.service
   sed -i "s|^# server time.cloudflare.com nts|server time.cloudflare.com:123 iburst nts \nserver nts.sth1.ntp.se:123 iburst nts\nserver nts.sth2.ntp.se:123 iburst nts|" "/etc/ntpsec/ntp.conf" "${_DISK_CHROOT_ROOT}/etc/ntpsec/ntp.conf"
   sed -i "s|^pool 0.debian.pool.ntp.org iburst|#pool 0.debian.pool.ntp.org iburst|" "${_DISK_CHROOT_ROOT}/etc/ntpsec/ntp.conf"
   sed -i "s|^pool 1.debian.pool.ntp.org iburst|#pool 1.debian.pool.ntp.org iburst|" "${_DISK_CHROOT_ROOT}/etc/ntpsec/ntp.conf"
@@ -374,6 +373,7 @@ ntpsec_setup(){
   
   chroot_execute mkdir -p /var/log/ntpsec
   chroot_execute chown ntpsec:ntpsec /var/log/ntpsec
+  chroot_execute systemctl enable ntpsec.service
 
   if (( $_UFW_SETUP == 1 )) ; then
     chroot_execute ufw allow out 123/tcp;

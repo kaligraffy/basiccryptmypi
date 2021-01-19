@@ -490,8 +490,8 @@ chroot_package_purge(){
 #TODO log messages from chroot_execute
 chroot_execute(){
   local chroot_dir="${_DISK_CHROOT_ROOT}";
-  chroot ${chroot_dir} "$@";
-  if [ $? -ne 0 ]; then
+  chroot ${chroot_dir} "$@" | tee -a $_LOG_FILE;
+  if [ "${PIPESTATUS[0]} -ne 0 ]; then
     echo_error "command in chroot failed"
     exit 1;
   fi
