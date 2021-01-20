@@ -164,13 +164,15 @@ dropbear_setup(){
   cp -p "${_FILE_DIR}/initramfs-scripts/unlock.sh" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/scripts/unlock.sh";
   sed -i "s#ENCRYPTED_VOLUME_PATH#${_ENCRYPTED_VOLUME_PATH}#g" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/scripts/unlock.sh";
  
-  # Using provided dropbear keys (or backuping generating ones for later usage)
-  # Don't use weak key ciphers
-  rm ${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_dss_host_key || true;
+  # We not sing provided dropbear keys (or backuping generating ones for later usage)
+  rm ${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_rsa_host_key || true;
   rm ${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_ed25519_host_key || true;
   rm ${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_ecdsa_host_key || true;
+  rm ${_DISK_CHROOT_ROOT}/etc/dropbear/dropbear_rsa_host_key || true;
+  rm ${_DISK_CHROOT_ROOT}/etc/dropbear/dropbear_ed25519_host_key || true;
+  rm ${_DISK_CHROOT_ROOT}/etc/dropbear/dropbear_ecdsa_host_key || true;
 
-  backup_dropbear_key "${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_rsa_host_key";
+  #backup_dropbear_key "${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_rsa_host_key";
 }
 
 ssh_setup(){

@@ -39,37 +39,34 @@ cleanup_write_disk(){
   tidy_umount "${_BUILD_DIR}/mount" 
   tidy_umount "${_BUILD_DIR}/boot"
 
-  echo_debug "unmounting tmp,dev,sys";
   disk_chroot_teardown;
   
   if (( $_IMAGE_MODE == 1 )); then
-    echo_debug "IMAGE MODE CLEAN UP";
-    image_file_loop_device="$(losetup -a | grep $_IMAGE_FILE | cut -d':' -f 1 | tr '\n' ' ')";
-    cleanup_loop_device $image_file_loop_device;
     echo_info "To burn your disk run: dd if=${_IMAGE_FILE} of=${_OUTPUT_BLOCK_DEVICE} bs=512 status=progress && sync";
   else
-    echo_debug "DISK MODE CLEANUP";
     tidy_umount "${_BLOCK_DEVICE_BOOT}";
     tidy_umount "${_BLOCK_DEVICE_ROOT}";
   fi
-  
-  echo_debug "deleting the folders used to mount the extracted image and new image";
+    
   tidy_umount "${_DISK_CHROOT_ROOT}";
   cryptsetup -v luksClose "$(basename ${_ENCRYPTED_VOLUME_PATH})" || true
-
-  echo_debug "clean up extracted image loop device";
-  extracted_image_loop_device="$(losetup -a | grep $_EXTRACTED_IMAGE | cut -d':' -f 1 | tr '\n' ' ')";
-  cleanup_loop_device $extracted_image_loop_device;
+  cleanup_loop_devices;
 }
 
 #auxiliary method for detaching loop_device in cleanup method 
-cleanup_loop_device(){
+cleanup_loop_devices(){
   echo_info "$FUNCNAME";
-  if check_variable_is_set "$@"; then
-    for loop_device in $@; do
+  loop_devices="$(losetup -a | cut -d':' -f 1 | tr '\n' ' ')";
+  if check_variable_is_set "$loop_devices"; then
+    for loop_device in $loop_devices; do
       tidy_umount "${loop_device}p1"
+      losetup -d "${loop_device}p1" || true
+      
       tidy_umount "${loop_device}p2" 
+      losetup -d "${loop_device}p2" || true
+
       tidy_umount "${loop_device}"
+      losetup -d "${loop_device}" || true
     done
   fi
 }
@@ -219,6 +216,7 @@ download_image(){
   local image_out_file=${_FILE_DIR}/${image_name}
   wget -nc "${_IMAGE_URL}" -O "${image_out_file}" || true
   if [ -z ${_IMAGE_SHA256} ]; then
+    echo_info "skip checksumming image";
     return 0
   fi
   echo_info "checksumming image";
@@ -417,6 +415,7 @@ disk_chroot_setup(){
   check_mount_bind "/dev/pts" "${chroot_dir}/dev/pts";
   check_mount_bind "/sys" "${chroot_dir}/sys/";
   check_mount_bind "/tmp" "${chroot_dir}/tmp/";
+  check_mount_bind "/run" "${chroot_dir}/run/";
 
   #procs special, so it does it a different way
   if [[ $(mount -t proc "/proc" "${chroot_dir}/proc/"; echo $?) != 0 ]]; then
@@ -435,7 +434,8 @@ disk_chroot_teardown(){
   tidy_umount "${chroot_dir}/dev/"
   tidy_umount "${chroot_dir}/sys/"
   tidy_umount "${chroot_dir}/proc/"
-  tidy_umount "${chroot_dir}/tmp/"
+  tidy_umount "${chroot_dir}/tmp/"  
+  tidy_umount "${chroot_dir}/run/"  
 }
 
 #run apt update
@@ -574,24 +574,18 @@ tidy_umount(){
   if umount -R $1; then
     echo_info "umounted $1";
     
-    #if it's a block device, leave it alone
-    if [[ -b $1 ]]; then
-      echo_debug "block device";
-      return 0;
-    fi
+    echo_debug "if block device, return";
+    if [[ -b $1 ]]; then return 0; fi
 
-    if [[ $(grep '/dev'  <<< "$1") != 0 ]] || [[ $(grep '/sys'  <<< "$1") != 0 ]] || [[ $(grep '/proc' <<< "$1") != 0 ]] || [[ $(grep '/tmp'  <<< "$1") != 0 ]] ; then
-      echo_debug "binds so don't delete folders";
-      return 0;
-    fi
+    echo_debug "if a bind for chroot, return";
+    if grep '/dev'  <<< "$1" ; then return 0; fi
+    if grep '/sys'  <<< "$1" ; then return 0; fi
+    if grep '/proc' <<< "$1" ; then return 0; fi
+    if grep '/tmp'  <<< "$1" ; then return 0; fi
+    if grep '/run'  <<< "$1" ; then return 0; fi
     
-    #if it's a directory and empty, delete it
-    if [[ -d $1 ]]; then
-      echo_debug "directory - tidy up empty directory";
-      rmdir $1 || true;
-    fi
-    
-    losetup -d $1 || true;
+    echo_debug "some directory, if empty delete it";
+    if [[ -d $1 ]]; then rmdir $1 || true; fi
     
   fi  
 }
