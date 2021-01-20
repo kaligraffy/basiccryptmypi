@@ -490,9 +490,13 @@ chroot_package_purge(){
 #TODO log messages from chroot_execute
 chroot_execute(){
   local chroot_dir="${_DISK_CHROOT_ROOT}";
-  chroot ${chroot_dir} "$@" | tee -a $_LOG_FILE;
-  if [ "${PIPESTATUS[0]} -ne 0 ]; then
-    echo_error "command in chroot failed"
+  chroot ${chroot_dir} "$@"
+  #chroot ${chroot_dir} "$@" | tee -a $_LOG_FILE;
+
+#  if [[ "${PIPESTATUS[0]} -ne 0 ]]; then
+  if [[ $? -ne 0 ]]; then
+
+   echo_error "command in chroot failed"
     exit 1;
   fi
 }
@@ -553,7 +557,7 @@ check_mount_bind(){
 
 check_directory_and_mount(){
   echo_debug "mounting $1 to $2";
-  if [ ! -d "$2" ]; then 
+  if [[ ! -d "$2" ]]; then 
     mkdir "$2";
     echo_debug "created $2";
   fi
@@ -572,25 +576,22 @@ tidy_umount(){
     
     #if it's a block device, leave it alone
     if [[ -b $1 ]]; then
-      echo_debug "block device"
+      echo_debug "block device";
       return 0;
     fi
-    read -r
-    if [[ $(grep '/dev'  <<< "$1")  ]] || \
-       [[ $(grep '/sys'  <<< "$1")  ]] || \
-       [[ $(grep '/proc' <<< "$1")  ]] || \
-       [[ $(grep '/tmp'  <<< "$1")  ]] ; then
-      echo_debug "binds (don't delete folders)"
+
+    if [[ $(grep '/dev'  <<< "$1") != 0 ]] || [[ $(grep '/sys'  <<< "$1") != 0 ]] || [[ $(grep '/proc' <<< "$1") != 0 ]] || [[ $(grep '/tmp'  <<< "$1") != 0 ]] ; then
+      echo_debug "binds so don't delete folders";
       return 0;
     fi
-    read -r
+    
     #if it's a directory and empty, delete it
     if [[ -d $1 ]]; then
-      echo_debug "directory - tidy up empty directory"
-      rmdir $1 || true
+      echo_debug "directory - tidy up empty directory";
+      rmdir $1 || true;
     fi
     
     losetup -d $1 || true;
     
-  fi
+  fi  
 }

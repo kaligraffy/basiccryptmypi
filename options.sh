@@ -173,7 +173,6 @@ dropbear_setup(){
   backup_dropbear_key "${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_rsa_host_key";
 }
 
-#TODO sensible ssh default configuration
 ssh_setup(){
   echo_info "$FUNCNAME";
 
@@ -201,6 +200,31 @@ AuthorizedKeysFile .ssh/authorized_keys
 EOT
   fi
   
+#TODO sensible ssh default configuration
+#       - OpenSSH option: AllowTcpForwarding                      [ SUGGESTION ]
+#     - OpenSSH option: ClientAliveCountMax                     [ SUGGESTION ]
+#     - OpenSSH option: ClientAliveInterval                     [ OK ]
+#     - OpenSSH option: Compression                             [ SUGGESTION ]
+#     - OpenSSH option: FingerprintHash                         [ OK ]
+#     - OpenSSH option: GatewayPorts                            [ OK ]
+#     - OpenSSH option: IgnoreRhosts                            [ OK ]
+#     - OpenSSH option: LoginGraceTime                          [ OK ]
+#     - OpenSSH option: LogLevel                                [ SUGGESTION ]
+#     - OpenSSH option: MaxAuthTries                            [ SUGGESTION ]
+#     - OpenSSH option: MaxSessions                             [ SUGGESTION ]
+#     - OpenSSH option: PermitRootLogin                         [ OK ]
+#     - OpenSSH option: PermitUserEnvironment                   [ OK ]
+#     - OpenSSH option: PermitTunnel                            [ OK ]
+#     - OpenSSH option: Port                                    [ SUGGESTION ]
+#     - OpenSSH option: PrintLastLog                            [ OK ]
+#     - OpenSSH option: StrictModes                             [ OK ]
+#     - OpenSSH option: TCPKeepAlive                            [ SUGGESTION ]
+#     - OpenSSH option: UseDNS                                  [ OK ]
+#     - OpenSSH option: X11Forwarding                           [ SUGGESTION ]
+#     - OpenSSH option: AllowAgentForwarding                    [ SUGGESTION ]
+#     - OpenSSH option: AllowUsers                              [ NOT FOUND ]
+#     - OpenSSH option: AllowGroups                             [ NOT FOUND ]
+#   
   #OPENS UP YOUR SSH PORT
   if (( $_UFW_SETUP == 1 )) ; then
     chroot_execute ufw allow in "${_SSH_PORT}/tcp";
@@ -415,11 +439,46 @@ vlc_setup(){
 
 }
 
-
-#TODO write sysctl.conf hardening here
+#sysctl hardening (taken fron lynis audit)
+#TODO TEST THIS
 sysctl_hardening_setup(){
   echo_info "$FUNCNAME";
-  echo_warn "NOT YET IMPLEMENTED";
+  cp -p "${_DISK_CHROOT_ROOT}/etc/sysctl.conf" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf.bak";
+  atomic_append "dev.tty.ldisc_autoload = 0" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "fs.protected_fifos = 2" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "fs.protected_hardlinks = 1" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "fs.protected_regular = 2" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "fs.protected_symlinks = 1" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "fs.suid_dumpable = 0" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "kernel.core_uses_pid = 1" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "kernel.ctrl-alt-del = 0" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "kernel.dmesg_restrict = 1" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "kernel.kptr_restrict = 2" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "kernel.modules_disabled = 1" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "kernel.perf_event_paranoid = 3" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "kernel.randomize_va_space = 2" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "kernel.sysrq = 0" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "kernel.unprivileged_bpf_disabled = 0" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "net.ipv4.conf.all.accept_redirects = 0" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "net.ipv4.conf.all.accept_source_route = 0" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "net.ipv4.conf.all.bootp_relay =  0" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "net.ipv4.conf.all.forwarding = 0" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "net.ipv4.conf.all.log_martians = 1" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "net.ipv4.conf.all.mc_forwarding = 0" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "net.ipv4.conf.all.proxy_arp = 0" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "net.ipv4.conf.all.rp_filter = 1" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "net.ipv4.conf.all.send_redirects = 0" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "net.ipv4.conf.default.accept_redirects = 0" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "net.ipv4.conf.default.accept_source_route = 0" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "net.ipv4.conf.default.log_martians = 1" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "net.ipv4.icmp_echo_ignore_broadcasts = 1" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "net.ipv4.icmp_ignore_bogus_error_responses = 1" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "net.ipv4.tcp_syncookies = 1" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "net.ipv4.tcp_timestamps = 0 1" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "net.ipv6.conf.all.accept_redirects = 0" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "net.ipv6.conf.all.accept_source_route = 0" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "net.ipv6.conf.default.accept_redirects = 0" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "net.ipv6.conf.default.accept_source_route = 0" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
 }
 
 #make boot mount read only
