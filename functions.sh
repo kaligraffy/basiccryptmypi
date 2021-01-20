@@ -555,6 +555,7 @@ check_mount_bind(){
   fi
 }
 
+#mounts 1=$1 to $2, creates folder if not there
 check_directory_and_mount(){
   echo_debug "mounting $1 to $2";
   if [[ ! -d "$2" ]]; then 
@@ -568,6 +569,11 @@ check_directory_and_mount(){
   fi
   echo_debug "mounted $1 to $2";
 }
+
+#TODO /run is somethings getting stuck, this leads to knock on effect
+#of the crypt not being closed, and then the loopbacks not being closed.
+#need to make the umount logic more robust
+# the workaround is restart your machine after running the script
 
 #unmounts and tidies up the folder
 tidy_umount(){

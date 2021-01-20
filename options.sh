@@ -10,13 +10,10 @@ export _UFW_SETUP=0;
 #used by wifi_setup and initramfs_wifi_setup
 export _WIFI_PSK=$(wpa_passphrase "${_WIFI_SSID}" "${_WIFI_PASSWORD}" | grep "psk=" | grep -v "#psk" | sed 's/^[\t]*//g')
 
-#group of functions that enable headless functioning
-headless_setup(){
-  display_manager_setup;
-  initramfs_wifi_setup;
-  wifi_setup;
-  dropbear_setup;
-  ssh_setup;
+#set dns in resolv.conf for setup only or none dnssec setup
+simple_dns_setup(){
+  echo_info "$FUNCNAME";
+  echo -e "nameserver $_DNS1\nnameserver $_DNS2" > "${_DISK_CHROOT_ROOT}/etc/resolv.conf";
 }
 
 #sets the locale (e.g. en_US, en_UK)
@@ -28,6 +25,7 @@ locale_setup(){
   echo_debug "Updating /etc/default/locale";
   atomic_append "LANG=${_LOCALE}" "${_DISK_CHROOT_ROOT}/etc/default/locale";
 
+  
   chroot_package_install locales
   
   echo_debug "Updating env variables";
@@ -43,12 +41,21 @@ EOT
   chroot_execute locale-gen
 }
 
+#group of functions that enable headless functioning
+headless_setup(){
+  display_manager_setup;
+  initramfs_wifi_setup;
+  wifi_setup;
+  dropbear_setup;
+  ssh_setup;
+}
 #create wifi connection to a router/hotspot on boot
 initramfs_wifi_setup(){
 # REFERENCE:
 #    http://www.marcfargas.com/posts/enable-wireless-debian-initramfs/
 #    https://wiki.archlinux.org/index.php/Dm-crypt/Specialties#Remote_unlock_via_wifi
 #    http://retinal.dehy.de/docs/doku.php?id=technotes:raspberryrootnfs
+#    use the 'fing' app to find the device if mdns isn't working
   echo_info "$FUNCNAME";
 
   echo_debug "Attempting to set initramfs WIFI up "
@@ -129,52 +136,6 @@ EOT
 
 }
 
-#disable the gui 
-display_manager_setup(){
-  echo_info "$FUNCNAME";
-  chroot_execute systemctl set-default multi-user
-  echo_warn "To get a gui run startxfce4 on command line"
-}
-
-#setup dropbear in initramfs
-dropbear_setup(){
-  echo_info "$FUNCNAME";
-  if [ ! -f "${_SSH_LOCAL_KEYFILE}" ]; then
-      echo_error "SSH keyfile '${_SSH_LOCAL_KEYFILE}' could not be found. Exiting";
-      exit 1;
-  fi
-
-  # Installing packages
-  chroot_package_install dropbear dropbear-initramfs cryptsetup-initramfs
-
-  #TODO check this works
-  atomic_append "DROPBEAR_OPTIONS='-p $_SSH_PORT -RFEjk -c /bin/unlock.sh'" "${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/config";
-
-  # Now append our key to dropbear authorized_keys file
-  echo_debug "checking ssh key for root@hostname. make sure any host key has this comment.";
-  if [[ ! $( grep -w "root@${_HOSTNAME}" "${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/authorized_keys") ]]; then
-    cat "${_SSH_LOCAL_KEYFILE}.pub" >> "${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/authorized_keys";
-  fi
-  chmod 600 ${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/authorized_keys;
-
-  # Update dropbear for some sleep in initramfs
-  sed -i 's#run_dropbear \&#sleep 5\nrun_dropbear \&#g' "${_DISK_CHROOT_ROOT}/usr/share/initramfs-tools/scripts/init-premount/dropbear";
- 
-  # Unlock Script
-  cp -p "${_FILE_DIR}/initramfs-scripts/unlock.sh" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/scripts/unlock.sh";
-  sed -i "s#ENCRYPTED_VOLUME_PATH#${_ENCRYPTED_VOLUME_PATH}#g" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/scripts/unlock.sh";
- 
-  # We not sing provided dropbear keys (or backuping generating ones for later usage)
-  rm ${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_rsa_host_key || true;
-  rm ${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_ed25519_host_key || true;
-  rm ${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_ecdsa_host_key || true;
-  rm ${_DISK_CHROOT_ROOT}/etc/dropbear/dropbear_rsa_host_key || true;
-  rm ${_DISK_CHROOT_ROOT}/etc/dropbear/dropbear_ed25519_host_key || true;
-  rm ${_DISK_CHROOT_ROOT}/etc/dropbear/dropbear_ecdsa_host_key || true;
-
-  #backup_dropbear_key "${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_rsa_host_key";
-}
-
 ssh_setup(){
   echo_info "$FUNCNAME";
 
@@ -232,6 +193,52 @@ EOT
     chroot_execute ufw allow in "${_SSH_PORT}/tcp";
     chroot_execute ufw enable;
   fi
+}
+
+#setup dropbear in initramfs
+dropbear_setup(){
+  echo_info "$FUNCNAME";
+  if [ ! -f "${_SSH_LOCAL_KEYFILE}" ]; then
+      echo_error "SSH keyfile '${_SSH_LOCAL_KEYFILE}' could not be found. Exiting";
+      exit 1;
+  fi
+
+  # Installing packages
+  chroot_package_install dropbear dropbear-initramfs cryptsetup-initramfs
+
+  #TODO check this works
+  atomic_append "DROPBEAR_OPTIONS='-p $_SSH_PORT -RFEjk -c /bin/unlock.sh'" "${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/config";
+
+  # Now append our key to dropbear authorized_keys file
+  echo_debug "checking ssh key for root@hostname. make sure any host key has this comment.";
+  if [[ ! $( grep -w "root@${_HOSTNAME}" "${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/authorized_keys") ]]; then
+    cat "${_SSH_LOCAL_KEYFILE}.pub" >> "${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/authorized_keys";
+  fi
+  chmod 600 ${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/authorized_keys;
+
+  # Update dropbear for some sleep in initramfs
+  sed -i 's#run_dropbear \&#sleep 5\nrun_dropbear \&#g' "${_DISK_CHROOT_ROOT}/usr/share/initramfs-tools/scripts/init-premount/dropbear";
+ 
+  # Unlock Script
+  cp -p "${_FILE_DIR}/initramfs-scripts/unlock.sh" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/scripts/unlock.sh";
+  sed -i "s#ENCRYPTED_VOLUME_PATH#${_ENCRYPTED_VOLUME_PATH}#g" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/scripts/unlock.sh";
+ 
+  # We not sing provided dropbear keys (or backuping generating ones for later usage)
+  rm ${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_rsa_host_key || true;
+  rm ${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_ed25519_host_key || true;
+  rm ${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_ecdsa_host_key || true;
+  rm ${_DISK_CHROOT_ROOT}/etc/dropbear/dropbear_rsa_host_key || true;
+  rm ${_DISK_CHROOT_ROOT}/etc/dropbear/dropbear_ed25519_host_key || true;
+  rm ${_DISK_CHROOT_ROOT}/etc/dropbear/dropbear_ecdsa_host_key || true;
+
+  #backup_dropbear_key "${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_rsa_host_key";
+}
+
+#disable the gui 
+display_manager_setup(){
+  echo_info "$FUNCNAME";
+  chroot_execute systemctl set-default multi-user
+  echo_warn "To get a gui run startxfce4 on command line"
 }
 
 luks_nuke_setup(){
@@ -628,11 +635,7 @@ user_setup(){
   echo_warn "NOT YET IMPLEMENTED";
 }
 
-#set dns in resolv.conf for setup only or none dnssec setup
-simple_dns_setup(){
-  echo_info "$FUNCNAME";
-  echo -e "nameserver $_DNS1\nnameserver $_DNS2" > "${_DISK_CHROOT_ROOT}/etc/resolv.conf";
-}
+
 
 #TODO enforce option ordering so if the script order is not correct, the script doesn't run
 
@@ -676,3 +679,16 @@ EOT
 
 #TODO random mac on for wpa_supplicant
 
+#MDNS daemon setup - WIP
+avahi_setup(){
+  chroot_package_install avahi
+  systemctl enable avahi-daemon
+  
+  #make avahi work in initramfs too:
+  cp -p "${_FILE_DIR}/initramfs-scripts/a_enable_avahi_daemon" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/scripts/init-premount/";
+  cp -p "${_FILE_DIR}/initramfs-scripts/enable_avahi_daemon" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/hooks/"
+  #Firewall rules for mdns
+}
+
+static_ip_setup(){
+}

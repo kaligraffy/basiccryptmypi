@@ -1,7 +1,7 @@
 # Build related directories
 build/
 *build*/
-
+*.log
 # File caches
 
 # Keyfiles
@@ -18,3 +18,5 @@ dropbear_*_key
 *.zip
 *.img
 *.xz
+gitpush.sh
+env.sh

@@ -1,0 +1,26 @@
+#!/bin/sh
+
+PREREQ=""
+prereqs()
+{
+    echo "$PREREQ"
+}
+
+case $1 in
+prereqs)
+    prereqs
+    exit 0
+    ;;
+esac
+
+. /scripts/functions
+
+
+log_begin_msg "Sleeping for 5 seconds to allow WLAN interface to become ready"
+sleep 5
+log_end_msg
+
+log_begin_msg "starting avahi-daemon in background"
+/usr/sbin/avahi-daemon &
+
+
