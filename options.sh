@@ -65,7 +65,7 @@ initramfs_wifi_setup(){
   echo_debug "Copying scripts";
   cp -p "${_FILE_DIR}/initramfs-scripts/zz-brcm" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/hooks/"
   cp -p "${_FILE_DIR}/initramfs-scripts/a_enable_wireless" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/scripts/init-premount/";
-  cp -p "${_FILE_DIR}/initramfs-scripts/enable_wireless" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/hooks/"
+  cp -p "${_FILE_DIR}/initramfs-scripts/hook_enable_wireless" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/hooks/"
   cp -p "${_FILE_DIR}/initramfs-scripts/kill_wireless" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/scripts/local-bottom/"
   
   sed -i "s#_WIFI_INTERFACE#${_WIFI_INTERFACE}#g" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/scripts/init-premount/a_enable_wireless";
@@ -203,7 +203,6 @@ dropbear_setup(){
   # Installing packages
   chroot_package_install dropbear dropbear-initramfs cryptsetup-initramfs
 
-  #TODO check this works
   atomic_append "DROPBEAR_OPTIONS='-p $_SSH_PORT -RFEjk -c /bin/unlock.sh'" "${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/config";
 
   # Now append our key to dropbear authorized_keys file
@@ -694,8 +693,8 @@ avahi_setup(){
   systemctl enable avahi-daemon
   
   #make avahi work in initramfs too:
-  cp -p "${_FILE_DIR}/initramfs-scripts/a_enable_avahi_daemon" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/scripts/init-premount/";
-  cp -p "${_FILE_DIR}/initramfs-scripts/enable_avahi_daemon" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/hooks/"
+  cp -p "${_FILE_DIR}/initramfs-scripts/b_enable_avahi_daemon" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/scripts/init-premount/";
+  cp -p "${_FILE_DIR}/initramfs-scripts/hook_enable_avahi_daemon" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/hooks/"
   #Firewall rules for mdns
 }
 
