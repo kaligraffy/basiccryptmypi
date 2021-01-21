@@ -186,7 +186,7 @@ EOT
 #   
   #OPENS UP YOUR SSH PORT
   if (( $_UFW_SETUP == 1 )) ; then
-    chroot_execute ufw allow in "${_SSH_PORT}/tcp";
+    chroot_execute ufw allow in ${_SSH_PORT}/tcp;
     chroot_execute ufw enable;
   fi
 }
@@ -450,25 +450,25 @@ vlc_setup(){
 }
 
 #sysctl hardening (taken fron lynis audit)
-#TODO TEST THIS
+#TODO test commented sysctl.conf variables
 sysctl_hardening_setup(){
   echo_info "$FUNCNAME";
   cp -p "${_DISK_CHROOT_ROOT}/etc/sysctl.conf" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf.bak";
-  atomic_append "dev.tty.ldisc_autoload = 0" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
-  atomic_append "fs.protected_fifos = 2" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
-  atomic_append "fs.protected_hardlinks = 1" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
-  atomic_append "fs.protected_regular = 2" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
-  atomic_append "fs.protected_symlinks = 1" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
-  atomic_append "fs.suid_dumpable = 0" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
-  atomic_append "kernel.core_uses_pid = 1" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
-  atomic_append "kernel.ctrl-alt-del = 0" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
-  atomic_append "kernel.dmesg_restrict = 1" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
-  atomic_append "kernel.kptr_restrict = 2" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
-  atomic_append "kernel.modules_disabled = 1" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
-  atomic_append "kernel.perf_event_paranoid = 3" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
-  atomic_append "kernel.randomize_va_space = 2" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
-  atomic_append "kernel.sysrq = 0" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
-  atomic_append "kernel.unprivileged_bpf_disabled = 0" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "#dev.tty.ldisc_autoload = 0" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "#fs.protected_fifos = 2" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "#fs.protected_hardlinks = 1" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "#fs.protected_regular = 2" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "#fs.protected_symlinks = 1" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "#fs.suid_dumpable = 0" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "#kernel.core_uses_pid = 1" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "#kernel.ctrl-alt-del = 0" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "#kernel.dmesg_restrict = 1" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "#kernel.kptr_restrict = 2" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "#kernel.modules_disabled = 1" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "#kernel.perf_event_paranoid = 3" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "#kernel.randomize_va_space = 2" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "#kernel.sysrq = 0" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
+  atomic_append "#kernel.unprivileged_bpf_disabled = 0" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
   atomic_append "net.ipv4.conf.all.accept_redirects = 0" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
   atomic_append "net.ipv4.conf.all.accept_source_route = 0" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
   atomic_append "net.ipv4.conf.all.bootp_relay =  0" "${_DISK_CHROOT_ROOT}/etc/sysctl.conf";
@@ -708,9 +708,11 @@ static_ip_setup(){
 }
 
 #other stuff - add your own!
-miscellanious_setup(){
-
-  echo '@reboot root /bin/sh dmesg -D' > "${_FILE_DIR}/shhh"
-  cp -p "${_FILE_DIR}/shhh" "${_DISK_CHROOT_ROOT}/etc/cron.d/shhh"
-  chmod 755 "${_DISK_CHROOT_ROOT}/etc/cron.d/shhh"
+miscellaneous_setup(){
+  #suppress dmesgs in stdout
+  echo '@reboot root /bin/sh dmesg -D' > "${_DISK_CHROOT_ROOT}/etc/cron.d/suppress-dmesg"
+  
+  #disable splash
+  #TODO Disable splash on startup
 }
+
