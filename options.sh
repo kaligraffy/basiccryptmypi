@@ -5,10 +5,10 @@
 # shellcheck disable=SC2068
 # shellcheck disable=SC2128
 set -eu
-export _UFW_SETUP=0;
+declare -x _UFW_SETUP=0;
 
 #used by wifi_setup and initramfs_wifi_setup
-export _WIFI_PSK=$(wpa_passphrase "${_WIFI_SSID}" "${_WIFI_PASSWORD}" | grep "psk=" | grep -v "#psk" | sed 's/^[\t]*//g')
+declare -xr _WIFI_PSK=$(wpa_passphrase "${_WIFI_SSID}" "${_WIFI_PASSWORD}" | grep "psk=" | grep -v "#psk" | sed 's/^[\t]*//g')
 
 #set dns in resolv.conf for setup only or none dnssec setup
 simple_dns_setup(){
@@ -30,8 +30,8 @@ locale_setup(){
   
   echo_debug "Updating env variables";
   chroot "${_DISK_CHROOT_ROOT}" /bin/bash -x <<- EOT
-export LANG="${_LOCALE}"
-export LANGUAGE="${_LOCALE}"
+declare -xr LANG="${_LOCALE}"
+declare -xr LANGUAGE="${_LOCALE}"
 EOT
 
   #atomic_append "export LANG=${_LOCALE}" "${_DISK_CHROOT_ROOT}/root/.bashrc"
@@ -41,14 +41,6 @@ EOT
   chroot_execute locale-gen
 }
 
-#group of functions that enable headless functioning
-headless_setup(){
-  display_manager_setup;
-  initramfs_wifi_setup;
-  wifi_setup;
-  dropbear_setup;
-  ssh_setup;
-}
 #create wifi connection to a router/hotspot on boot
 initramfs_wifi_setup(){
 # REFERENCE:
@@ -136,6 +128,7 @@ EOT
 
 }
 
+#set up ssh
 ssh_setup(){
   echo_info "$FUNCNAME";
 
@@ -160,6 +153,13 @@ Port $(echo $_SSH_PORT)
 ChallengeResponseAuthentication no
 PubkeyAuthentication yes
 AuthorizedKeysFile .ssh/authorized_keys
+PermitEmptyPasswords no
+PermitRootLogin yes
+Protocol 2
+ClientAliveInterval 180
+AllowUsers kali root
+MaxAuthTries 3
+MaxSessions 2
 EOT
   fi
   
@@ -172,9 +172,6 @@ EOT
 #     - OpenSSH option: GatewayPorts                            [ OK ]
 #     - OpenSSH option: IgnoreRhosts                            [ OK ]
 #     - OpenSSH option: LoginGraceTime                          [ OK ]
-#     - OpenSSH option: LogLevel                                [ SUGGESTION ]
-#     - OpenSSH option: MaxAuthTries                            [ SUGGESTION ]
-#     - OpenSSH option: MaxSessions                             [ SUGGESTION ]
 #     - OpenSSH option: PermitRootLogin                         [ OK ]
 #     - OpenSSH option: PermitUserEnvironment                   [ OK ]
 #     - OpenSSH option: PermitTunnel                            [ OK ]
@@ -185,7 +182,6 @@ EOT
 #     - OpenSSH option: UseDNS                                  [ OK ]
 #     - OpenSSH option: X11Forwarding                           [ SUGGESTION ]
 #     - OpenSSH option: AllowAgentForwarding                    [ SUGGESTION ]
-#     - OpenSSH option: AllowUsers                              [ NOT FOUND ]
 #     - OpenSSH option: AllowGroups                             [ NOT FOUND ]
 #   
   #OPENS UP YOUR SSH PORT
@@ -196,6 +192,7 @@ EOT
 }
 
 #setup dropbear in initramfs
+#requires: ssh_setup
 dropbear_setup(){
   echo_info "$FUNCNAME";
   if [ ! -f "${_SSH_LOCAL_KEYFILE}" ]; then
@@ -223,7 +220,7 @@ dropbear_setup(){
   cp -p "${_FILE_DIR}/initramfs-scripts/unlock.sh" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/scripts/unlock.sh";
   sed -i "s#ENCRYPTED_VOLUME_PATH#${_ENCRYPTED_VOLUME_PATH}#g" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/scripts/unlock.sh";
  
-  # We not sing provided dropbear keys (or backuping generating ones for later usage)
+  # We not using provided dropbear keys (or backuping generating ones for later usage)
   rm ${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_rsa_host_key || true;
   rm ${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_ed25519_host_key || true;
   rm ${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/dropbear_ecdsa_host_key || true;
@@ -315,7 +312,7 @@ vpn_client_setup(){
 #installs clamav and update/scanning daemons, updates to most recent definitions
 clamav_setup(){
   echo_info "$FUNCNAME";
- chroot_package_install clamav clamav-daemon
+  chroot_package_install clamav clamav-daemon
   chroot_execute systemctl enable clamav-freshclam.service
   chroot_execute systemctl enable clamav-daemon.service
   chroot_execute freshclam
@@ -325,7 +322,7 @@ clamav_setup(){
 #simulates a hardware clock
 fake_hwclock_setup(){
   echo_info "$FUNCNAME";
- chroot_package_install fake-hwclock
+  chroot_package_install fake-hwclock
   # set clock even if saved value appears to be in the past
   # sed -i "s|^#FORCE=force|FORCE=force|"  "${_DISK_CHROOT_ROOT}/etc/default/fake-hwclock"
   chroot_execute systemctl enable fake-hwclock
@@ -372,7 +369,7 @@ docker_setup(){
 packages_setup(){
   echo_info "$FUNCNAME";
   chroot_package_purge "${_PKGS_TO_PURGE}";
-  chroot_package_install"${_PKGS_TO_INSTALL}";
+  chroot_package_install "${_PKGS_TO_INSTALL}";
 }
 
 #sets up aide to run at midnight each night
@@ -389,9 +386,15 @@ aide_setup(){
 snapper_setup(){
   echo_info "$FUNCNAME";
   chroot_package_install snapper 
-  #chroot_execute snapper create-config /
+  chroot_execute systemctl disable snapper-boot.timer
+  chroot_execute systemctl snapper-timeline.timer
+  chroot_execute snapper create-config /
   #TODO Set sensible snapper configs for a limited space ssd
-  echo_warn "Remember to set a reasonable snapper config";
+  #sed -i "s##g" ${_DISK_CHROOT_ROOT}/etc/snapper/configs/root
+  #sed -i "s##g" ${_DISK_CHROOT_ROOT}/etc/snapper/configs/root
+  #sed -i "s##g" ${_DISK_CHROOT_ROOT}/etc/snapper/configs/root
+
+  echo_warn "Snapper installed, but snapshotting services are disabled, enable via systemctl";
 }
 
 #secure network time protocol configuration, also installs ntpdate client for manually pulling the time
@@ -611,7 +614,7 @@ firewall_setup(){
   
   chroot_execute ufw enable;
   chroot_execute ufw status verbose;
-  export _UFW_SETUP=1;
+  declare -x _UFW_SETUP=1;
 }
 
 #chkboot setup detects boot changes on startup
@@ -635,15 +638,17 @@ user_setup(){
   echo_warn "NOT YET IMPLEMENTED";
 }
 
-
-
-#TODO enforce option ordering so if the script order is not correct, the script doesn't run
-
 #TODO Configure vnc password
 #sets up a vnc server on your device
 vnc_setup(){
+  echo_info "$FUNCNAME";
   chroot_package_install tightvncserver
-  chroot_execute vncpasswd
+  local vnc_user='kali'; #new vnc user is better
+  vnc_user_home=$(cat /etc/passwd | grep "vnc_user" | cut -c":" -f6)
+  #run and kill vnc server once to set up the directory structure
+  chroot_execute echo "$VNC_PASSWORD" | vncpasswd -f > $vnc_user_home/.vnc/passwd
+  
+  #run at startup 
   
   if (( $_UFW_SETUP == 1 )); then
     chroot_execute ufw allow in 5900/tcp;
@@ -653,8 +658,10 @@ vnc_setup(){
 }
 
 #TODO Test sftp
-#Requires ssh_setup()
+#requires: ssh_setup
 sftp_setup(){
+  echo_info "$FUNCNAME";
+
   chroot_package_install openssh-sftp-server
   chroot_execute groupadd sftp_users
   chroot_execute useradd -g sftp_users -d /data/sftp/upload -s /sbin/nologin sftp
@@ -680,8 +687,11 @@ EOT
 #TODO random mac on for wpa_supplicant
 
 #MDNS daemon setup - WIP
+#TODO test initramfs avahi
 avahi_setup(){
-  chroot_package_install avahi
+  echo_info "$FUNCNAME";
+
+  chroot_package_install avahi-daemon
   systemctl enable avahi-daemon
   
   #make avahi work in initramfs too:
@@ -690,5 +700,19 @@ avahi_setup(){
   #Firewall rules for mdns
 }
 
+#TODO write static ip setup
 static_ip_setup(){
+  echo_info "$FUNCNAME";
+    # Update /boot/cmdline.txt to boot crypt
+#if [[ $(grep "${_INITRAMFS_WIFI_IP}" "${_DISK_CHROOT_ROOT}/boot/cmdline.txt") ]]; then
+#  sed -i "s#ip=${_INITRAMFS_WIFI_IP}#ip=SOMETHING ELSE#g" ${_DISK_CHROOT_ROOT}/boot/cmdline.txt
+#fi
+}
+
+#other stuff - add your own!
+miscellanious_setup(){
+
+  echo '@reboot root /bin/sh dmesg -D' > "${_FILE_DIR}/shhh"
+  cp -p "${_FILE_DIR}/shhh" "${_DISK_CHROOT_ROOT}/etc/cron.d/shhh"
+  chmod 755 "${_DISK_CHROOT_ROOT}/etc/cron.d/shhh"
 }

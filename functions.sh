@@ -7,21 +7,21 @@
 set -eu
 
 #Global variables
-export _BASE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )";
-export _BUILD_DIR=${_BASE_DIR}/build
-export _FILE_DIR=${_BASE_DIR}/files
-export _EXTRACTED_IMAGE="${_FILE_DIR}/extracted.img"
-export _CHROOT_ROOT=${_BUILD_DIR}/root
-export _DISK_CHROOT_ROOT=${_BUILD_DIR}/disk
-export _ENCRYPTED_VOLUME_PATH="/dev/mapper/crypt-2"
-export _COLOR_ERROR='\033[0;31m' #red
-export _COLOR_WARN='\033[1;33m' #orange
-export _COLOR_INFO='\033[0;35m' #purple
-export _COLOR_DEBUG='\033[0;37m' #grey
-export _COLOR_NORMAL='\033[0m' # No Color
-export _LOG_FILE="${_BASE_DIR}/build-$(date '+%Y-%m-%d-%H:%M:%S').log"
-export _IMAGE_FILE="${_BUILD_DIR}/image.img"
-export _IMAGE_FILE_SIZE="11G"; #size of image file, set it near your sd card if you have the space so you don't have to resize your disk
+declare -xr _BASE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )";
+declare -xr _BUILD_DIR=${_BASE_DIR}/build
+declare -xr _FILE_DIR=${_BASE_DIR}/files
+declare -xr _EXTRACTED_IMAGE="${_FILE_DIR}/extracted.img"
+declare -xr _CHROOT_ROOT=${_BUILD_DIR}/root
+declare -xr _DISK_CHROOT_ROOT=${_BUILD_DIR}/disk
+declare -xr _ENCRYPTED_VOLUME_PATH="/dev/mapper/crypt-2"
+declare -xr _COLOR_ERROR='\033[0;31m' #red
+declare -xr _COLOR_WARN='\033[1;33m' #orange
+declare -xr _COLOR_INFO='\033[0;35m' #purple
+declare -xr _COLOR_DEBUG='\033[0;37m' #grey
+declare -xr _COLOR_NORMAL='\033[0m' # No Color
+declare -xr _LOG_FILE="${_BASE_DIR}/build-$(date '+%Y-%m-%d-%H:%M:%S').log"
+declare -xr _IMAGE_FILE="${_BUILD_DIR}/image.img"
+declare -xr _IMAGE_FILE_SIZE="11G"; #size of image file, set it near your sd card if you have the space so you don't have to resize your disk
 
 # Runs on script exit, tidies up the mounts.
 trap_on_exit(){
@@ -59,14 +59,9 @@ cleanup_loop_devices(){
   loop_devices="$(losetup -a | cut -d':' -f 1 | tr '\n' ' ')";
   if check_variable_is_set "$loop_devices"; then
     for loop_device in $loop_devices; do
-      tidy_umount "${loop_device}p1"
-      losetup -d "${loop_device}p1" || true
-      
-      tidy_umount "${loop_device}p2" 
-      losetup -d "${loop_device}p2" || true
-
-      tidy_umount "${loop_device}"
-      losetup -d "${loop_device}" || true
+      if losetup -l "${loop_device}p1" ; then echo_debug "loop device, detach it"; losetup -d "${loop_device}p1"; fi
+      if losetup -l "${loop_device}p2" ; then echo_debug "loop device, detach it"; losetup -d "${loop_device}p2"; fi
+      if losetup -l "${loop_device}" ; then echo_debug "loop device, detach it"; losetup -d "${loop_device}"; fi
     done
   fi
 }
@@ -74,12 +69,13 @@ cleanup_loop_devices(){
 #check if theres a build directory already
 check_build_dir_exists(){
   #no echo as interferes with return echos
-  if [ "${_NO_PROMPTS}" -eq 1 ] ; then
-    echo '1';
-    return;
-  fi
-  
   if [ -d ${_BUILD_DIR} ]; then
+    
+    if (( ${_NO_PROMPTS} == 1 )); then  
+      echo '1';
+      return;
+    fi
+    
     local continue;
     read -p "Build directory already exists: ${_BUILD_DIR}. Delete? (y/N)  " continue;
     if [ "${continue}" = 'y' ] || [ "${continue}" = 'Y' ]; then
@@ -117,8 +113,8 @@ fix_block_device_names(){
   fi
   #Set the proper name of the output block device's partitions
   #e.g /dev/sda1 /dev/sda2 etc.
-  export _BLOCK_DEVICE_BOOT="${_OUTPUT_BLOCK_DEVICE}${prefix}1"
-  export _BLOCK_DEVICE_ROOT="${_OUTPUT_BLOCK_DEVICE}${prefix}2"
+  declare -xr _BLOCK_DEVICE_BOOT="${_OUTPUT_BLOCK_DEVICE}${prefix}1"
+  declare -xr _BLOCK_DEVICE_ROOT="${_OUTPUT_BLOCK_DEVICE}${prefix}2"
 }
 
 
@@ -138,15 +134,16 @@ extract_image() {
   local extracted_image="${_EXTRACTED_IMAGE}";
 
   #If no prompts is set and extracted image exists then continue to extract
-  if [ "${_NO_PROMPTS}" -eq 1 ]; then
-    if [ -e "${extracted_image}" ]; then
-      return 0;
-    fi
-  elif [ -e "${extracted_image}" ]; then
+  
+  if [[ -e "${extracted_image}" ]] && (( ${_NO_PROMPTS} == 1 )); then
+    return 0;
+  fi  
+    
+  if [[ -e "${extracted_image}" ]] ; then
     local continue="";
     read -p "${extracted_image} found, re-extract? (y/N)  " continue;
     if [ "${continue}" != 'y' ] && [ "${continue}" != 'Y' ]; then
-      return 0;
+       return 0;
     fi
   fi
 
@@ -172,18 +169,14 @@ extract_image() {
 }
 
 #mounts the extracted image via losetup
-mount_image_on_loopback(){
+copy_image_on_loopback_to_disk(){
   echo_info "$FUNCNAME";
   local extracted_image="${_EXTRACTED_IMAGE}";
   local loop_device=$(losetup -P -f --read-only --show "$extracted_image");
   partprobe ${loop_device};
   check_directory_and_mount "${loop_device}p2" "${_BUILD_DIR}/mount";
   check_directory_and_mount "${loop_device}p1" "${_BUILD_DIR}/boot";
-}
 
-#rsyncs the mounted image to a new folder
-copy_extracted_image_to_chroot_dir(){
-  echo_info "$FUNCNAME";
   rsync_local "${_BUILD_DIR}/boot" "${_DISK_CHROOT_ROOT}/"
   rsync_local "${_BUILD_DIR}/mount/"* "${_DISK_CHROOT_ROOT}"
 }
@@ -232,19 +225,6 @@ download_image(){
 encryption_setup(){
   echo_info "$FUNCNAME";
   
-  # Check if btrfs is the file system, if so install required packages
-  fs_type="${_FILESYSTEM_TYPE}"
-  if [ "$fs_type" = "btrfs" ]; then
-      echo_debug "- Setting up btrfs-progs on build machine"
-      apt-get -qq install btrfs-progs
-      echo_debug "- Setting up btrfs-progs in chroot"
-      chroot_package_install btrfs-progs
-      echo_debug "- Adding btrfs module to initramfs-tools/modules"
-      atomic_append "btrfs" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/modules";
-      echo_debug "- Enabling journalling"
-      sed -i "s|rootflags=noload|""|g" ${_DISK_CHROOT_ROOT}/boot/cmdline.txt
-  fi
-
   chroot_package_install cryptsetup busybox
 
   # Creating symbolic link to e2fsck
@@ -277,13 +257,29 @@ encryption_setup(){
   
   # Disable autoresize
   chroot_execute systemctl disable rpi-resizerootfs.service
+  chroot_execute systemctl disable rpiwiggle.service
+}
+
+filesystem_setup(){
+  # Check if btrfs is the file system, if so install required packages
+  fs_type="${_FILESYSTEM_TYPE}"
+  if [ "$fs_type" = "btrfs" ]; then
+      echo_debug "- Setting up btrfs-progs on build machine"
+      apt-get -qq install btrfs-progs
+      echo_debug "- Setting up btrfs-progs in chroot"
+      chroot_package_install btrfs-progs
+      echo_debug "- Adding btrfs module to initramfs-tools/modules"
+      atomic_append "btrfs" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/modules";
+      echo_debug "- Enabling journalling"
+      sed -i "s|rootflags=noload|""|g" ${_DISK_CHROOT_ROOT}/boot/cmdline.txt
+  fi
 }
 
 # Encrypt & Write SD
 format_disk(){  
   echo_info "$FUNCNAME";
   parted_disk_setup ${_OUTPUT_BLOCK_DEVICE} 
-  filesystem_setup ${_BLOCK_DEVICE_BOOT} ${_BLOCK_DEVICE_ROOT} ;
+  create_filesystem ${_BLOCK_DEVICE_BOOT} ${_BLOCK_DEVICE_ROOT} ;
 }
 
 #makes an image file instead of copying to a disk
@@ -304,7 +300,7 @@ format_image_file(){
   local block_device_boot="${loop_device}p1" 
   local block_device_root="${loop_device}p2" 
 
-  filesystem_setup ${block_device_boot} ${block_device_root} ;
+  create_filesystem ${block_device_boot} ${block_device_root} ;
   sync;
 }
 
@@ -312,8 +308,9 @@ format_image_file(){
 #called by the format functions
 #makes a luks container and formats the disk/image
 #also mounts the chroot directory ready for copying
-filesystem_setup(){
-  
+create_filesystem(){
+  echo_info "$FUNCNAME";
+
   # Create LUKS
   echo_debug "Attempting to create LUKS $2 "
   echo "${_LUKS_PASSWORD}" | cryptsetup -v --cipher ${_LUKS_CONFIGURATION} luksFormat $2
@@ -331,7 +328,7 @@ filesystem_setup(){
 #formats the disk or image
 parted_disk_setup()
 {
-  echo_debug "Partitioning Image"
+  echo_info "$FUNCNAME";
   parted $1 --script -- mklabel msdos
   parted $1 --script -- mkpart primary fat32 0 256
   parted $1 --script -- mkpart primary 256 -1
@@ -580,18 +577,64 @@ tidy_umount(){
   if umount -R $1; then
     echo_info "umounted $1";
     
-    echo_debug "if block device, return";
-    if [[ -b $1 ]]; then return 0; fi
+    if [[ -b $1 ]]; then echo_debug "block device, return"; return 0; fi
 
-    echo_debug "if a bind for chroot, return";
-    if grep '/dev'  <<< "$1" ; then return 0; fi
-    if grep '/sys'  <<< "$1" ; then return 0; fi
-    if grep '/proc' <<< "$1" ; then return 0; fi
-    if grep '/tmp'  <<< "$1" ; then return 0; fi
-    if grep '/run'  <<< "$1" ; then return 0; fi
+    if grep '/dev'  <<< "$1" ; then echo_debug "bind for chroot, return"; return 0; fi
+    if grep '/sys'  <<< "$1" ; then echo_debug "bind for chroot, return"; return 0; fi
+    if grep '/proc' <<< "$1" ; then echo_debug "bind for chroot, return"; return 0; fi
+    if grep '/tmp'  <<< "$1" ; then echo_debug "bind for chroot, return"; return 0; fi
+    if grep '/run'  <<< "$1" ; then echo_debug "bind for chroot, return"; return 0; fi
     
-    echo_debug "some directory, if empty delete it";
-    if [[ -d $1 ]]; then rmdir $1 || true; fi
+    if [[ -d $1 ]]; then echo_debug "some directory, if empty delete it"; rmdir $1 || true; fi
+    return 0    
+  fi
+  
+  echo_debug "failed to to umount $1";
+  return 1  
+}
+
+#runs through the functions specified in optional_setup
+#checks if each function in options.sh has a requires comment
+#of the form '#requires: ???'
+#checks optional running order
+dependency_check(){
+  echo_info "$FUNCNAME";
+  #get list of functions specified in optional_setup:
+  hooks=$(sed -n '/optional_setup(){/,/}/p' env.sh | sed '/optional_setup(){/d' | sed '/}/d' | sed 's/^[ \t]*//g' | sed '/^#/d' | cut -d';' -f1 | tr '\n' ' ')
+  echo_debug $hooks;
+  for hook in $hooks; do
+    echo_debug "HOOK: $hook";
+    function=$hook
+    line_above_function_declaration=$(sed "\$!N;/.*\n.*$function.*/P;D" options.sh)
     
-  fi  
+    if grep '^#requires:' <<< $line_above_function_declaration; then 
+      echo_debug $line_above_function_declaration ;
+      list_of_prerequisites=$(echo $line_above_function_declaration | cut -d':' -f2 | sed 's/^[ \t]*//g')
+      for prerequisite in $list_of_prerequisites; do 
+      #check the prerequisite occurs before the function in $hooks
+        int_position_of_prereq=$(get_position_in_array "$hooks" "$prerequisite")
+        int_position_of_function=$(get_position_in_array "$hooks" "$function")
+        echo_debug $int_position_of_prereq
+        echo_debug $int_position_of_function
+        if (($int_position_of_prereq > $int_position_of_function )); then
+          echo_info "$prerequisite is called before $function in optional_setup(), please amend function order"#
+          exit 1;
+        fi
+      done
+    fi
+    #grep for method in options.sh, return line above 
+  done
+  
+}
+
+#returns an index of a value in an array
+get_position_in_array(){
+  my_array=($1)
+  value="$2"
+
+  for i in "${!my_array[@]}"; do
+    if [[ "${my_array[$i]}" = "${value}" ]]; then
+        echo "${i}";
+    fi
+  done
 }

@@ -17,7 +17,7 @@ main(){
   trap 'trap_on_exit 0' EXIT;
   check_run_as_root;
   install_dependencies;
-  
+  dependency_check;
   #image extract
   download_image;
   extract_image;
@@ -37,11 +37,11 @@ main(){
     check_disk_is_correct;
     format_disk;
   fi
-  mount_image_on_loopback;
-  copy_extracted_image_to_chroot_dir;
+  copy_image_on_loopback_to_disk;
   arm_setup;
   disk_chroot_setup;
   disk_chroot_update_apt_setup;
+  filesystem_setup;
   encryption_setup;
   optional_setup;
   disk_chroot_mkinitramfs_setup;
