@@ -382,7 +382,6 @@ aide_setup(){
 }
 
 #basic snapper install for use with btrfs, snapshots root directory in its entirety with default settings,
-#snapper-gui errors
 snapper_setup(){
   echo_info "$FUNCNAME";
   chroot_package_install snapper 
@@ -397,7 +396,7 @@ snapper_setup(){
   echo_warn "Snapper installed, but snapshotting services are disabled, enable via systemctl";
 }
 
-#secure network time protocol configuration, also installs ntpdate client for manually pulling the time
+#secure network time protocol configuration, also installs ntpdate client for manually pulling the time 
 ntpsec_setup(){
   echo_info "$FUNCNAME";
   chroot_package_install ntpsec ntpsec-doc ntpsec-ntpdate
