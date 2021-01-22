@@ -35,7 +35,6 @@ trap_on_exit(){
 # Cleanup stage 2
 cleanup_write_disk(){
   echo_info "$FUNCNAME";
-  #needs the leading space or is 'unset'
   tidy_umount "${_BUILD_DIR}/mount" 
   tidy_umount "${_BUILD_DIR}/boot"
 
@@ -47,10 +46,11 @@ cleanup_write_disk(){
     tidy_umount "${_BLOCK_DEVICE_BOOT}";
     tidy_umount "${_BLOCK_DEVICE_ROOT}";
   fi
-    
-  tidy_umount "${_DISK_CHROOT_ROOT}";
-  cryptsetup -v luksClose "$(basename ${_ENCRYPTED_VOLUME_PATH})" || true
-  cleanup_loop_devices;
+   
+   
+  #tidy_umount "${_DISK_CHROOT_ROOT}";
+  #cryptsetup -v luksClose "$(basename ${_ENCRYPTED_VOLUME_PATH})" || true
+  #cleanup_loop_devices;
 }
 
 #auxiliary method for detaching loop_device in cleanup method 
