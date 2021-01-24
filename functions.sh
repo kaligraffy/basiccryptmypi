@@ -11,8 +11,8 @@ declare -xr _BASE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 
 declare -xr _BUILD_DIR=${_BASE_DIR}/build
 declare -xr _FILE_DIR=${_BASE_DIR}/files
 declare -xr _EXTRACTED_IMAGE="${_FILE_DIR}/extracted.img"
-declare -xr _CHROOT_ROOT=${_BUILD_DIR}/root
-declare -xr _DISK_CHROOT_ROOT=${_BUILD_DIR}/disk
+#declare -xr _CHROOT_ROOT=${_BUILD_DIR}/root
+declare -x _DISK_CHROOT_ROOT=${_BUILD_DIR}/disk
 declare -xr _ENCRYPTED_VOLUME_PATH="/dev/mapper/crypt-2"
 declare -xr _COLOR_ERROR='\033[0;31m' #red
 declare -xr _COLOR_WARN='\033[1;33m' #orange
@@ -22,7 +22,8 @@ declare -xr _COLOR_NORMAL='\033[0m' # No Color
 declare -xr _LOG_FILE="${_BASE_DIR}/build-$(date '+%Y-%m-%d-%H:%M:%S').log"
 declare -xr _IMAGE_FILE="${_BUILD_DIR}/image.img"
 declare -xr _IMAGE_FILE_SIZE="11G"; #size of image file, set it near your sd card if you have the space so you don't have to resize your disk
-
+declare _BLOCK_DEVICE_BOOT=""
+declare _BLOCK_DEVICE_ROOT="" 
 # Runs on script exit, tidies up the mounts.
 trap_on_exit(){
   echo_info "Running trap on exit";
@@ -38,26 +39,26 @@ cleanup_write_disk(){
   tidy_umount "${_BUILD_DIR}/mount" 
   tidy_umount "${_BUILD_DIR}/boot"
 
-  disk_chroot_teardown;
-  
+  disk_chroot_teardown || true 
+  tidy_umount "${_BLOCK_DEVICE_BOOT}" || true 
+  tidy_umount "${_BLOCK_DEVICE_ROOT}" || true 
+  tidy_umount "${_DISK_CHROOT_ROOT}" || true 
+  if [[ -b ${_ENCRYPTED_VOLUME_PATH} ]]; then
+    cryptsetup -v luksClose "$(basename ${_ENCRYPTED_VOLUME_PATH})" || true
+    cryptsetup -v remove $(basename ${_ENCRYPTED_VOLUME_PATH}) || true
+  fi
+  cleanup_loop_devices || true 
+    
   if (( $_IMAGE_MODE == 1 )); then
     echo_info "To burn your disk run: dd if=${_IMAGE_FILE} of=${_OUTPUT_BLOCK_DEVICE} bs=512 status=progress && sync";
-  else
-    tidy_umount "${_BLOCK_DEVICE_BOOT}";
-    tidy_umount "${_BLOCK_DEVICE_ROOT}";
   fi
-   
-   
-  #tidy_umount "${_DISK_CHROOT_ROOT}";
-  #cryptsetup -v luksClose "$(basename ${_ENCRYPTED_VOLUME_PATH})" || true
-  #cleanup_loop_devices;
 }
 
 #auxiliary method for detaching loop_device in cleanup method 
 cleanup_loop_devices(){
   echo_info "$FUNCNAME";
   loop_devices="$(losetup -a | cut -d':' -f 1 | tr '\n' ' ')";
-  if check_variable_is_set "$loop_devices"; then
+  if [[ $(check_variable_is_set "$loop_devices") ]]; then
     for loop_device in $loop_devices; do
       if losetup -l "${loop_device}p1" ; then echo_debug "loop device, detach it"; losetup -d "${loop_device}p1"; fi
       if losetup -l "${loop_device}p2" ; then echo_debug "loop device, detach it"; losetup -d "${loop_device}p2"; fi
@@ -260,69 +261,72 @@ encryption_setup(){
   chroot_execute systemctl disable rpiwiggle.service
 }
 
-filesystem_setup(){
-  # Check if btrfs is the file system, if so install required packages
-  fs_type="${_FILESYSTEM_TYPE}"
-  if [ "$fs_type" = "btrfs" ]; then
-      echo_debug "- Setting up btrfs-progs on build machine"
-      apt-get -qq install btrfs-progs
-      echo_debug "- Setting up btrfs-progs in chroot"
-      chroot_package_install btrfs-progs
-      echo_debug "- Adding btrfs module to initramfs-tools/modules"
-      atomic_append "btrfs" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/modules";
-      echo_debug "- Enabling journalling"
-      sed -i "s|rootflags=noload|""|g" ${_DISK_CHROOT_ROOT}/boot/cmdline.txt
-  fi
-}
-
 # Encrypt & Write SD
-format_disk(){  
+partition_disk(){  
   echo_info "$FUNCNAME";
   parted_disk_setup ${_OUTPUT_BLOCK_DEVICE} 
-  create_filesystem ${_BLOCK_DEVICE_BOOT} ${_BLOCK_DEVICE_ROOT} ;
 }
 
 #makes an image file instead of copying to a disk
-format_image_file(){
+partition_image_file(){
   echo_info "$FUNCNAME";
   local image_file=${_IMAGE_FILE};
   local image_file_size=${_IMAGE_FILE_SIZE};
   
   touch $image_file;
   fallocate -l ${image_file_size} ${image_file}
-  sync
-  
   parted_disk_setup ${image_file} 
-  
+}
+
+loopback_image_file(){
+  echo_info "$FUNCNAME";
+  local image_file=${_IMAGE_FILE};
   local loop_device=$(losetup -P -f --show "${image_file}");
   partprobe ${loop_device};
   
-  local block_device_boot="${loop_device}p1" 
-  local block_device_root="${loop_device}p2" 
-
-  create_filesystem ${block_device_boot} ${block_device_root} ;
-  sync;
+  #declare -xr _BLOCK_DEVICE_BOOT="${loop_device}p1" 
+  #declare -xr _BLOCK_DEVICE_ROOT="${loop_device}p2" 
+  _BLOCK_DEVICE_BOOT="${loop_device}p1" 
+  _BLOCK_DEVICE_ROOT="${loop_device}p2"
 }
 
 ####MISC FUNCTIONS####
-#called by the format functions
+
 #makes a luks container and formats the disk/image
 #also mounts the chroot directory ready for copying
-create_filesystem(){
+format_filesystem(){
   echo_info "$FUNCNAME";
 
   # Create LUKS
-  echo_debug "Attempting to create LUKS $2 "
-  echo "${_LUKS_PASSWORD}" | cryptsetup -v --cipher ${_LUKS_CONFIGURATION} luksFormat $2
-  echo "${_LUKS_PASSWORD}" | cryptsetup -v luksOpen $2 $(basename ${_ENCRYPTED_VOLUME_PATH})
+  echo_debug "Attempting to create LUKS ${_BLOCK_DEVICE_ROOT} "
+  echo "${_LUKS_PASSWORD}" | cryptsetup -v --cipher ${_LUKS_CONFIGURATION} luksFormat ${_BLOCK_DEVICE_ROOT}
+  echo "${_LUKS_PASSWORD}" | cryptsetup -v luksOpen ${_BLOCK_DEVICE_ROOT} $(basename ${_ENCRYPTED_VOLUME_PATH})
 
-  make_filesystem "vfat" "$1"
+  make_filesystem "vfat" "${_BLOCK_DEVICE_BOOT}"
   make_filesystem "${_FILESYSTEM_TYPE}" "${_ENCRYPTED_VOLUME_PATH}"
   
-  #Mounts
-  check_directory_and_mount "${_ENCRYPTED_VOLUME_PATH}" "${_DISK_CHROOT_ROOT}"
-  check_directory_and_mount "$1" "${_DISK_CHROOT_ROOT}/boot"
   sync
+}
+
+# Check if btrfs is the file system, if so install required packages
+filesystem_setup(){
+  fs_type="${_FILESYSTEM_TYPE}"
+  
+  case $fs_type in
+    "btrfs") 
+      echo_debug "- Setting up btrfs-progs on build machine"
+      echo_debug "- Setting up btrfs-progs in chroot"
+      chroot_package_install btrfs-progs
+      echo_debug "- Adding btrfs module to initramfs-tools/modules"
+      atomic_append "btrfs" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/modules";
+      echo_debug "- Enabling journalling"
+      sed -i "s|rootflags=noload|""|g" "${_DISK_CHROOT_ROOT}/boot/cmdline.txt";
+      ;;
+    *) echo_debug "skipping, fs not supported or ext4";;
+  esac
+  
+  #setup btrfs here 
+  #https://rootco.de/2018-01-19-opensuse-btrfs-subvolumes/
 }
 
 #formats the disk or image
@@ -335,6 +339,23 @@ parted_disk_setup()
   sync;
 }
 
+#calls mkfs for a given filesystem
+# arguments: a filesystem type, e.g. btrfs, ext4 and a device
+make_filesystem(){
+  echo_info "$FUNCNAME";
+  local fs_type=$1
+  local device=$2
+  case $fs_type in
+    "vfat") mkfs.vfat $device; echo_debug "created vfat partition on $device";;
+    "ext4") mkfs.ext4 $device; echo_debug "created ext4 partition on $device";;
+    "btrfs")
+            apt-get -qq install btrfs-progs
+            mkfs.btrfs -f -L btrfs $device; echo_debug "created btrfs partition on $device"
+            ;;
+            
+    *) exit 1;;
+  esac
+}
 #gets from local filesystem or generates a ssh key and puts it on the build 
 create_ssh_key(){
   echo_info "$FUNCNAME";
@@ -369,20 +390,6 @@ backup_dropbear_key(){
   fi
 }
 
-#calls mkfs for a given filesystem
-# arguments: a filesystem type, e.g. btrfs, ext4 and a device
-make_filesystem(){
-  echo_info "$FUNCNAME";
-  local fs_type=$1
-  local device=$2
-  case $fs_type in
-    "vfat") mkfs.vfat $device; echo_debug "created vfat partition on $device";;
-    "ext4") mkfs.ext4 $device; echo_debug "created ext4 partition on $device";;
-    "btrfs") mkfs.btrfs -f -L btrfs $device; echo_debug "created btrfs partition on $device";;
-    *) exit 1;;
-  esac
-}
-
 #rsync for local copy
 #arguments $1 - to $2 - from
 rsync_local(){
@@ -401,12 +408,19 @@ arm_setup(){
   echo_info "$FUNCNAME";
   cp /usr/bin/qemu-aarch64-static ${_DISK_CHROOT_ROOT}/usr/bin/
 }
-####CHROOT FUNCTIONS####
 
+mount_chroot(){
+  check_directory_and_mount "${_ENCRYPTED_VOLUME_PATH}" "${_DISK_CHROOT_ROOT}"
+  check_directory_and_mount "${_BLOCK_DEVICE_BOOT}" "${_DISK_CHROOT_ROOT}/boot"
+}
+
+####CHROOT FUNCTIONS####
 #mount dev,sys,proc in chroot so they are available for apt 
 disk_chroot_setup(){
   local chroot_dir="${_DISK_CHROOT_ROOT}"
   echo_info "$FUNCNAME";
+ 
+  sync
   # mount binds
   check_mount_bind "/dev" "${chroot_dir}/dev/"; 
   check_mount_bind "/dev/pts" "${chroot_dir}/dev/pts";
@@ -480,20 +494,15 @@ chroot_package_purge(){
     echo_info "purging $package";
     chroot_execute apt-get -qq -y purge $package 
   done
-  chroot_execute apt-get -qq -y autoremove ;
+  chroot_execute apt-get -qq -y autoremove
 } 
 
 #run a command in chroot
-#TODO log messages from chroot_execute
 chroot_execute(){
   local chroot_dir="${_DISK_CHROOT_ROOT}";
-  chroot ${chroot_dir} "$@"
-  #chroot ${chroot_dir} "$@" | tee -a $_LOG_FILE;
-
-#  if [[ "${PIPESTATUS[0]} -ne 0 ]]; then
-  if [[ $? -ne 0 ]]; then
-
-   echo_error "command in chroot failed"
+  chroot ${chroot_dir} "$@" | tee -a $_LOG_FILE;
+  if [[ "${PIPESTATUS[0]}" -ne 0 ]]; then
+    echo_error "command in chroot failed"
     exit 1;
   fi
 }
@@ -506,8 +515,8 @@ disk_chroot_mkinitramfs_setup(){
   echo_debug "kernel is '${kernel_version}'";
   
   echo_debug "running update-initramfs, mkinitramfs"
-  chroot_execute update-initramfs -u -k all;
-  chroot_execute mkinitramfs -o /boot/initramfs.gz -v ${kernel_version};
+  chroot_execute update-initramfs -u -k all
+  chroot_execute mkinitramfs -o /boot/initramfs.gz -v ${kernel_version}
 }
 
 ####PRINT FUNCTIONS####
@@ -536,7 +545,7 @@ atomic_append(){
 #checks if a variable is set or empty ''
 check_variable_is_set(){
   if [[ ! ${1} ]] || [[ -z "${1}" ]]; then
-    echo_info "${1} is not set or is empty";
+    echo_debug "variable is not set or is empty";
     echo '1';
     return;
   fi
@@ -567,14 +576,9 @@ check_directory_and_mount(){
   echo_debug "mounted $1 to $2";
 }
 
-#TODO /run is somethings getting stuck, this leads to knock on effect
-#of the crypt not being closed, and then the loopbacks not being closed.
-#need to make the umount logic more robust
-# the workaround is restart your machine after running the script
-
 #unmounts and tidies up the folder
 tidy_umount(){
-  if umount -R $1; then
+  if umount -q -R $1; then
     echo_info "umounted $1";
     
     if [[ -b $1 ]]; then echo_debug "block device, return"; return 0; fi
@@ -589,40 +593,68 @@ tidy_umount(){
     return 0    
   fi
   
-  echo_debug "failed to to umount $1";
+  echo_debug "failed to umount $1";
   return 1  
 }
 
 #runs through the functions specified in optional_setup
 #checks if each function in options.sh has a requires comment
 #of the form '#requires: ???'
-#checks optional running order
+#TODO check optional running order for 'optional' requirements
 dependency_check(){
   echo_info "$FUNCNAME";
   #get list of functions specified in optional_setup:
-  hooks=$(sed -n '/optional_setup(){/,/}/p' env.sh | sed '/optional_setup(){/d' | sed '/}/d' | sed 's/^[ \t]*//g' | sed '/^#/d' | cut -d';' -f1 | tr '\n' ' ')
-  echo_debug $hooks;
-  for hook in $hooks; do
-    echo_debug "HOOK: $hook";
-    function=$hook
-    line_above_function_declaration=$(sed "\$!N;/.*\n.*$function.*/P;D" options.sh)
+  functions_in_optional_setup=$(sed -n '/optional_setup(){/,/}/p' env.sh | sed '/optional_setup(){/d' | sed '/}/d' | sed 's/^[ \t]*//g' | sed '/^#/d' | cut -d';' -f1 | tr '\n' ' ')
+  echo_debug "$functions_in_optional_setup";
+  for function in $functions_in_optional_setup; do
+    line_above_function_declaration=$(grep -B 1 "${function}()" options.sh | grep -v "${function}()")    
     
-    if grep '^#requires:' <<< $line_above_function_declaration; then 
-      echo_debug $line_above_function_declaration ;
-      list_of_prerequisites=$(echo $line_above_function_declaration | cut -d':' -f2 | sed 's/^[ \t]*//g')
+    if grep -q '^#requires:' <<< $line_above_function_declaration || grep -q 'optional:' <<< $line_above_function_declaration; then 
+      echo_info "$function";
+    fi
+    
+    if grep -q '^#requires:' <<< $line_above_function_declaration; then 
+      list_of_prerequisites=$(echo $line_above_function_declaration | cut -d':' -f2 | sed 's/^[ \t]*//g' | cut -d',' -f1)
+      if [[ -z $list_of_prerequisites ]]; then 
+        echo_info " - requires: $list_of_prerequisites" 
+      fi
       for prerequisite in $list_of_prerequisites; do 
-      #check the prerequisite occurs before the function in $hooks
-        int_position_of_prereq=$(get_position_in_array "$hooks" "$prerequisite")
-        int_position_of_function=$(get_position_in_array "$hooks" "$function")
+      #check the prerequisite occurs before the function in $functions_in_optional_setup
+        int_position_of_prereq=$(get_position_in_array "$functions_in_optional_setup" "$prerequisite")
+        if [[ -z "$int_position_of_prereq" ]]; then 
+          echo_error "$prerequisite for $function is missing";
+          exit 1;
+        fi
+        int_position_of_function=$(get_position_in_array "$functions_in_optional_setup" "$function")
         echo_debug $int_position_of_prereq
         echo_debug $int_position_of_function
         if (($int_position_of_prereq > $int_position_of_function )); then
-          echo_info "$prerequisite is called before $function in optional_setup(), please amend function order"#
+          echo_error "$prerequisite is called after $function in optional_setup(), please amend function order"#
           exit 1;
         fi
       done
-    fi
-    #grep for method in options.sh, return line above 
+     fi
+     
+     if grep -q 'optional:' <<< $line_above_function_declaration; then 
+       list_of_optional_prerequisites=$(echo $line_above_function_declaration | cut -d':' -f3 | sed 's/^[ \t]*//g')
+       if [[ -z $list_of_optional_prerequisites ]]; then 
+         echo_info " - optionally requires: $list_of_optional_prerequisites"
+       fi
+       for prerequisite in $list_of_optional_prerequisites; do 
+          #check the prerequisite occurs before the function in $functions_in_optional_setup
+          int_position_of_prereq=$(get_position_in_array "$functions_in_optional_setup" "$prerequisite")
+          if [[ -z "$int_position_of_prereq" ]]; then 
+            echo_warn "optional $prerequisite for $function is missing";
+          fi
+          int_position_of_function=$(get_position_in_array "$functions_in_optional_setup" "$function")
+          echo_debug $int_position_of_prereq
+          echo_debug $int_position_of_function
+          if (($int_position_of_prereq > $int_position_of_function )); then
+            echo_error "$prerequisite is called after $function in optional_setup(), please amend function order"
+            exit 1;
+          fi
+       done
+     fi
   done
   
 }

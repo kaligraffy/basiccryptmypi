@@ -24,24 +24,48 @@ locale_setup(){
 
   echo_debug "Updating /etc/default/locale";
   atomic_append "LANG=${_LOCALE}" "${_DISK_CHROOT_ROOT}/etc/default/locale";
-
-  
   chroot_package_install locales
-  
   echo_debug "Updating env variables";
   chroot "${_DISK_CHROOT_ROOT}" /bin/bash -x <<- EOT
-declare -xr LANG="${_LOCALE}"
-declare -xr LANGUAGE="${_LOCALE}"
+LANG="${_LOCALE}"
+LANGUAGE="${_LOCALE}"
 EOT
 
   #atomic_append "export LANG=${_LOCALE}" "${_DISK_CHROOT_ROOT}/root/.bashrc"
   #atomic_append "export LANGUAGE=${_LOCALE}"  "${_DISK_CHROOT_ROOT}/root/.bashrc"
+#TODO fix this
+#perl: warning: Setting locale failed.
+# perl: warning: Please check that your locale settings:
+#         LANGUAGE = "",
+#         LC_ALL = (unset),
+#         LANG = "en_US.UTF-8"
+#     are supported and installed on your system.
+# perl: warning: Falling back to the standard locale ("C").
+# locale: Cannot set LC_CTYPE to default locale: No such file or directory
+# locale: Cannot set LC_MESSAGES to default locale: No such file or directory
+# locale: Cannot set LC_ALL to default locale: No such file or directory
+# Preconfiguring packages ...
+# (Reading database ... 329488 files and directories currently installed.)
+# Preparing to unpack .../locales_2.31-6_all.deb ...
+# Unpacking locales (2.31-6) over (2.31-4) ...
+# Setting up locales (2.31-6) ...
+# Generating locales (this might take a while)...
+#   en_US.UTF-8... done
+# Generation complete.
+# Processing triggers for kali-menu (2020.4.0) ...
+# Processing triggers for man-db (2.9.3-2) ...
+# + LANG=en_US.UTF-8
+# + LANGUAGE=en_US.UTF-8
+# Generating locales (this might take a while)...
+#   en_US.UTF-8... done
+# Generation complete.
 
   echo_debug "Generating locale"
   chroot_execute locale-gen
 }
 
 #create wifi connection to a router/hotspot on boot
+#requires: , optional: wifi_setup
 initramfs_wifi_setup(){
 # REFERENCE:
 #    http://www.marcfargas.com/posts/enable-wireless-debian-initramfs/
@@ -50,12 +74,28 @@ initramfs_wifi_setup(){
 #    use the 'fing' app to find the device if mdns isn't working
   echo_info "$FUNCNAME";
 
+  #TODO reimplement defaults, use check to exit if or set default if not set
   echo_debug "Attempting to set initramfs WIFI up "
-  check_variable_is_set "${_WIFI_SSID}";
-  check_variable_is_set "${_WIFI_PASSWORD}";
-  check_variable_is_set "${_INITRAMFS_WIFI_INTERFACE}";
-  check_variable_is_set "${_INITRAMFS_WIFI_IP}";
-  check_variable_is_set "${_INITRAMFS_WIFI_DRIVERS}";
+  
+  if [[ ! $(check_variable_is_set "${_WIFI_SSID}") ]]; then
+     exit 1;
+  fi
+  
+  if [[ ! $(check_variable_is_set "${_WIFI_PASSWORD}") ]]; then
+     exit 1;
+  fi
+  
+  if [[ ! $(check_variable_is_set "${_INITRAMFS_WIFI_INTERFACE}") ]]; then
+     exit 1;
+  fi
+  
+  if [[ ! $(check_variable_is_set "${_INITRAMFS_WIFI_IP}") ]]; then
+     exit 1;
+  fi
+  
+  if [[ ! $(check_variable_is_set "${_INITRAMFS_WIFI_DRIVERS}") ]]; then
+     exit 1;
+  fi
 
   # Update /boot/cmdline.txt to boot crypt
   if [[ ! $(grep "${_INITRAMFS_WIFI_IP}" "${_DISK_CHROOT_ROOT}/boot/cmdline.txt") ]]; then
@@ -69,7 +109,7 @@ initramfs_wifi_setup(){
   cp -p "${_FILE_DIR}/initramfs-scripts/kill_wireless" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/scripts/local-bottom/"
   
   sed -i "s#_WIFI_INTERFACE#${_WIFI_INTERFACE}#g" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/scripts/init-premount/a_enable_wireless";
-  sed -i "s#_INITRAMFS_WIFI_DRIVERS#${_INITRAMFS_WIFI_DRIVERS}#g" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/hooks/enable_wireless";
+  sed -i "s#_INITRAMFS_WIFI_DRIVERS#${_INITRAMFS_WIFI_DRIVERS}#g" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/hooks/hook_enable_wireless";
  
   echo_debug "Creating wpa_supplicant file";
   cat <<- EOT > ${_DISK_CHROOT_ROOT}/etc/initramfs-tools/wpa_supplicant.conf
@@ -92,7 +132,9 @@ EOT
 #configure system on decrypt to connect to a hotspot specified in env file
 wifi_setup(){
   echo_info "$FUNCNAME";
-  check_variable_is_set "${_WIFI_INTERFACE}"
+  if ! check_variable_is_set "${_WIFI_INTERFACE}"; then
+    _WIFI_INTERFACE='wlan0';
+  fi
   echo_debug "Creating wpa_supplicant file"
   cat <<- EOT > ${_DISK_CHROOT_ROOT}/etc/wpa_supplicant.conf
 ctrl_interface=/var/run/wpa_supplicant
@@ -129,6 +171,7 @@ EOT
 }
 
 #set up ssh
+#requires: , optional: firewall_setup
 ssh_setup(){
   echo_info "$FUNCNAME";
 
@@ -188,6 +231,7 @@ EOT
   if (( $_UFW_SETUP == 1 )) ; then
     chroot_execute ufw allow in ${_SSH_PORT}/tcp;
     chroot_execute ufw enable;
+    chroot_execute ufw status verbose;
   fi
 }
 
@@ -203,8 +247,11 @@ dropbear_setup(){
   # Installing packages
   chroot_package_install dropbear dropbear-initramfs cryptsetup-initramfs
 
-  atomic_append "DROPBEAR_OPTIONS='-p $_SSH_PORT -RFEjk -c /bin/unlock.sh'" "${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/config";
+  #atomic_append "DROPBEAR_OPTIONS='-p $_SSH_PORT -RFEjk -c /bin/unlock.sh'" "${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/config";
 
+  #TEST test code - remove later
+  atomic_append "DROPBEAR_OPTIONS='-p $_SSH_PORT -RFEjk'" "${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/config";
+  
   # Now append our key to dropbear authorized_keys file
   echo_debug "checking ssh key for root@hostname. make sure any host key has this comment.";
   if [[ ! $( grep -w "root@${_HOSTNAME}" "${_DISK_CHROOT_ROOT}/etc/dropbear-initramfs/authorized_keys") ]]; then
@@ -216,6 +263,7 @@ dropbear_setup(){
   sed -i 's#run_dropbear \&#sleep 5\nrun_dropbear \&#g' "${_DISK_CHROOT_ROOT}/usr/share/initramfs-tools/scripts/init-premount/dropbear";
  
   # Unlock Script
+  cp -p "${_FILE_DIR}/initramfs-scripts/hook_dropbear_unlock" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/hooks/";
   cp -p "${_FILE_DIR}/initramfs-scripts/unlock.sh" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/scripts/unlock.sh";
   sed -i "s#ENCRYPTED_VOLUME_PATH#${_ENCRYPTED_VOLUME_PATH}#g" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/scripts/unlock.sh";
  
@@ -381,21 +429,55 @@ aide_setup(){
 }
 
 #basic snapper install for use with btrfs, snapshots root directory in its entirety with default settings,
+#https://rootco.de/2018-01-19-opensuse-btrfs-subvolumes/
+#experimental
 snapper_setup(){
   echo_info "$FUNCNAME";
+  #https://rootco.de/2018-01-19-opensuse-btrfs-subvolumes/
+  chroot_package_install rsync
+
+  #create root subvolume
+  chroot_execute btrfs subvolume create /@
+  
+  #create snapshot subvolume
+  chroot_execute btrfs subvolume create /@/root
+  disk_chroot_teardown || true 
+  
+  chroot_execute rsync --hard-links --remove-source-files --exclude '/@' --archive --info=progress2 /* /@/root
+  chroot_execute rsync -av --exclude '/@' --delete `mktemp -d`/ / && rmdir source/
+  chroot_execute find / -maxdepth 1 ! -wholename '/@' -exec rm -rfv {} \;
+  sed -i "s|/               btrfs    defaults,noatime/|/               btrfs    defaults,noatime,subvol=@/root  0     1|" > "${_DISK_CHROOT_ROOT}/etc/fstab"
+  
+  #create snapshot subvolume
+  chroot_execute btrfs subvolume create /@/.snapshots
+  chroot_execute mkdir /.snapshots
+  echo "/dev/mapper/${_ENCRYPTED_VOLUME_PATH}     /.snapshots             btrfs    defaults,noatime,subvol=@/.snapshots  0     1" > "${_DISK_CHROOT_ROOT}/etc/fstab"
+
+  
+  #create a subvol for /var/log
+  chroot_execute subvolume create /@/var_log
+  chroot_execute rsync --hard-links --archive --info=progress2 /var/log/* /@/var_log
+  chroot_execute rm -rf /var/log/*
+  echo "/dev/mapper/${_ENCRYPTED_VOLUME_PATH}     /var/log             btrfs    defaults,noatime,subvol=@/var_log  0     1" > "${_DISK_CHROOT_ROOT}/etc/fstab"
+  
+  #create a subvol for /home
+  chroot_execute subvolume create /@/home
+  chroot_execute rsync --hard-links --archive --info=progress2 /home/* /@/home
+  chroot_execute rm -rf /home/*
+  echo "/dev/mapper/${_ENCRYPTED_VOLUME_PATH}     /home             btrfs    defaults,noatime,subvol=@/home  0     1" > "${_DISK_CHROOT_ROOT}/etc/fstab"
+  
+  disk_chroot_setup
   chroot_package_install snapper 
   chroot_execute systemctl disable snapper-boot.timer
-  chroot_execute systemctl snapper-timeline.timer
+  chroot_execute systemctl disable snapper-timeline.timer
   chroot_execute snapper create-config /
-  #TODO Set sensible snapper configs for a limited space ssd
-  #sed -i "s##g" ${_DISK_CHROOT_ROOT}/etc/snapper/configs/root
-  #sed -i "s##g" ${_DISK_CHROOT_ROOT}/etc/snapper/configs/root
-  #sed -i "s##g" ${_DISK_CHROOT_ROOT}/etc/snapper/configs/root
-
+  #chroot_execute snapper create-config /
+  #chroot_execute snapper create-config /
   echo_warn "Snapper installed, but snapshotting services are disabled, enable via systemctl";
 }
 
-#secure network time protocol configuration, also installs ntpdate client for manually pulling the time 
+#secure network time protocol configuration, also installs ntpdate client for manually pulling the time
+#requires: , optional: firewall_setup
 ntpsec_setup(){
   echo_info "$FUNCNAME";
   chroot_package_install ntpsec ntpsec-doc ntpsec-ntpdate
@@ -412,6 +494,8 @@ ntpsec_setup(){
   if (( $_UFW_SETUP == 1 )) ; then
     chroot_execute ufw allow out 123/tcp;
     chroot_execute ufw enable;
+    chroot_execute ufw status verbose;
+
   fi
 }
 
@@ -556,6 +640,7 @@ random_mac_on_reboot_setup(){
 #enables dnssec and DNSOverTLS
 #disables mdns, llmnr
 #credits: https://andrea.corbellini.name/2020/04/28/ubuntu-global-dns/
+#requires: , optional: firewall_setup
 dns_setup(){
   echo_info "$FUNCNAME";
   chroot_execute systemctl disable resolvconf || true                                                                                                            
@@ -638,25 +723,25 @@ user_setup(){
 
 #TODO Configure vnc password
 #sets up a vnc server on your device
+#requires: , optional: firewall_setup ssh_setup
 vnc_setup(){
   echo_info "$FUNCNAME";
   chroot_package_install tightvncserver
   local vnc_user='kali'; #new vnc user is better
-  vnc_user_home=$(cat /etc/passwd | grep "vnc_user" | cut -c":" -f6)
+  vnc_user_home=$(cat /etc/passwd | grep "$vnc_user" | cut -c":" -f6)
   #run and kill vnc server once to set up the directory structure
   chroot_execute echo "$VNC_PASSWORD" | vncpasswd -f > $vnc_user_home/.vnc/passwd
-  
-  #run at startup 
-  
+    
   if (( $_UFW_SETUP == 1 )); then
     chroot_execute ufw allow in 5900/tcp;
     chroot_execute ufw allow in 5901/tcp;
     chroot_execute ufw enable;
+    chroot_execute ufw status verbose;
   fi
 }
 
 #TODO Test sftp
-#requires: ssh_setup
+#requires: ssh_setup, optional: firewall_setup
 sftp_setup(){
   echo_info "$FUNCNAME";
 
@@ -678,7 +763,9 @@ EOT
 
   if (( $_UFW_SETUP == 1 )); then
     chroot_execute ufw allow in ${_SSH_PORT}/tcp;
-    chroot_execute ufw enable;
+    chroot_execute ufw enable;    
+    chroot_execute ufw status verbose;
+
   fi
 }
 
@@ -686,16 +773,26 @@ EOT
 
 #MDNS daemon setup - WIP
 #TODO test initramfs avahi
+#requires: hostname_setup , optional: firewall_setup
 avahi_setup(){
   echo_info "$FUNCNAME";
 
-  chroot_package_install avahi-daemon
-  systemctl enable avahi-daemon
+  chroot_package_install avahi-daemon libnss-mdns
+  chroot_execute systemctl enable avahi-daemon
   
   #make avahi work in initramfs too:
   cp -p "${_FILE_DIR}/initramfs-scripts/b_enable_avahi_daemon" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/scripts/init-premount/";
   cp -p "${_FILE_DIR}/initramfs-scripts/hook_enable_avahi_daemon" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/hooks/"
+  cp -p "${_DISK_CHROOT_ROOT}/etc/avahi/avahi-daemon.conf" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/avahi-daemon.conf"
+  sed -i "s|#enable-dbus=yes|enable-dbus=no|" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/avahi-daemon.conf"
+  
+
   #Firewall rules for mdns
+  if (( $_UFW_SETUP == 1 )); then
+    chroot_execute ufw allow in 5353/udp;
+    chroot_execute ufw enable;
+    chroot_execute ufw status verbose;
+  fi
 }
 
 #TODO write static ip setup
@@ -707,12 +804,30 @@ static_ip_setup(){
 #fi
 }
 
+#set keyboard layout in initramfs and in os
+#TODO test this
+keyboard_setup()
+{  
+  chroot_execute dpkg-reconfigure keyboard-configuration
+  chroot_execute service keyboard-setup restart 
+
+  #change initramfs keymap
+  sed -i 's|^KEYMAP=n|KEYMAP=y|' "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/initramfs.conf"
+  
+  #change xfce settings
+  if [[ -e "${_DISK_CHROOT_ROOT}/home/kali/.config/xfce4/xfconf/xfce-perchannel-xml" ]]; then
+    sed -i "s|<property name=\"XkbLayout\" type=\"string\" value=\"us\"/>|<property name=\"XkbLayout\" type=\"string\" value=\"${_KEYBOARD_LAYOUT}\"/>|" "${_DISK_CHROOT_ROOT}/home/kali/.config/xfce4/xfconf/xfce-perchannel-xml"
+  fi
+}
+
+#TODO Test
 #other stuff - add your own!
 miscellaneous_setup(){
   #suppress dmesgs in stdout
-  echo '@reboot root /bin/sh dmesg -D' > "${_DISK_CHROOT_ROOT}/etc/cron.d/suppress-dmesg"
+  echo "@reboot root /bin/sh echo '1' > /proc/sys/kernel/printk" > "${_DISK_CHROOT_ROOT}/etc/cron.d/suppress-dmesg"
   
-  #disable splash
-  #TODO Disable splash on startup
+  #disable splash on startup
+  #TODO test 
+  atomic_append "disable_splash=1" "${_DISK_CHROOT_ROOT}/boot/config.txt"
 }
 

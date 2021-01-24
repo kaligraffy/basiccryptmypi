@@ -18,7 +18,6 @@ main(){
   check_run_as_root;
   install_dependencies;
   dependency_check;
-  #image extract
   download_image;
   extract_image;
   
@@ -26,20 +25,24 @@ main(){
   local delete_build=$(check_build_dir_exists);
   if (( $delete_build == 1 )); then
     create_build_directory
+    :
   fi
   
   # Write to physical disk or image and modify it
   trap 'trap_on_exit 1' EXIT;
   if (( $_IMAGE_MODE == 1 )); then 
-    format_image_file;
+    partition_image_file;
+    loopback_image_file;
   else
     fix_block_device_names;
     check_disk_is_correct;
-    format_disk;
+    partition_disk;
   fi
+  format_filesystem;
+  mount_chroot;
   copy_image_on_loopback_to_disk;
-  arm_setup;
   disk_chroot_setup;
+  arm_setup;
   disk_chroot_update_apt_setup;
   filesystem_setup;
   encryption_setup;
