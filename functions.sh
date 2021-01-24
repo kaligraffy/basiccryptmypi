@@ -11,8 +11,7 @@ declare -xr _BASE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 
 declare -xr _BUILD_DIR=${_BASE_DIR}/build
 declare -xr _FILE_DIR=${_BASE_DIR}/files
 declare -xr _EXTRACTED_IMAGE="${_FILE_DIR}/extracted.img"
-#declare -xr _CHROOT_ROOT=${_BUILD_DIR}/root
-declare -x _DISK_CHROOT_ROOT=${_BUILD_DIR}/disk
+declare -xr _CHROOT_DIR=${_BUILD_DIR}/disk
 declare -xr _ENCRYPTED_VOLUME_PATH="/dev/mapper/crypt-2"
 declare -xr _COLOR_ERROR='\033[0;31m' #red
 declare -xr _COLOR_WARN='\033[1;33m' #orange
@@ -42,7 +41,7 @@ cleanup_write_disk(){
   disk_chroot_teardown || true 
   tidy_umount "${_BLOCK_DEVICE_BOOT}" || true 
   tidy_umount "${_BLOCK_DEVICE_ROOT}" || true 
-  tidy_umount "${_DISK_CHROOT_ROOT}" || true 
+  tidy_umount "${_CHROOT_DIR}" || true 
   if [[ -b ${_ENCRYPTED_VOLUME_PATH} ]]; then
     cryptsetup -v luksClose "$(basename ${_ENCRYPTED_VOLUME_PATH})" || true
     cryptsetup -v remove $(basename ${_ENCRYPTED_VOLUME_PATH}) || true
@@ -178,8 +177,8 @@ copy_image_on_loopback_to_disk(){
   check_directory_and_mount "${loop_device}p2" "${_BUILD_DIR}/mount";
   check_directory_and_mount "${loop_device}p1" "${_BUILD_DIR}/boot";
 
-  rsync_local "${_BUILD_DIR}/boot" "${_DISK_CHROOT_ROOT}/"
-  rsync_local "${_BUILD_DIR}/mount/"* "${_DISK_CHROOT_ROOT}"
+  rsync_local "${_BUILD_DIR}/boot" "${_CHROOT_DIR}/"
+  rsync_local "${_BUILD_DIR}/mount/"* "${_CHROOT_DIR}"
 }
 
 #prompts to check disk is correct before writing out to disk, 
@@ -229,32 +228,32 @@ encryption_setup(){
   chroot_package_install cryptsetup busybox
 
   # Creating symbolic link to e2fsck
-  chroot ${_DISK_CHROOT_ROOT} /bin/bash -c "test -L /sbin/fsck.luks || ln -s /sbin/e2fsck /sbin/fsck.luks"
+  chroot ${_CHROOT_DIR} /bin/bash -c "test -L /sbin/fsck.luks || ln -s /sbin/e2fsck /sbin/fsck.luks"
 
   # Indicate kernel to use initramfs - facilitates loading drivers
-  atomic_append 'initramfs initramfs.gz followkernel' "${_DISK_CHROOT_ROOT}/boot/config.txt";
+  atomic_append 'initramfs initramfs.gz followkernel' "${_CHROOT_DIR}/boot/config.txt";
   
   # Update /boot/cmdline.txt to boot crypt
-  sed -i "s|root=/dev/mmcblk0p2|root=${_ENCRYPTED_VOLUME_PATH} cryptdevice=/dev/mmcblk0p2:$(basename ${_ENCRYPTED_VOLUME_PATH})|g" ${_DISK_CHROOT_ROOT}/boot/cmdline.txt
-  sed -i "s|rootfstype=ext3|rootfstype=${fs_type}|g" ${_DISK_CHROOT_ROOT}/boot/cmdline.txt
+  sed -i "s|root=/dev/mmcblk0p2|root=${_ENCRYPTED_VOLUME_PATH} cryptdevice=/dev/mmcblk0p2:$(basename ${_ENCRYPTED_VOLUME_PATH})|g" ${_CHROOT_DIR}/boot/cmdline.txt
+  sed -i "s|rootfstype=ext3|rootfstype=${fs_type}|g" ${_CHROOT_DIR}/boot/cmdline.txt
   
 
   # Enable cryptsetup when building initramfs
-  atomic_append 'CRYPTSETUP=y' "${_DISK_CHROOT_ROOT}/etc/cryptsetup-initramfs/conf-hook"  
+  atomic_append 'CRYPTSETUP=y' "${_CHROOT_DIR}/etc/cryptsetup-initramfs/conf-hook"  
   
   # Update /etc/fstab
-  sed -i "s|/dev/mmcblk0p2|${_ENCRYPTED_VOLUME_PATH}|g" ${_DISK_CHROOT_ROOT}/etc/fstab
-  sed -i "s#ext3#${fs_type}#g" ${_DISK_CHROOT_ROOT}/etc/fstab
+  sed -i "s|/dev/mmcblk0p2|${_ENCRYPTED_VOLUME_PATH}|g" ${_CHROOT_DIR}/etc/fstab
+  sed -i "s#ext3#${fs_type}#g" ${_CHROOT_DIR}/etc/fstab
 
   # Update /etc/crypttab
-  echo "# <target name> <source device>         <key file>      <options>" > "${_DISK_CHROOT_ROOT}/etc/crypttab"
-  atomic_append "$(basename ${_ENCRYPTED_VOLUME_PATH})    /dev/mmcblk0p2    none    luks" "${_DISK_CHROOT_ROOT}/etc/crypttab"
+  echo "# <target name> <source device>         <key file>      <options>" > "${_CHROOT_DIR}/etc/crypttab"
+  atomic_append "$(basename ${_ENCRYPTED_VOLUME_PATH})    /dev/mmcblk0p2    none    luks" "${_CHROOT_DIR}/etc/crypttab"
 
   # Create a hook to include our crypttab in the initramfs
-  cp -p "${_FILE_DIR}/initramfs-scripts/zz-cryptsetup" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/hooks/zz-cryptsetup";
+  cp -p "${_FILE_DIR}/initramfs-scripts/zz-cryptsetup" "${_CHROOT_DIR}/etc/initramfs-tools/hooks/zz-cryptsetup";
   
   # Adding dm_mod to initramfs modules
-  atomic_append 'dm_crypt' "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/modules";
+  atomic_append 'dm_crypt' "${_CHROOT_DIR}/etc/initramfs-tools/modules";
   
   # Disable autoresize
   chroot_execute systemctl disable rpi-resizerootfs.service
@@ -318,9 +317,9 @@ filesystem_setup(){
       echo_debug "- Setting up btrfs-progs in chroot"
       chroot_package_install btrfs-progs
       echo_debug "- Adding btrfs module to initramfs-tools/modules"
-      atomic_append "btrfs" "${_DISK_CHROOT_ROOT}/etc/initramfs-tools/modules";
+      atomic_append "btrfs" "${_CHROOT_DIR}/etc/initramfs-tools/modules";
       echo_debug "- Enabling journalling"
-      sed -i "s|rootflags=noload|""|g" "${_DISK_CHROOT_ROOT}/boot/cmdline.txt";
+      sed -i "s|rootflags=noload|""|g" "${_CHROOT_DIR}/boot/cmdline.txt";
       ;;
     *) echo_debug "skipping, fs not supported or ext4";;
   esac
@@ -369,9 +368,9 @@ create_ssh_key(){
   chmod 600 "${id_rsa}";
   chmod 644 "${id_rsa}.pub";
   echo_debug "copying keyfile ${id_rsa} to box's default user .ssh directory";
-  mkdir -p "${_DISK_CHROOT_ROOT}/root/.ssh/" || true
-  cp -p "${id_rsa}" "${_DISK_CHROOT_ROOT}/root/.ssh/id_rsa";
-  cp -p "${id_rsa}.pub" "${_DISK_CHROOT_ROOT}/root/.ssh/id_rsa.pub";        
+  mkdir -p "${_CHROOT_DIR}/root/.ssh/" || true
+  cp -p "${id_rsa}" "${_CHROOT_DIR}/root/.ssh/id_rsa";
+  cp -p "${id_rsa}.pub" "${_CHROOT_DIR}/root/.ssh/id_rsa.pub";        
 }
 
 #puts the sshkey into your files directory for safe keeping
@@ -406,18 +405,18 @@ rsync_local(){
 
 arm_setup(){
   echo_info "$FUNCNAME";
-  cp /usr/bin/qemu-aarch64-static ${_DISK_CHROOT_ROOT}/usr/bin/
+  cp /usr/bin/qemu-aarch64-static ${_CHROOT_DIR}/usr/bin/
 }
 
 mount_chroot(){
-  check_directory_and_mount "${_ENCRYPTED_VOLUME_PATH}" "${_DISK_CHROOT_ROOT}"
-  check_directory_and_mount "${_BLOCK_DEVICE_BOOT}" "${_DISK_CHROOT_ROOT}/boot"
+  check_directory_and_mount "${_ENCRYPTED_VOLUME_PATH}" "${_CHROOT_DIR}"
+  check_directory_and_mount "${_BLOCK_DEVICE_BOOT}" "${_CHROOT_DIR}/boot"
 }
 
 ####CHROOT FUNCTIONS####
 #mount dev,sys,proc in chroot so they are available for apt 
 disk_chroot_setup(){
-  local chroot_dir="${_DISK_CHROOT_ROOT}"
+  local chroot_dir="${_CHROOT_DIR}"
   echo_info "$FUNCNAME";
  
   sync
@@ -439,7 +438,7 @@ disk_chroot_setup(){
 #unmount dev,sys,proc in chroot
 disk_chroot_teardown(){
   echo_info "$FUNCNAME";
-  local chroot_dir="${_DISK_CHROOT_ROOT}"
+  local chroot_dir="${_CHROOT_DIR}"
 
   echo_debug "unmounting binds"
   tidy_umount "${chroot_dir}/dev/"
@@ -453,7 +452,7 @@ disk_chroot_teardown(){
 disk_chroot_update_apt_setup(){
   #Force https on initial use of apt for the main kali repo
   echo_info "$FUNCNAME";
-  local chroot_root="${_DISK_CHROOT_ROOT}"
+  local chroot_root="${_CHROOT_DIR}"
   sed -i 's|http:|https:|g' ${chroot_root}/etc/apt/sources.list;
 
   if [ ! -f "${chroot_root}/etc/resolv.conf" ]; then
@@ -499,7 +498,7 @@ chroot_package_purge(){
 
 #run a command in chroot
 chroot_execute(){
-  local chroot_dir="${_DISK_CHROOT_ROOT}";
+  local chroot_dir="${_CHROOT_DIR}";
   chroot ${chroot_dir} "$@" | tee -a $_LOG_FILE;
   if [[ "${PIPESTATUS[0]}" -ne 0 ]]; then
     echo_error "command in chroot failed"
@@ -508,7 +507,7 @@ chroot_execute(){
 }
 
 disk_chroot_mkinitramfs_setup(){
-  local chroot_dir="${_DISK_CHROOT_ROOT}"
+  local chroot_dir="${_CHROOT_DIR}"
   echo_info "$FUNCNAME";
   
   local kernel_version=$(ls ${chroot_dir}/lib/modules/ | grep "${_KERNEL_VERSION_FILTER}" | tail -n 1);
