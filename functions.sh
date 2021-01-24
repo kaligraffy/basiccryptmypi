@@ -36,8 +36,8 @@ trap_on_exit(){
 # Cleanup stage 2
 cleanup_write_disk(){
   echo_info "$FUNCNAME";
-  tidy_umount "${_BUILD_DIR}/mount" 
-  tidy_umount "${_BUILD_DIR}/boot"
+  tidy_umount "${_BUILD_DIR}/mount" || true
+  tidy_umount "${_BUILD_DIR}/boot" || true
 
   disk_chroot_teardown || true 
   tidy_umount "${_BLOCK_DEVICE_BOOT}" || true 
