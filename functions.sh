@@ -59,9 +59,9 @@ cleanup_loop_devices(){
   loop_devices="$(losetup -a | cut -d':' -f 1 | tr '\n' ' ')";
   if [[ $(check_variable_is_set "$loop_devices") ]]; then
     for loop_device in $loop_devices; do
-      if losetup -l "${loop_device}p1" ; then echo_debug "loop device, detach it"; losetup -d "${loop_device}p1"; fi
-      if losetup -l "${loop_device}p2" ; then echo_debug "loop device, detach it"; losetup -d "${loop_device}p2"; fi
-      if losetup -l "${loop_device}" ; then echo_debug "loop device, detach it"; losetup -d "${loop_device}"; fi
+      if losetup -l "${loop_device}p1" &> /dev/null ; then echo_debug "loop device, detach it"; losetup -d "${loop_device}p1"; fi
+      if losetup -l "${loop_device}p2" &> /dev/null; then echo_debug "loop device, detach it"; losetup -d "${loop_device}p2"; fi
+      if losetup -l "${loop_device}" &> /dev/null ; then echo_debug "loop device, detach it"; losetup -d "${loop_device}"; fi
     done
   fi
 }
@@ -219,6 +219,29 @@ download_image(){
     exit;
   fi
   echo_info "valid checksum";
+}
+
+#sets the locale (e.g. en_US, en_UK)
+locale_setup(){
+  echo_info "$FUNCNAME";
+  
+  chroot_package_install locales
+  
+  echo_debug "Uncommenting locale ${_LOCALE} for inclusion in generation"
+  sed -i "s/^# *\(${_LOCALE}\)/\1/" "${_CHROOT_DIR}/etc/locale.gen";
+  
+  echo_debug "Updating /etc/default/locale";
+  atomic_append "LANG=${_LOCALE}" "${_CHROOT_DIR}/etc/default/locale";
+  atomic_append "LANGUAGE=${_LOCALE}"  "${_CHROOT_DIR}/etc/default/locale"
+ # atomic_append "LC_ALL=${_LOCALE}"  "${_CHROOT_DIR}/etc/default/locale"
+
+  echo_debug "Updating env variables";
+  chroot "${_CHROOT_DIR}" /bin/bash -x <<- EOT
+export LANG="${_LOCALE}";
+export LANGUAGE="${_LOCALE}";
+locale-gen
+EOT
+
 }
 
 #sets up encryption settings in chroot
@@ -394,7 +417,7 @@ backup_dropbear_key(){
 rsync_local(){
   echo_info "$FUNCNAME";
   echo_info "starting copy of ${@}";
-  if rsync --hard-links --archive --partial --info=progress2 "${@}"; then
+  if rsync --hard-links --no-i-r --archive --partial --info=progress2 "${@}"; then
     echo_info "finished copy of ${@}";
     sync;
   else
@@ -582,11 +605,11 @@ tidy_umount(){
     
     if [[ -b $1 ]]; then echo_debug "block device, return"; return 0; fi
 
-    if grep '/dev'  <<< "$1" ; then echo_debug "bind for chroot, return"; return 0; fi
-    if grep '/sys'  <<< "$1" ; then echo_debug "bind for chroot, return"; return 0; fi
-    if grep '/proc' <<< "$1" ; then echo_debug "bind for chroot, return"; return 0; fi
-    if grep '/tmp'  <<< "$1" ; then echo_debug "bind for chroot, return"; return 0; fi
-    if grep '/run'  <<< "$1" ; then echo_debug "bind for chroot, return"; return 0; fi
+    if grep -q '/dev'  <<< "$1" ; then echo_debug "bind for chroot, return"; return 0; fi
+    if grep -q '/sys'  <<< "$1" ; then echo_debug "bind for chroot, return"; return 0; fi
+    if grep -q '/proc' <<< "$1" ; then echo_debug "bind for chroot, return"; return 0; fi
+    if grep -q '/tmp'  <<< "$1" ; then echo_debug "bind for chroot, return"; return 0; fi
+    if grep -q '/run'  <<< "$1" ; then echo_debug "bind for chroot, return"; return 0; fi
     
     if [[ -d $1 ]]; then echo_debug "some directory, if empty delete it"; rmdir $1 || true; fi
     return 0    
@@ -598,24 +621,20 @@ tidy_umount(){
 
 #runs through the functions specified in optional_setup
 #checks if each function in options.sh has a requires comment
-#of the form '#requires: ???'
-#TODO check optional running order for 'optional' requirements
-dependency_check(){
+#of the form '#requires: ???_setup , optional: ???_setup' 
+options_check(){
   echo_info "$FUNCNAME";
   #get list of functions specified in optional_setup:
   functions_in_optional_setup=$(sed -n '/optional_setup(){/,/}/p' env.sh | sed '/optional_setup(){/d' | sed '/}/d' | sed 's/^[ \t]*//g' | sed '/^#/d' | cut -d';' -f1 | tr '\n' ' ')
   echo_debug "$functions_in_optional_setup";
   for function in $functions_in_optional_setup; do
-    line_above_function_declaration=$(grep -B 1 "${function}()" options.sh | grep -v "${function}()")    
+    line_above_function_declaration=$(grep -B 1 "^${function}()" options.sh | grep -v "${function}()")    
     
-    if grep -q '^#requires:' <<< $line_above_function_declaration || grep -q 'optional:' <<< $line_above_function_declaration; then 
-      echo_info "$function";
-    fi
     
     if grep -q '^#requires:' <<< $line_above_function_declaration; then 
       list_of_prerequisites=$(echo $line_above_function_declaration | cut -d':' -f2 | sed 's/^[ \t]*//g' | cut -d',' -f1)
-      if [[ -z $list_of_prerequisites ]]; then 
-        echo_info " - requires: $list_of_prerequisites" 
+      if [[ ! -z $list_of_prerequisites ]]; then 
+        echo_info "$function - requires: $list_of_prerequisites" 
       fi
       for prerequisite in $list_of_prerequisites; do 
       #check the prerequisite occurs before the function in $functions_in_optional_setup
@@ -636,8 +655,8 @@ dependency_check(){
      
      if grep -q 'optional:' <<< $line_above_function_declaration; then 
        list_of_optional_prerequisites=$(echo $line_above_function_declaration | cut -d':' -f3 | sed 's/^[ \t]*//g')
-       if [[ -z $list_of_optional_prerequisites ]]; then 
-         echo_info " - optionally requires: $list_of_optional_prerequisites"
+       if [[ ! -z $list_of_optional_prerequisites ]]; then 
+         echo_info "$function - optionally requires: $list_of_optional_prerequisites"
        fi
        for prerequisite in $list_of_optional_prerequisites; do 
           #check the prerequisite occurs before the function in $functions_in_optional_setup

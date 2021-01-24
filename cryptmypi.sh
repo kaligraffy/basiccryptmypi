@@ -17,7 +17,8 @@ main(){
   trap 'trap_on_exit 0' EXIT;
   check_run_as_root;
   install_dependencies;
-  dependency_check;
+  options_check;
+  sleep 1000
   download_image;
   extract_image;
   
@@ -25,7 +26,6 @@ main(){
   local delete_build=$(check_build_dir_exists);
   if (( $delete_build == 1 )); then
     create_build_directory
-    :
   fi
   
   # Write to physical disk or image and modify it
@@ -43,6 +43,7 @@ main(){
   copy_image_on_loopback_to_disk;
   disk_chroot_setup;
   arm_setup;
+  locale_setup
   disk_chroot_update_apt_setup;
   filesystem_setup;
   encryption_setup;

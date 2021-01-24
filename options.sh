@@ -16,54 +16,6 @@ simple_dns_setup(){
   echo -e "nameserver $_DNS1\nnameserver $_DNS2" > "${_CHROOT_DIR}/etc/resolv.conf";
 }
 
-#sets the locale (e.g. en_US, en_UK)
-locale_setup(){
-  echo_info "$FUNCNAME";
-  echo_debug "Uncommenting locale ${_LOCALE} for inclusion in generation"
-  sed -i 's/^# *\(en_US.UTF-8\)/\1/' "${_CHROOT_DIR}/etc/locale.gen";
-
-  echo_debug "Updating /etc/default/locale";
-  atomic_append "LANG=${_LOCALE}" "${_CHROOT_DIR}/etc/default/locale";
-  chroot_package_install locales
-  echo_debug "Updating env variables";
-  chroot "${_CHROOT_DIR}" /bin/bash -x <<- EOT
-LANG="${_LOCALE}"
-LANGUAGE="${_LOCALE}"
-EOT
-
-  #atomic_append "export LANG=${_LOCALE}" "${_CHROOT_DIR}/root/.bashrc"
-  #atomic_append "export LANGUAGE=${_LOCALE}"  "${_CHROOT_DIR}/root/.bashrc"
-#TODO fix this
-#perl: warning: Setting locale failed.
-# perl: warning: Please check that your locale settings:
-#         LANGUAGE = "",
-#         LC_ALL = (unset),
-#         LANG = "en_US.UTF-8"
-#     are supported and installed on your system.
-# perl: warning: Falling back to the standard locale ("C").
-# locale: Cannot set LC_CTYPE to default locale: No such file or directory
-# locale: Cannot set LC_MESSAGES to default locale: No such file or directory
-# locale: Cannot set LC_ALL to default locale: No such file or directory
-# Preconfiguring packages ...
-# (Reading database ... 329488 files and directories currently installed.)
-# Preparing to unpack .../locales_2.31-6_all.deb ...
-# Unpacking locales (2.31-6) over (2.31-4) ...
-# Setting up locales (2.31-6) ...
-# Generating locales (this might take a while)...
-#   en_US.UTF-8... done
-# Generation complete.
-# Processing triggers for kali-menu (2020.4.0) ...
-# Processing triggers for man-db (2.9.3-2) ...
-# + LANG=en_US.UTF-8
-# + LANGUAGE=en_US.UTF-8
-# Generating locales (this might take a while)...
-#   en_US.UTF-8... done
-# Generation complete.
-
-  echo_debug "Generating locale"
-  chroot_execute locale-gen
-}
-
 #create wifi connection to a router/hotspot on boot
 #requires: , optional: wifi_setup
 initramfs_wifi_setup(){
@@ -86,7 +38,7 @@ initramfs_wifi_setup(){
   fi
   
   if [[ ! $(check_variable_is_set "${_INITRAMFS_WIFI_INTERFACE}") ]]; then
-     exit 1;
+    _INITRAMFS_WIFI_INTERFACE='wlan0';
   fi
   
   if [[ ! $(check_variable_is_set "${_INITRAMFS_WIFI_IP}") ]]; then
@@ -247,10 +199,10 @@ dropbear_setup(){
   # Installing packages
   chroot_package_install dropbear dropbear-initramfs cryptsetup-initramfs
 
-  atomic_append "DROPBEAR_OPTIONS='-p $_SSH_PORT -RFEjk -c /bin/unlock.sh'" "${_CHROOT_DIR}/etc/dropbear-initramfs/config";
+  #atomic_append "DROPBEAR_OPTIONS='-p $_SSH_PORT -RFEjk -c /bin/unlock.sh'" "${_CHROOT_DIR}/etc/dropbear-initramfs/config";
 
   #TEST test code - remove later
-  #atomic_append "DROPBEAR_OPTIONS='-p $_SSH_PORT -RFEjk'" "${_CHROOT_DIR}/etc/dropbear-initramfs/config";
+  atomic_append "DROPBEAR_OPTIONS='-p $_SSH_PORT -RFEjk'" "${_CHROOT_DIR}/etc/dropbear-initramfs/config";
   
   # Now append our key to dropbear authorized_keys file
   echo_debug "checking ssh key for root@hostname. make sure any host key has this comment.";
@@ -718,7 +670,10 @@ chkboot_setup()
 #Test this
 user_setup(){
   echo_info "$FUNCNAME";
+  local user=kali
   echo_warn "NOT YET IMPLEMENTED";
+  chroot_execute deluser ${user}
+  chroot_execute adduser ${_NEW_DEFAULT_USER}
 }
 
 #TODO Configure vnc password
@@ -727,7 +682,8 @@ user_setup(){
 vnc_setup(){
   echo_info "$FUNCNAME";
   chroot_package_install tightvncserver
-  local vnc_user='kali'; #new vnc user is better
+  local vnc_user='vnc'; #new vnc user is better
+  chroot_execute adduser $vnc_user
   vnc_user_home=$(cat /etc/passwd | grep "$vnc_user" | cut -c":" -f6)
   #run and kill vnc server once to set up the directory structure
   chroot_execute echo "$VNC_PASSWORD" | vncpasswd -f > $vnc_user_home/.vnc/passwd
@@ -823,11 +779,11 @@ keyboard_setup()
 #TODO Test
 #other stuff - add your own!
 miscellaneous_setup(){
+  
   #suppress dmesgs in stdout
   echo "@reboot root /bin/sh echo '1' > /proc/sys/kernel/printk" > "${_CHROOT_DIR}/etc/cron.d/suppress-dmesg"
   
   #disable splash on startup
-  #TODO test 
   atomic_append "disable_splash=1" "${_CHROOT_DIR}/boot/config.txt"
 }
 
