@@ -16,14 +16,28 @@ esac
 . /usr/share/initramfs-tools/hook-functions
 
 
+cat << EOF > /etc/initramfs-tools/nsswitch.conf
+passwd:         files systemd
+group:          files systemd
+shadow:         files
+gshadow:        files
+
+hosts:          files mdns4_minimal [NOTFOUND=return] dns
+networks:       files
+
+protocols:      db files
+services:       db files
+ethers:         db files
+rpc:            db files
+
+netgroup:       nis
+EOF
+
 
 copy_exec /usr/sbin/avahi-daemon
-
 copy_file config /etc/initramfs-tools/avahi-daemon.conf /etc/avahi/avahi-daemon.conf
 copy_file config /etc/hosts /etc/hosts
 copy_file config /etc/hostname /etc/hostname
 copy_file config /etc/resolv.conf /etc/resolv.conf
-copy_file config /etc/nsswitch.conf /etc/nsswitch.conf
-copy_file config /usr/share/doc/avahi/ssh.service /etc/avahi/services/ssh.service
-echo "avahi:x:136:" >> "$DESTDIR/etc/group"
-echo "avahi:x:127:136:Avahi mDNS daemon,,,:/run/avahi-daemon:/usr/sbin/nologin" >> "$DESTDIR/etc/passwd"
+sed -i "s|<port>22</port>|<port>_SSH_PORT</port>|" /usr/share/doc/avahi-daemon/examples/ssh.service
+copy_file config /usr/share/doc/avahi-daemon/examples/ssh.service /etc/avahi/services/ssh.service

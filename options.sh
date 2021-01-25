@@ -50,7 +50,7 @@ initramfs_wifi_setup(){
   fi
 
   # Update /boot/cmdline.txt to boot crypt
-  if [[ ! $(grep "${_INITRAMFS_WIFI_IP}" "${_CHROOT_DIR}/boot/cmdline.txt") ]]; then
+  if [[ ! $(grep -q "${_INITRAMFS_WIFI_IP}" "${_CHROOT_DIR}/boot/cmdline.txt") ]]; then
     sed -i "s#rootwait#ip=${_INITRAMFS_WIFI_IP} rootwait#g" ${_CHROOT_DIR}/boot/cmdline.txt
   fi
 
@@ -84,7 +84,7 @@ EOT
 #configure system on decrypt to connect to a hotspot specified in env file
 wifi_setup(){
   echo_info "$FUNCNAME";
-  if ! check_variable_is_set "${_WIFI_INTERFACE}"; then
+  if [[ ! $(check_variable_is_set "${_WIFI_INTERFACE}") ]]; then
     _WIFI_INTERFACE='wlan0';
   fi
   echo_debug "Creating wpa_supplicant file"
@@ -140,7 +140,7 @@ ssh_setup(){
 
   # Update sshd settings
   cp -p "${sshd_config}" "${sshd_config}.bak"
-  if [[ ! $( grep -w "#New SSH Config" "${sshd_config}") ]]; then
+  if [[ ! $( grep -q -w "#New SSH Config" "${sshd_config}") ]]; then
   cat <<- EOT >> "${sshd_config}"
 #New SSH Config
 PasswordAuthentication $(echo $_SSH_PASSWORD_AUTHENTICATION)
@@ -206,7 +206,7 @@ dropbear_setup(){
   
   # Now append our key to dropbear authorized_keys file
   echo_debug "checking ssh key for root@hostname. make sure any host key has this comment.";
-  if [[ ! $( grep -w "root@${_HOSTNAME}" "${_CHROOT_DIR}/etc/dropbear-initramfs/authorized_keys") ]]; then
+  if [[ ! $( grep -q -w "root@${_HOSTNAME}" "${_CHROOT_DIR}/etc/dropbear-initramfs/authorized_keys") ]]; then
     cat "${_SSH_LOCAL_KEYFILE}.pub" >> "${_CHROOT_DIR}/etc/dropbear-initramfs/authorized_keys";
   fi
   chmod 600 ${_CHROOT_DIR}/etc/dropbear-initramfs/authorized_keys;
@@ -383,6 +383,9 @@ aide_setup(){
 #basic snapper install for use with btrfs, snapshots root directory in its entirety with default settings,
 #https://rootco.de/2018-01-19-opensuse-btrfs-subvolumes/
 #experimental
+#TODO btrfs filesystem, proper setup
+#mount root on subvol, with var/log and home also on different subvols
+#probably have to do this prior to the copy of the image in functions.sh (snapper_setup is broken, don't use it)
 snapper_setup(){
   echo_info "$FUNCNAME";
   #https://rootco.de/2018-01-19-opensuse-btrfs-subvolumes/
@@ -671,7 +674,6 @@ chkboot_setup()
 user_setup(){
   echo_info "$FUNCNAME";
   local user=kali
-  echo_warn "NOT YET IMPLEMENTED";
   chroot_execute deluser ${user}
   chroot_execute adduser ${_NEW_DEFAULT_USER}
 }
@@ -729,16 +731,19 @@ EOT
 
 #MDNS daemon setup - WIP
 #TODO test initramfs avahi
-#requires: hostname_setup , optional: firewall_setup
+#requires: hostname_setup ssh_setup , optional: firewall_setup
 avahi_setup(){
   echo_info "$FUNCNAME";
 
   chroot_package_install avahi-daemon libnss-mdns
   chroot_execute systemctl enable avahi-daemon
-  
+  sed -i "s|<port>22</port>|<port>${_SSH_PORT}</port>|" /usr/share/doc/avahi-daemon/examples/ssh.service
+  cp  /usr/share/doc/avahi-daemon/examples/ssh.service /etc/avahi/services/ssh.service
+
   #make avahi work in initramfs too:
   cp -p "${_FILE_DIR}/initramfs-scripts/b_enable_avahi_daemon" "${_CHROOT_DIR}/etc/initramfs-tools/scripts/init-premount/";
   cp -p "${_FILE_DIR}/initramfs-scripts/hook_enable_avahi_daemon" "${_CHROOT_DIR}/etc/initramfs-tools/hooks/"
+  sed -i "s|_SSH_PORT|${_SSH_PORT}|" "${_CHROOT_DIR}/etc/initramfs-tools/hooks/hook_enable_avahi_daemon"
   cp -p "${_CHROOT_DIR}/etc/avahi/avahi-daemon.conf" "${_CHROOT_DIR}/etc/initramfs-tools/avahi-daemon.conf"
   sed -i "s|#enable-dbus=yes|enable-dbus=no|" "${_CHROOT_DIR}/etc/initramfs-tools/avahi-daemon.conf"
   

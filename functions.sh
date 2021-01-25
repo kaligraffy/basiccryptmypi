@@ -25,15 +25,15 @@ declare _BLOCK_DEVICE_BOOT=""
 declare _BLOCK_DEVICE_ROOT="" 
 # Runs on script exit, tidies up the mounts.
 trap_on_exit(){
-  echo_info "Running trap on exit";
+  echo_info "$FUNCNAME";
   if (( $1 == 1 )); then 
-    cleanup_write_disk; 
+    cleanup; 
   fi
   echo_info "$(basename $0) finished";
 }
 
 # Cleanup stage 2
-cleanup_write_disk(){
+cleanup(){
   echo_info "$FUNCNAME";
   tidy_umount "${_BUILD_DIR}/mount" || true
   tidy_umount "${_BUILD_DIR}/boot" || true
@@ -46,11 +46,7 @@ cleanup_write_disk(){
     cryptsetup -v luksClose "$(basename ${_ENCRYPTED_VOLUME_PATH})" || true
     cryptsetup -v remove $(basename ${_ENCRYPTED_VOLUME_PATH}) || true
   fi
-  cleanup_loop_devices || true 
-    
-  if (( $_IMAGE_MODE == 1 )); then
-    echo_info "To burn your disk run: dd if=${_IMAGE_FILE} of=${_OUTPUT_BLOCK_DEVICE} bs=512 status=progress && sync";
-  fi
+  cleanup_loop_devices || true     
 }
 
 #auxiliary method for detaching loop_device in cleanup method 

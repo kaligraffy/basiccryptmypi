@@ -15,8 +15,9 @@ esac
 
 . /scripts/functions
 
-
-log_begin_msg "Sleeping for 5 seconds to allow WLAN interface to become ready"
+echo "avahi:x:136:" >> "/etc/group"
+echo "avahi:x:127:136:Avahi mDNS daemon,,,:/run/avahi-daemon:/usr/sbin/nologin" >> "/etc/passwd"
+log_begin_msg "Sleeping for 5 seconds, then starting avahi"
 sleep 5
 log_end_msg
 

@@ -18,7 +18,6 @@ main(){
   check_run_as_root;
   install_dependencies;
   options_check;
-  sleep 1000
   download_image;
   extract_image;
   
@@ -49,6 +48,9 @@ main(){
   encryption_setup;
   optional_setup;
   disk_chroot_mkinitramfs_setup;
+  if (( $_IMAGE_MODE == 1 )); then
+    echo_info "To burn your disk run: dd if=${_IMAGE_FILE} of=${_OUTPUT_BLOCK_DEVICE} bs=512 status=progress && sync";
+  fi
   exit 0;
 }
 
