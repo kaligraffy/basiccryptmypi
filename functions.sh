@@ -109,8 +109,8 @@ fix_block_device_names(){
   fi
   #Set the proper name of the output block device's partitions
   #e.g /dev/sda1 /dev/sda2 etc.
-  declare -xr _BLOCK_DEVICE_BOOT="${_OUTPUT_BLOCK_DEVICE}${prefix}1"
-  declare -xr _BLOCK_DEVICE_ROOT="${_OUTPUT_BLOCK_DEVICE}${prefix}2"
+  _BLOCK_DEVICE_BOOT="${_OUTPUT_BLOCK_DEVICE}${prefix}1"
+  _BLOCK_DEVICE_ROOT="${_OUTPUT_BLOCK_DEVICE}${prefix}2"
 }
 
 
@@ -314,10 +314,12 @@ loopback_image_file(){
 #also mounts the chroot directory ready for copying
 format_filesystem(){
   echo_info "$FUNCNAME";
+  echo $_BLOCK_DEVICE_BOOT
+  echo $_BLOCK_DEVICE_ROOT
 
   # Create LUKS
   echo_debug "Attempting to create LUKS ${_BLOCK_DEVICE_ROOT} "
-  echo "${_LUKS_PASSWORD}" | cryptsetup -v --cipher ${_LUKS_CONFIGURATION} luksFormat ${_BLOCK_DEVICE_ROOT}
+  echo "${_LUKS_PASSWORD}" | cryptsetup -v ${_LUKS_CONFIGURATION} luksFormat ${_BLOCK_DEVICE_ROOT}
   echo "${_LUKS_PASSWORD}" | cryptsetup -v luksOpen ${_BLOCK_DEVICE_ROOT} $(basename ${_ENCRYPTED_VOLUME_PATH})
 
   make_filesystem "vfat" "${_BLOCK_DEVICE_BOOT}"

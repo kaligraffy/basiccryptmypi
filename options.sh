@@ -738,7 +738,7 @@ avahi_setup(){
   chroot_package_install avahi-daemon libnss-mdns
   chroot_execute systemctl enable avahi-daemon
   sed -i "s|<port>22</port>|<port>${_SSH_PORT}</port>|" /usr/share/doc/avahi-daemon/examples/ssh.service
-  cp  /usr/share/doc/avahi-daemon/examples/ssh.service /etc/avahi/services/ssh.service
+  cp -p /usr/share/doc/avahi-daemon/examples/ssh.service /etc/avahi/services/ssh.service
 
   #make avahi work in initramfs too:
   cp -p "${_FILE_DIR}/initramfs-scripts/b_enable_avahi_daemon" "${_CHROOT_DIR}/etc/initramfs-tools/scripts/init-premount/";
