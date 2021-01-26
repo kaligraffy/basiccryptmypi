@@ -565,7 +565,6 @@ atomic_append(){
 #checks if a variable is set or empty ''
 check_variable_is_set(){
   if [[ ! ${1} ]] || [[ -z "${1}" ]]; then
-    echo_debug "variable is not set or is empty";
     echo '1';
     return;
   fi
