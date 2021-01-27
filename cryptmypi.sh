@@ -8,15 +8,17 @@ set -eu
 . functions.sh;
 . env.sh;
 . options.sh;
-. dependencies.sh;
 
 #Program logic
 main(){
   echo_info "$(basename $0) started";
-  #Setup
+ 
   trap 'trap_on_exit 0' EXIT;
   check_run_as_root;
   install_dependencies;
+  set_defaults;
+  echo_info "Running with settings:" 
+  set | grep '^_'
   options_check;
   download_image;
   extract_image;

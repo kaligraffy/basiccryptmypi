@@ -20,7 +20,10 @@ declare -xr _COLOR_DEBUG='\033[0;37m' #grey
 declare -xr _COLOR_NORMAL='\033[0m' # No Color
 declare -xr _LOG_FILE="${_BASE_DIR}/build-$(date '+%Y-%m-%d-%H:%M:%S').log"
 declare -xr _IMAGE_FILE="${_BUILD_DIR}/image.img"
+
+#TODO make dynamic size
 declare -xr _IMAGE_FILE_SIZE="11G"; #size of image file, set it near your sd card if you have the space so you don't have to resize your disk
+
 declare _BLOCK_DEVICE_BOOT=""
 declare _BLOCK_DEVICE_ROOT="" 
 # Runs on script exit, tidies up the mounts.
@@ -91,6 +94,23 @@ check_run_as_root(){
     echo_error "This script must be run as root/sudo";
     exit 1;
   fi
+}
+
+#installs packages on build pc
+install_dependencies() {
+  echo_info "$FUNCNAME";
+
+  apt-get -qq install \
+        binfmt-support \
+        qemu-user-static \
+        coreutils \
+        parted \
+        zip \
+        grep \
+        rsync \
+        xz-utils \
+        eatmydata \
+        pv ;
 }
 
 #Fix for using mmcblk0pX devices, adds a p used later on
@@ -566,7 +586,7 @@ atomic_append(){
 check_variable_is_set(){
   if [[ ! ${1} ]] || [[ -z "${1}" ]]; then
     echo '1';
-    return;
+    return 1;
   fi
   echo '0';
 }
@@ -627,7 +647,6 @@ options_check(){
   for function in $functions_in_optional_setup; do
     line_above_function_declaration=$(grep -B 1 "^${function}()" options.sh | grep -v "${function}()")    
     
-    
     if grep -q '^#requires:' <<< $line_above_function_declaration; then 
       list_of_prerequisites=$(echo $line_above_function_declaration | cut -d':' -f2 | sed 's/^[ \t]*//g' | cut -d',' -f1)
       if [[ ! -z $list_of_prerequisites ]]; then 
@@ -684,4 +703,142 @@ get_position_in_array(){
         echo "${i}";
     fi
   done
+}
+
+#TODO new method default parameter settings, if a variable is "" or unset, sets it to a reasonable default to reduce amount of cognitive effort
+#on the user
+set_defaults(){
+  echo_info "$FUNCNAME";
+  set +eu
+  echo_info "Setting defaults, please note some of these may be unused by your defined optional_setup";
+  set_default "_NO_PROMPTS" "0"
+  set_default "_LUKS_PASSWORD" "CHANGEME"
+  set_default "_FILESYSTEM_TYPE" "ext4"
+  set_default "_LUKS_CONFIGURATION" "--type luks2 --cipher aes-xts-plain64 --key-size 512 --use-random --hash sha512 --pbkdf argon2i --iter-time 5000"
+  set_default "_LOG_LEVEL" "1"
+  set_default "_LOCALE" "en_US.UTF-8"
+  set_default "_IMAGE_MODE" "1"
+  set_default "_IMAGE_SHA256" "MANDATORY"
+  set_default "_IMAGE_URL" "MANDATORY"
+  set_default "_KERNEL_VERSION_FILTER" "MANDATORY"
+  
+  set_default "_OUTPUT_BLOCK_DEVICE" "MANDATORY"
+  
+  if function_exists "root_password_setup"; then
+    set_default "_ROOT_PASSWORD" "CHANGEME" 
+  fi
+  
+  if function_exists "user_password_setup"; then
+    set_default "_USER_PASSWORD" "CHANGEME"
+  fi
+  
+  if function_exists "luks_nuke_setup"; then
+    set_default "_LUKS_NUKE_PASSWORD" "."
+  fi
+  
+  if function_exists "dns_setup"; then
+    set_default "_DNS1" "1.1.1.1"
+    set_default "_DNS2" "9.9.9.9"
+  fi
+  
+  if function_exists "simple_dns_setup"; then
+    set_default "_DNS1" "1.1.1.1"
+    set_default "_DNS2" "9.9.9.9"
+  fi
+  
+  if function_exists "cpu_governor_setup"; then
+    set_default "_CPU_GOVERNOR" "performance"
+  fi
+ 
+  if function_exists "hostname_setup"; then
+    set_default "_HOSTNAME" "pikal"
+  fi
+  
+  if function_exists "user_setup"; then
+    set_default "_NEW_DEFAULT_USER" "kali"
+  fi
+  
+  if function_exists "packages_setup"; then
+    set_default "_PKGS_TO_INSTALL" ""
+    set_default "_PKGS_TO_PURGE" ""
+  fi
+  
+  if function_exists "ssh_setup"; then
+    set_default "_SSH_KEY_PASSPHRASE" "CHANGEME"
+    set_default "_SSH_LOCAL_KEYFILE" "${_FILE_DIR}/id_rsa.pub"
+    set_default "_SSH_PASSWORD_AUTHENTICATION" "no"
+    set_default "_SSH_BLOCK_SIZE" "4096"
+    set_default "_SSH_PORT" "2222"
+  fi
+  
+  if function_exists "iodine_setup"; then
+    set_default "_IODINE_DOMAIN" "MANDATORY"
+    set_default "_IODINE_PASSWORD" "MANDATORY"
+  fi
+  
+  if function_exists "vpn_client_setup"; then
+    set_default "_OPENVPN_CONFIG_ZIP" "MANDATORY"
+  fi
+  
+  if function_exists "wifi_setup"; then
+    set_default "_WIFI_PASSWORD" "CHANGEME"
+    set_default "_WIFI_SSID" "WIFI"
+    set_default "_WIFI_INTERFACE" "wlan0"
+  fi
+  
+  if function_exists "initramfs_wifi_setup"; then
+    set_default "_INITRAMFS_WIFI_INTERFACE" "wlan0"
+    set_default "_INITRAMFS_WIFI_IP"  ":::::${INITRAMFS_WIFI_INTERFACE}:dhcp:${_DNS1}:${_DNS2}"
+    set_default "_INITRAMFS_WIFI_DRIVERS" 'brcmfmac brcmutil cfg80211 rfkill';
+  fi
+
+  if function_exists "chkboot_setup"; then
+    set_default "_CHKBOOT_BOOTDISK" "MANDATORY"
+    set_default "_CHKBOOT_BOOTPART" "MANDATORY"
+  fi
+
+  if function_exists "passwordless_login_setup"; then
+    set_default "_PASSWORDLESS_LOGIN_USER" "kali"
+  fi
+  
+  if function_exists "default_shell_setup"; then
+    set_default "_SHELL" "zsh"
+  fi
+  
+  if function_exists "sftp_setup"; then
+    set_default "_SFTP_PASSWORD" "CHANGEME"
+  fi
+  
+  if function_exists "keyboard_setup"; then
+    set_default "_KEYBOARD_LAYOUT" "us"
+  fi
+  set -eu
+}
+
+#sets a given variable_name $1 to a default value $2
+#if the default passed in is 'MANDATORY', then exit as then
+#a function has been called without a mandatory
+#variable set
+set_default(){
+   local var_name="$1"
+   local default_value="$2"
+   local current_value=$(eval echo "\$${var_name}")
+   if [[ "$( check_variable_is_set "$current_value")" == "0" ]]; then
+     echo_info "${var_name} was set to '${current_value}'";
+   else
+     if [[ $default_value == 'MANDATORY' ]]; then
+       echo_error "${var_name} was not set and is mandatory, please amend env.sh'";
+       exit 1;
+     fi
+     echo_warn "${var_name} was not set, setting to '${default_value}'";
+     export ${var_name}="${default_value}";
+   fi
+}
+
+#checks if a function is defined optional_setup, takes a function name as argument
+function_exists() {
+    functions_in_optional_setup=$(sed -n '/optional_setup(){/,/}/p' env.sh | sed '/optional_setup(){/d' | sed '/}/d' | sed 's/^[ \t]*//g' | sed '/^#/d' | cut -d';' -f1 | tr '\n' ' ')
+    
+    grep -q "$1" <<< $functions_in_optional_setup > /dev/null
+    return $?
 }

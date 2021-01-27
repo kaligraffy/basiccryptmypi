@@ -8,7 +8,6 @@ set -eu
 declare -x _UFW_SETUP=0;
 
 #used by wifi_setup and initramfs_wifi_setup
-declare -xr _WIFI_PSK=$(wpa_passphrase "${_WIFI_SSID}" "${_WIFI_PASSWORD}" | grep "psk=" | grep -v "#psk" | sed 's/^[\t]*//g')
 
 #set dns in resolv.conf for setup only or none dnssec setup
 simple_dns_setup(){
@@ -25,30 +24,11 @@ initramfs_wifi_setup(){
 #    http://retinal.dehy.de/docs/doku.php?id=technotes:raspberryrootnfs
 #    use the 'fing' app to find the device if mdns isn't working
   echo_info "$FUNCNAME";
+  declare -xr _WIFI_PSK=$(wpa_passphrase "${_WIFI_SSID}" "${_WIFI_PASSWORD}" | grep "psk=" | grep -v "#psk" | sed 's/^[\t]*//g')
 
   #TODO reimplement defaults, use check to exit if or set default if not set
   echo_debug "Attempting to set initramfs WIFI up "
   
-  if [[ ! $(check_variable_is_set "${_WIFI_SSID}") ]]; then
-     exit 1;
-  fi
-  
-  if [[ ! $(check_variable_is_set "${_WIFI_PASSWORD}") ]]; then
-     exit 1;
-  fi
-  
-  if [[ ! $(check_variable_is_set "${_INITRAMFS_WIFI_INTERFACE}") ]]; then
-    _INITRAMFS_WIFI_INTERFACE='wlan0';
-  fi
-  
-  if [[ ! $(check_variable_is_set "${_INITRAMFS_WIFI_IP}") ]]; then
-     exit 1;
-  fi
-  
-  if [[ ! $(check_variable_is_set "${_INITRAMFS_WIFI_DRIVERS}") ]]; then
-     exit 1;
-  fi
-
   # Update /boot/cmdline.txt to boot crypt
   if [[ ! $(grep -q "${_INITRAMFS_WIFI_IP}" "${_CHROOT_DIR}/boot/cmdline.txt") ]]; then
     sed -i "s#rootwait#ip=${_INITRAMFS_WIFI_IP} rootwait#g" ${_CHROOT_DIR}/boot/cmdline.txt
@@ -84,9 +64,7 @@ EOT
 #configure system on decrypt to connect to a hotspot specified in env file
 wifi_setup(){
   echo_info "$FUNCNAME";
-  if [[ ! $(check_variable_is_set "${_WIFI_INTERFACE}") ]]; then
-    _WIFI_INTERFACE='wlan0';
-  fi
+  declare -xr _WIFI_PSK=$(wpa_passphrase "${_WIFI_SSID}" "${_WIFI_PASSWORD}" | grep "psk=" | grep -v "#psk" | sed 's/^[\t]*//g')
   echo_debug "Creating wpa_supplicant file"
   cat <<- EOT > ${_CHROOT_DIR}/etc/wpa_supplicant.conf
 ctrl_interface=/var/run/wpa_supplicant
@@ -293,7 +271,7 @@ vpn_client_setup(){
   _OPENVPN_CONFIG_ZIPPATH="${_FILE_DIR}/${_OPENVPN_CONFIG_ZIPFILE}"
 
   echo_debug "Assuring openvpn installation and config dir"
- chroot_package_install openvpn
+  chroot_package_install openvpn
   mkdir -p ${_CHROOT_DIR}/etc/openvpn
 
   echo_debug "Unzipping provided files into configuration dir"
