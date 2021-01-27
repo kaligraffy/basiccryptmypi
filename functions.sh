@@ -41,7 +41,7 @@ cleanup(){
   tidy_umount "${_BUILD_DIR}/mount" || true
   tidy_umount "${_BUILD_DIR}/boot" || true
 
-  disk_chroot_teardown || true 
+  chroot_teardown || true 
   tidy_umount "${_BLOCK_DEVICE_BOOT}" || true 
   tidy_umount "${_BLOCK_DEVICE_ROOT}" || true 
   tidy_umount "${_CHROOT_DIR}" || true 
@@ -389,7 +389,7 @@ make_filesystem(){
     "vfat") mkfs.vfat $device; echo_debug "created vfat partition on $device";;
     "ext4") mkfs.ext4 $device; echo_debug "created ext4 partition on $device";;
     "btrfs")
-            apt-get -qq install btrfs-progs
+            eatmydata apt-get -qq install btrfs-progs
             mkfs.btrfs -f -L btrfs $device; echo_debug "created btrfs partition on $device"
             ;;
             
@@ -456,7 +456,7 @@ mount_chroot(){
 
 ####CHROOT FUNCTIONS####
 #mount dev,sys,proc in chroot so they are available for apt 
-disk_chroot_setup(){
+chroot_setup(){
   local chroot_dir="${_CHROOT_DIR}"
   echo_info "$FUNCNAME";
  
@@ -477,7 +477,7 @@ disk_chroot_setup(){
 }
 
 #unmount dev,sys,proc in chroot
-disk_chroot_teardown(){
+chroot_teardown(){
   echo_info "$FUNCNAME";
   local chroot_dir="${_CHROOT_DIR}"
 
@@ -490,7 +490,7 @@ disk_chroot_teardown(){
 }
 
 #run apt update
-disk_chroot_update_apt_setup(){
+chroot_apt_setup(){
   #Force https on initial use of apt for the main kali repo
   echo_info "$FUNCNAME";
   local chroot_root="${_CHROOT_DIR}"
@@ -503,8 +503,8 @@ disk_chroot_update_apt_setup(){
   fi
 
   echo_debug "Updating apt-get";
-  chroot_execute apt-get -qq update;
-  
+  chroot_execute eatmydata apt-get -qq update;
+
   #Corrupt package install fix code
   if [[ $(chroot_execute apt --fix-broken -qq -y install ; echo $?) != 0 ]]; then
     if [[ $(chroot_execute dpkg --configure -a ; echo $?) != 0 ]]; then
@@ -514,6 +514,13 @@ disk_chroot_update_apt_setup(){
   fi
 }
 
+#must run before ANY apt calls
+#speeds up apt
+chroot_install_eatmydata(){
+  echo_info "$FUNCNAME";
+  chroot_execute apt-get -qq install eatmydata
+}
+
 #installs packages from build
 #arguments: a list of packages
 chroot_package_install(){
@@ -521,7 +528,7 @@ chroot_package_install(){
   for package in $PACKAGES
   do
     echo_info "installing $package";
-    chroot_execute apt-get -qq -y install $package 
+    chroot_execute eatmydata apt-get -qq -y install $package 
   done
 }
 
@@ -532,9 +539,9 @@ chroot_package_purge(){
   for package in $PACKAGES
   do
     echo_info "purging $package";
-    chroot_execute apt-get -qq -y purge $package 
+    chroot_execute eatmydata apt-get -qq -y purge $package 
   done
-  chroot_execute apt-get -qq -y autoremove
+  chroot_execute eatmydata apt-get -qq -y autoremove
 } 
 
 #run a command in chroot
@@ -547,7 +554,7 @@ chroot_execute(){
   fi
 }
 
-disk_chroot_mkinitramfs_setup(){
+chroot_mkinitramfs_setup(){
   local chroot_dir="${_CHROOT_DIR}"
   echo_info "$FUNCNAME";
   

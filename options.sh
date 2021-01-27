@@ -311,8 +311,8 @@ fake_hwclock_setup(){
 #update system
 apt_upgrade(){
   echo_info "$FUNCNAME";
-  chroot_execute apt -qq -y update
-  chroot_execute apt -qq -y upgrade
+  chroot_execute eatmydata apt -qq -y update
+  chroot_execute eatmydata apt -qq -y upgrade
 }
 
 #install and configure docker
