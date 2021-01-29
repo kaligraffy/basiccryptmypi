@@ -1,9 +1,4 @@
 #!/bin/bash
-# shellcheck disable=SC2128
-# shellcheck disable=SC2034
-# shellcheck disable=SC2145
-# shellcheck disable=SC2086
-# shellcheck disable=SC2068
 set -eu
 
 #Global variables
@@ -35,16 +30,16 @@ declare _BLOCK_DEVICE_ROOT=""
 
 # Runs on script exit, tidies up the mounts.
 trap_on_exit(){
-  echo_info "$FUNCNAME";
+  echo_function_start;
   if (( $1 == 1 )); then 
     cleanup; 
   fi
-  echo_info "$(basename $0) finished";
+  echo_info "$(basename "$0") finished";
 }
 
 # Cleanup stage 2
 cleanup(){
-  echo_info "$FUNCNAME";
+  echo_function_start;
   tidy_umount "${_BUILD_DIR}/mount" || true
   tidy_umount "${_BUILD_DIR}/boot" || true
 
@@ -61,7 +56,7 @@ cleanup(){
 
 #auxiliary method for detaching loop_device in cleanup method 
 cleanup_loop_devices(){
-  echo_info "$FUNCNAME";
+  echo_function_start;
   loop_devices="$(losetup -a | cut -d':' -f 1 | tr '\n' ' ')";
   if [[ $(check_variable_is_set "$loop_devices") ]]; then
     for loop_device in $loop_devices; do
@@ -74,7 +69,7 @@ cleanup_loop_devices(){
 
 #checks if script was run with root
 check_run_as_root(){
-  echo_info "$FUNCNAME";
+  echo_function_start;
   if (( EUID != 0 )); then
     echo_error "This script must be run as root/sudo";
     exit 1;
@@ -83,7 +78,7 @@ check_run_as_root(){
 
 #installs packages on build pc
 install_dependencies() {
-  echo_info "$FUNCNAME";
+  echo_function_start;
 
   apt-get -qq -y install \
         binfmt-support \
@@ -100,13 +95,13 @@ install_dependencies() {
 }
 
 unmount(){
-  echo_info "$FUNCNAME";
+  echo_function_start;
   set_defaults > /dev/null; #output suppressed if just unmounting 
   cleanup;
 }
 
 mount_only(){
-  echo_info "$FUNCNAME";
+  echo_function_start;
   set_defaults > /dev/null; #output suppressed if just unmounting  ;
   #trap 'trap_on_exit 1' EXIT;
   if (( _IMAGE_MODE == 1 )); then 
@@ -115,7 +110,7 @@ mount_only(){
     fix_block_device_names;
     check_disk_is_correct;
   fi
-  echo "${_LUKS_PASSWORD}" | cryptsetup -v luksOpen ${_BLOCK_DEVICE_ROOT} ${_LUKS_MAPPING_NAME}
+  echo "${_LUKS_PASSWORD}" | cryptsetup -v luksOpen "${_BLOCK_DEVICE_ROOT}" "${_LUKS_MAPPING_NAME}"
   mount_chroot;
     
   #Probably don't want to call this if there is nothing in your filesystem so, check for an arbitrary folder that was copied over
@@ -125,14 +120,14 @@ mount_only(){
 }
 
 make_initramfs(){
-  echo_info "$FUNCNAME";
+  echo_function_start;
   trap 'trap_on_exit 1' EXIT;
   mount_only;
   chroot_mkinitramfs_setup;
 }
 
 build_no_extract(){
-  echo_info "$FUNCNAME";
+  echo_function_start;
   
   install_dependencies;
   set_defaults;
@@ -145,7 +140,7 @@ build_no_extract(){
     fix_block_device_names;
     check_disk_is_correct;
   fi 
-  echo "${_LUKS_PASSWORD}" | cryptsetup -v luksOpen ${_BLOCK_DEVICE_ROOT} ${_LUKS_MAPPING_NAME}
+  echo "${_LUKS_PASSWORD}" | cryptsetup -v luksOpen "${_BLOCK_DEVICE_ROOT}" "${_LUKS_MAPPING_NAME}"
   mount_chroot;
   chroot_all_setup;
   echo_dd_command;
@@ -153,7 +148,7 @@ build_no_extract(){
 
 #Program logic
 build(){
-  echo_info "$FUNCNAME";
+  echo_function_start;
 
   install_dependencies;
   set_defaults;
@@ -183,7 +178,7 @@ build(){
 #Fix for using mmcblk0pX devices, adds a p used later on
 fix_block_device_names(){
   # check device exists/folder exists
-  echo_info "$FUNCNAME";
+  echo_function_start;
   
   if ! check_variable_is_set "${_OUTPUT_BLOCK_DEVICE}"; then
     exit 1;
@@ -219,7 +214,7 @@ create_build_directory(){
 
 #extracts the image so it can be mounted
 extract_image() {
-  echo_info "$FUNCNAME";
+  echo_function_start;
 
   local image_name;
   local image_path;
@@ -248,11 +243,11 @@ extract_image() {
   case ${image_path} in
     *.xz)
         echo_info "extracting with xz";
-        pv ${image_path} | xz --decompress --stdout > "$extracted_image";
+        pv "${image_path}" | xz --decompress --stdout > "$extracted_image";
         ;;
     *.zip)
         echo_info "extracting with unzip";
-        unzip -p $image_path > "$extracted_image";
+        unzip -p "$image_path" > "$extracted_image";
         ;;
     *)
         echo_error "unknown extension type on image: $image_path";
@@ -265,12 +260,12 @@ extract_image() {
 
 #mounts the extracted image via losetup
 copy_image_on_loopback_to_disk(){
-  echo_info "$FUNCNAME";
+  echo_function_start;
   local extracted_image="${_EXTRACTED_IMAGE}";
   local loop_device;
   
   loop_device=$(losetup -P -f --read-only --show "$extracted_image");
-  partprobe ${loop_device};
+  partprobe "${loop_device}";
   check_directory_and_mount "${loop_device}p2" "${_BUILD_DIR}/mount";
   check_directory_and_mount "${loop_device}p1" "${_BUILD_DIR}/boot";
 
@@ -286,7 +281,7 @@ check_disk_is_correct(){
     exit 0
   fi
   
-  echo_info "$FUNCNAME";
+  echo_function_start;
   if (( _NO_PROMPTS == 0 )); then
     local prompt="Device is ${_OUTPUT_BLOCK_DEVICE} (y/N) "
     echo_info "$(lsblk)";
@@ -300,22 +295,22 @@ check_disk_is_correct(){
 
 #Download an image file to the file directory
 download_image(){
-  echo_info "$FUNCNAME";
+  echo_function_start;
 
   local image_name;
   local image_out_file;
 
-  image_name=$(basename ${_IMAGE_URL});
-  image_out_file=${_FILE_DIR}/${image_name}
+  image_name=$(basename "${_IMAGE_URL}");
+  image_out_file="${_FILE_DIR}/${image_name}"
   
   wget -nc "${_IMAGE_URL}" -O "${image_out_file}" || true
-  if [ -z ${_IMAGE_SHA256} ]; then
+  if [ -z "${_IMAGE_SHA256}" ]; then
     echo_info "skip checksumming image";
     return 0
   fi
   echo_info "checksumming image";
   
-  if ! echo ${_IMAGE_SHA256}  $image_out_file | sha256sum --check --status; then
+  if ! echo "${_IMAGE_SHA256}"  "$image_out_file" | sha256sum --check --status; then
     echo_error "invalid checksum";
     exit 1;
   fi
@@ -324,7 +319,7 @@ download_image(){
 
 #sets the locale (e.g. en_US, en_UK)
 locale_setup(){
-  echo_info "$FUNCNAME";
+  echo_function_start;
   
   chroot_package_install locales
   
@@ -347,19 +342,20 @@ EOT
 
 #sets up encryption settings in chroot
 encryption_setup(){
-  echo_info "$FUNCNAME";
+  echo_function_start;
   
   chroot_package_install cryptsetup busybox
 
   # Creating symbolic link to e2fsck
-  chroot ${_CHROOT_DIR} /bin/bash -c "test -L /sbin/fsck.luks || ln -s /sbin/e2fsck /sbin/fsck.luks"
+  #TODO This may not be needed
+  chroot "${_CHROOT_DIR}" /bin/bash -c "test -L /sbin/fsck.luks || ln -s /sbin/e2fsck /sbin/fsck.luks"
 
   # Indicate kernel to use initramfs - facilitates loading drivers
   atomic_append 'initramfs initramfs.gz followkernel' "${_CHROOT_DIR}/boot/config.txt";
   
   # Update /boot/cmdline.txt to boot crypt
-  sed -i "s|root=/dev/mmcblk0p2|root=${_ENCRYPTED_VOLUME_PATH} cryptdevice=/dev/mmcblk0p2:${_LUKS_MAPPING_NAME}|g" ${_CHROOT_DIR}/boot/cmdline.txt
-  sed -i "s|rootfstype=ext3|rootfstype=${fs_type}|g" ${_CHROOT_DIR}/boot/cmdline.txt
+  sed -i "s|root=/dev/mmcblk0p2|root=${_ENCRYPTED_VOLUME_PATH} cryptdevice=/dev/mmcblk0p2:${_LUKS_MAPPING_NAME}|g" "${_CHROOT_DIR}/boot/cmdline.txt"
+  sed -i "s|rootfstype=ext3|rootfstype=${fs_type}|g" "${_CHROOT_DIR}/boot/cmdline.txt"
   
 
   # Enable cryptsetup when building initramfs
@@ -368,7 +364,7 @@ encryption_setup(){
   # Setup /etc/fstab
     case $fs_type in
     "btrfs")   
-cat << EOF > ${_CHROOT_DIR}/etc/fstab
+cat << EOF > "${_CHROOT_DIR}/etc/fstab"
 # <file system> <mount point>   <type>  <options>       <dump>  <pass>
 proc            /proc           proc    defaults          0       0
 /dev/mmcblk0p1  /boot           vfat    defaults          0       2
@@ -379,7 +375,7 @@ ${_ENCRYPTED_VOLUME_PATH}  /home        $fs_type    defaults,noatime,subvol=@/ho
 EOF
     ;;
     "ext4") 
-cat << EOF > ${_CHROOT_DIR}/etc/fstab
+cat << EOF > "${_CHROOT_DIR}/etc/fstab"
 # <file system> <mount point>   <type>  <options>       <dump>  <pass>
 proc            /proc           proc    defaults          0       0
 /dev/mmcblk0p1  /boot           vfat    defaults          0       2
@@ -391,7 +387,7 @@ EOF
   esac
 
   #Setup crypttab
-  cat << EOF > ${_CHROOT_DIR}/etc/crypttab
+  cat << EOF > "${_CHROOT_DIR}/etc/crypttab"
 #<target name> <source device>         <key file>      <options>
 $(basename ${_ENCRYPTED_VOLUME_PATH})    /dev/mmcblk0p2    none    luks
 EOF
@@ -409,30 +405,30 @@ EOF
 
 # Encrypt & Write SD
 partition_disk(){  
-  echo_info "$FUNCNAME";
+  echo_function_start;
   parted_disk_setup "${_OUTPUT_BLOCK_DEVICE}" 
 }
 
 #makes an image file 1.25 * the size of the extracted image, then partitions the disk
 partition_image_file(){
-  echo_info "$FUNCNAME";
+  echo_function_start;
   local image_file=${_IMAGE_FILE};
   local extracted_image_file_size;
   local image_file_size;
   extracted_image_file_size="$(du -k "${_EXTRACTED_IMAGE}" | cut -f1)"
   image_file_size="$(echo "$extracted_image_file_size * 1.25" | bc | cut -d'.' -f1)"; 
-  touch $image_file;
+  touch "$image_file";
   fallocate -l "${image_file_size}KiB" "${image_file}"
   parted_disk_setup "${image_file}" 
 }
 
 
 loopback_image_file(){
-  echo_info "$FUNCNAME";
+  echo_function_start;
   local image_file=${_IMAGE_FILE};
   local loop_device;
   loop_device=$(losetup -P -f --show "${image_file}");
-  partprobe ${loop_device};
+  partprobe "${loop_device}";
   
   _BLOCK_DEVICE_BOOT="${loop_device}p1" 
   _BLOCK_DEVICE_ROOT="${loop_device}p2"
@@ -440,12 +436,12 @@ loopback_image_file(){
 
 #makes a luks container and formats the disk/image
 format_filesystem(){
-  echo_info "$FUNCNAME";
+  echo_function_start;
 
   # Create LUKS
   echo_debug "Attempting to create LUKS ${_BLOCK_DEVICE_ROOT} "
-  echo "${_LUKS_PASSWORD}" | cryptsetup -v ${_LUKS_CONFIGURATION} luksFormat ${_BLOCK_DEVICE_ROOT}
-  echo "${_LUKS_PASSWORD}" | cryptsetup -v luksOpen ${_BLOCK_DEVICE_ROOT} ${_LUKS_MAPPING_NAME}
+  echo "${_LUKS_PASSWORD}" | cryptsetup -v "${_LUKS_CONFIGURATION}" luksFormat "${_BLOCK_DEVICE_ROOT}"
+  echo "${_LUKS_PASSWORD}" | cryptsetup -v luksOpen "${_BLOCK_DEVICE_ROOT}" "${_LUKS_MAPPING_NAME}"
 
   make_filesystem "vfat" "${_BLOCK_DEVICE_BOOT}"
   make_filesystem "${_FILESYSTEM_TYPE}" "${_ENCRYPTED_VOLUME_PATH}"
@@ -477,31 +473,32 @@ filesystem_setup(){
 #formats the disk or image
 parted_disk_setup()
 {
-  echo_info "$FUNCNAME";
-  parted $1 --script -- mklabel msdos
-  parted $1 --script -- mkpart primary fat32 1MiB 256MiB
-  parted -a minimal $1 --script -- mkpart primary 256MiB 100%
+  echo_function_start;
+  parted "$1" --script -- mklabel msdos
+  parted "$1" --script -- mkpart primary fat32 1MiB 256MiB
+  parted -a minimal "$1" --script -- mkpart primary 256MiB 100%
   sync;
 }
 
 #calls mkfs for a given filesystem
 # arguments: a filesystem type, e.g. btrfs, ext4 and a device
 make_filesystem(){
-  echo_info "$FUNCNAME";
+  echo_function_start;
   local fs_type=$1
   local device=$2
   case $fs_type in
     "vfat") 
-            mkfs.vfat -n BOOT -F 32 -v $device; 
+            mkfs.vfat -n BOOT -F 32 -v "$device"; 
             echo_debug "created vfat partition on $device"
             ;;
     "ext4") 
             features="-O ^64bit,^metadata_csum"
-            mkfs.ext4 $features -L ROOTFS $device; 
+            mkfs.ext4 "$features" -L ROOTFS "$device"; 
             echo_debug "created ext4 partition on $device"
             ;;
     "btrfs")
-            mkfs.btrfs -f -L ROOTFS $device; echo_debug "created btrfs partition on $device"
+            mkfs.btrfs -f -L ROOTFS "$device"; 
+            echo_debug "created btrfs partition on $device"
             ;;
     *) 
             exit 1
@@ -510,7 +507,7 @@ make_filesystem(){
 }
 #gets from local filesystem or generates a ssh key and puts it on the build 
 create_ssh_key(){
-  echo_info "$FUNCNAME";
+  echo_function_start;
   local id_rsa="${_FILE_DIR}/id_rsa";
   
   if [ ! -f "${id_rsa}" ]; then 
@@ -528,10 +525,10 @@ create_ssh_key(){
 
 #puts the sshkey into your files directory for safe keeping
 backup_dropbear_key(){
-  echo_info "$FUNCNAME";
+  echo_function_start;
   local temporary_keypath="${1}";
   local temporary_keyname;
-  temporary_keyname="${_FILE_DIR}/$(basename ${temporary_keypath})";
+  temporary_keyname="${_FILE_DIR}/$(basename "${temporary_keypath}")";
 
   #if theres a key in your files directory copy it into your chroot directory
   # if there isn't, copy it from your chroot directory into your files directory
@@ -546,10 +543,10 @@ backup_dropbear_key(){
 #rsync for local copy
 #arguments $1 - to $2 - from
 rsync_local(){
-  echo_info "$FUNCNAME";
-  echo_info "starting copy of ${@}";
+  echo_function_start;
+  echo_info "starting copy of ${*}";
   if rsync --hard-links --no-i-r --archive --partial --info=progress2 "${@}"; then
-    echo_info "finished copy of ${@}";
+    echo_info "finished copy of ${*}";
     sync;
   else
     echo_error 'rsync has failed';
@@ -558,13 +555,13 @@ rsync_local(){
 }
 
 arm_setup(){
-  echo_info "$FUNCNAME";
-  cp /usr/bin/qemu-aarch64-static ${_CHROOT_DIR}/usr/bin/
+  echo_function_start;
+  cp /usr/bin/qemu-aarch64-static "${_CHROOT_DIR}/usr/bin/"
 }
 
 #Opens the crypt and mounts it
 mount_chroot(){
-  echo_info "$FUNCNAME";
+  echo_function_start;
   check_directory_and_mount "${_ENCRYPTED_VOLUME_PATH}" "${_CHROOT_DIR}"
   check_directory_and_mount "${_BLOCK_DEVICE_BOOT}" "${_CHROOT_DIR}/boot"
 }
@@ -573,7 +570,7 @@ mount_chroot(){
 #mount dev,sys,proc in chroot so they are available for apt 
 chroot_setup(){
   local chroot_dir="${_CHROOT_DIR}"
-  echo_info "$FUNCNAME";
+  echo_function_start;
  
   sync
   # mount binds
@@ -593,7 +590,7 @@ chroot_setup(){
 
 #unmount dev,sys,proc in chroot
 chroot_teardown(){
-  echo_info "$FUNCNAME";
+  echo_function_start;
   local chroot_dir="${_CHROOT_DIR}"
 
   echo_debug "unmounting binds"
@@ -607,9 +604,9 @@ chroot_teardown(){
 #run apt update
 chroot_apt_setup(){
   #Force https on initial use of apt for the main kali repo
-  echo_info "$FUNCNAME";
+  echo_function_start;
   local chroot_root="${_CHROOT_DIR}"
-  sed -i 's|http:|https:|g' ${chroot_root}/etc/apt/sources.list;
+  sed -i 's|http:|https:|g' "${chroot_root}/etc/apt/sources.list";
 
   if [ ! -f "${chroot_root}/etc/resolv.conf" ]; then
       echo_warn "${chroot_root}/etc/resolv.conf does not exist";
@@ -618,10 +615,10 @@ chroot_apt_setup(){
   fi
 
   echo_debug "Updating apt-get";
-  chroot_execute $_APT_CMD update;
+  chroot_execute "$_APT_CMD" update;
 
   #Corrupt package install fix code
-  if [[ $(chroot_execute $_APT_CMD --fix-broken install ; echo $?) != 0 ]]; then
+  if [[ $(chroot_execute "$_APT_CMD" --fix-broken install ; echo $?) != 0 ]]; then
     if [[ $(chroot_execute dpkg --configure -a ; echo $?) != 0 ]]; then
         echo_error "apt corrupted, manual intervention required";
         exit 1;
@@ -632,7 +629,7 @@ chroot_apt_setup(){
 #must run before ANY apt calls
 #speeds up apt
 chroot_install_eatmydata(){
-  echo_info "$FUNCNAME";
+  echo_function_start;
   chroot_execute apt-get -qq -y install eatmydata
 }
 
@@ -640,10 +637,10 @@ chroot_install_eatmydata(){
 #arguments: a list of packages
 chroot_package_install(){
   local packages=("$@")
-  for package in $packages
+  for package in "${packages[@]}"
   do
     echo_info "installing $package";
-    chroot_execute $_APT_CMD install $package 
+    chroot_execute "$_APT_CMD" install "${package}" 
   done
 }
 
@@ -651,18 +648,18 @@ chroot_package_install(){
 #arguments: a list of packages
 chroot_package_purge(){
   local packages=("$@")
-  for package in $packages
+  for package in "${packages[@]}"
   do
     echo_info "purging $package";
-    chroot_execute $_APT_CMD purge $package 
+    chroot_execute "$_APT_CMD" purge "${package}"
   done
-  chroot_execute $_APT_CMD autoremove
+  chroot_execute "$_APT_CMD" autoremove
 } 
 
 #run a command in chroot
 chroot_execute(){
   local chroot_dir="${_CHROOT_DIR}";
-  chroot ${chroot_dir} "$@" | tee -a $_LOG_FILE;
+  chroot "${chroot_dir}" "$@" | tee -a "$_LOG_FILE";
   if [[ "${PIPESTATUS[0]}" -ne 0 ]]; then
     echo_error "command in chroot failed"
     exit 1;
@@ -671,17 +668,17 @@ chroot_execute(){
 
 #generates the initramfs.gz file in /boot
 chroot_mkinitramfs_setup(){
-  echo_info "$FUNCNAME";
+  echo_function_start;
   local modules_dir="${_CHROOT_DIR}/lib/modules/";
   local kernel_version;
   chroot_execute mount -o remount,rw /boot || true
   
-  kernel_version=$(find ${modules_dir} -maxdepth 1 -regex ".*${_KERNEL_VERSION_FILTER}.*" | tail -n 1 | xargs basename);
+  kernel_version=$(find "${modules_dir}" -maxdepth 1 -regex ".*${_KERNEL_VERSION_FILTER}.*" | tail -n 1 | xargs basename);
   echo_debug "kernel is '${kernel_version}'";
   
   echo_debug "running update-initramfs, mkinitramfs"
   chroot_execute update-initramfs -u -k all
-  chroot_execute mkinitramfs -o /boot/initramfs.gz -v ${kernel_version}
+  chroot_execute mkinitramfs -o /boot/initramfs.gz -v "${kernel_version}"
 }
 
 #wrapper script for all the setup functions called in build
@@ -698,15 +695,21 @@ chroot_all_setup(){
 }
 
 ####PRINT FUNCTIONS####
-echo_error(){ echo -e "${_COLOR_ERROR}$(date '+%H:%M:%S'): ERROR: $*${_COLOR_NORMAL}" | tee -a ${_LOG_FILE};}
-echo_warn(){ echo -e "${_COLOR_WARN}$(date '+%H:%M:%S'): WARNING: $@${_COLOR_NORMAL}" | tee -a ${_LOG_FILE};}
-echo_info(){ echo -e "${_COLOR_INFO}$(date '+%H:%M:%S'): INFO: $@${_COLOR_NORMAL}" | tee -a ${_LOG_FILE};}
+echo_error(){ 
+  echo -e "${_COLOR_ERROR}$(date '+%H:%M:%S'): ERROR: ${*}${_COLOR_NORMAL}" | tee -a "${_LOG_FILE}";
+}
+echo_warn(){ 
+  echo -e "${_COLOR_WARN}$(date '+%H:%M:%S'): WARNING: ${*}${_COLOR_NORMAL}" | tee -a "${_LOG_FILE}";
+}
+echo_info(){ 
+  echo -e "${_COLOR_INFO}$(date '+%H:%M:%S'): INFO: ${*}${_COLOR_NORMAL}" | tee -a "${_LOG_FILE}";
+}
 echo_debug(){
-  if [ $_LOG_LEVEL -lt 1 ]; then
-    echo -e "${_COLOR_DEBUG}$(date '+%H:%M:%S'): DEBUG: $@${_COLOR_NORMAL}";
+  if [ "$_LOG_LEVEL" -lt 1 ]; then
+    echo -e "${_COLOR_DEBUG}$(date '+%H:%M:%S'): DEBUG: ${*}${_COLOR_NORMAL}";
   fi
   #even if output is suppressed by log level output it to the log file
-  echo "$(date '+%H:%M:%S'): $@" >> "${_LOG_FILE}";
+  echo "$(date '+%H:%M:%S'): ${*}" >> "${_LOG_FILE}";
 }
 
 #tells you the command to copy the image to disk.
@@ -715,6 +718,10 @@ echo_dd_command(){
   if (( _IMAGE_MODE == 1 )); then
     echo_info "To burn your disk run: dd if=${_IMAGE_FILE} of=${_OUTPUT_BLOCK_DEVICE} bs=8M status=progress && sync";
   fi
+}
+
+echo_function_start(){
+  echo_info "${FUNCNAME[1]}";
 }
 
 #appends config to a file after checking if it's already in the file
@@ -740,7 +747,7 @@ check_variable_is_set(){
 #mounts a bind, exits on failure
 check_mount_bind(){
   # mount a bind
-  if ! mount -o bind $1 $2 ; then
+  if ! mount -o bind "$1" "$2" ; then
     echo_error "failure mounting $2";
     exit 1;
   fi
@@ -754,7 +761,7 @@ check_directory_and_mount(){
     echo_debug "created $2";
   fi
   
-  if ! mount $1 $2 ; then
+  if ! mount "$1" "$2" ; then
     echo_error "failure mounting $1 to $2";
     exit 1;
   fi
@@ -763,7 +770,7 @@ check_directory_and_mount(){
 
 #unmounts and tidies up the folder
 tidy_umount(){
-  if umount -q -R $1; then
+  if umount -q -R "$1"; then
     echo_info "umounted $1";
     
     if [[ -b $1 ]]; then echo_debug "block device, return"; return 0; fi
@@ -774,7 +781,7 @@ tidy_umount(){
     if grep -q '/tmp'  <<< "$1" ; then echo_debug "bind for chroot, return"; return 0; fi
     if grep -q '/run'  <<< "$1" ; then echo_debug "bind for chroot, return"; return 0; fi
     
-    if [[ -d $1 ]]; then echo_debug "some directory, if empty delete it"; rmdir $1 || true; fi
+    if [[ -d "$1" ]]; then echo_debug "some directory, if empty delete it"; rmdir "$1" || true; fi
     return 0    
   fi
   
@@ -786,16 +793,16 @@ tidy_umount(){
 #checks if each function in options.sh has a requires comment
 #of the form '#requires: ???_setup , optional: ???_setup' 
 options_check(){
-  echo_info "$FUNCNAME";
+  echo_function_start;
   #get list of functions specified in optional_setup:
   functions_in_optional_setup=$(sed -n '/optional_setup(){/,/}/p' env.sh | sed '/optional_setup(){/d' | sed '/}/d' | sed 's/^[ \t]*//g' | sed '/^#/d' | cut -d';' -f1 | tr '\n' ' ')
   echo_debug "$functions_in_optional_setup";
   for function in $functions_in_optional_setup; do
     line_above_function_declaration=$(grep -B 1 "^${function}()" options.sh | grep -v "${function}()")    
     
-    if grep -q '^#requires:' <<< $line_above_function_declaration; then 
-      list_of_prerequisites=$(echo $line_above_function_declaration | cut -d':' -f2 | sed 's/^[ \t]*//g' | cut -d',' -f1)
-      if [[ -n $list_of_prerequisites ]]; then 
+    if grep -q '^#requires:' <<< "$line_above_function_declaration"; then 
+      list_of_prerequisites=$(echo "$line_above_function_declaration" | cut -d':' -f2 | sed 's/^[ \t]*//g' | cut -d',' -f1)
+      if [[ -n "$list_of_prerequisites" ]]; then 
         echo_debug "$function - requires: $list_of_prerequisites" 
       fi
       for prerequisite in $list_of_prerequisites; do 
@@ -806,8 +813,8 @@ options_check(){
           exit 1;
         fi
         int_position_of_function=$(get_position_in_array "$functions_in_optional_setup" "$function")
-        echo_debug $int_position_of_prereq
-        echo_debug $int_position_of_function
+        echo_debug "$int_position_of_prereq"
+        echo_debug "$int_position_of_function"
         if (( int_position_of_prereq > int_position_of_function )); then
           echo_error "$prerequisite is called after $function in optional_setup(), please amend function order"#
           exit 1;
@@ -815,9 +822,9 @@ options_check(){
       done
      fi
      
-     if grep -q 'optional:' <<< $line_above_function_declaration; then 
-       list_of_optional_prerequisites=$(echo $line_above_function_declaration | cut -d':' -f3 | sed 's/^[ \t]*//g')
-       if [[ -n $list_of_optional_prerequisites ]]; then 
+     if grep -q 'optional:' <<< "$line_above_function_declaration"; then 
+       list_of_optional_prerequisites=$(echo "$line_above_function_declaration" | cut -d':' -f3 | sed 's/^[ \t]*//g')
+       if [[ -n "$list_of_optional_prerequisites" ]]; then 
          echo_debug "$function - optionally requires: $list_of_optional_prerequisites"
        fi
        for prerequisite in $list_of_optional_prerequisites; do 
@@ -827,8 +834,8 @@ options_check(){
             echo_warn "optional $prerequisite for $function is missing";
           fi
           int_position_of_function=$(get_position_in_array "$functions_in_optional_setup" "$function")
-          echo_debug $int_position_of_prereq
-          echo_debug $int_position_of_function
+          echo_debug "$int_position_of_prereq"
+          echo_debug "$int_position_of_function"
           if (( int_position_of_prereq > int_position_of_function )); then
             echo_error "$prerequisite is called after $function in optional_setup(), please amend function order"
             exit 1;
@@ -853,7 +860,7 @@ get_position_in_array(){
 
 # method default parameter settings, if a variable is "" or unset, sets it to a reasonable default 
 set_defaults(){
-  echo_info "$FUNCNAME";
+  echo_function_start;
   set +eu
   set_default "_NO_PROMPTS" "0"  
   set_default "_LOG_LEVEL" "1"
@@ -964,7 +971,7 @@ set_defaults(){
   set -eu
 
   #echo out settings for this run
-  set | grep '^_' > ${_LOG_FILE}
+  set | grep '^_' > "${_LOG_FILE}"
 }
 
 #sets a given variable_name $1 to a default value $2
@@ -984,7 +991,7 @@ set_default(){
        exit 1;
      fi
      echo_warn "${var_name} set to default value '${default_value}'";
-     export ${var_name}="${default_value}";
+     export "${var_name}"="${default_value}";
    fi
 }
 
@@ -992,26 +999,26 @@ set_default(){
 function_exists() {
     functions_in_optional_setup=$(sed -n '/optional_setup(){/,/}/p' env.sh | sed '/optional_setup(){/d' | sed '/}/d' | sed 's/^[ \t]*//g' | sed '/^#/d' | cut -d';' -f1 | tr '\n' ' ')
     
-    grep -q "$1" <<< $functions_in_optional_setup > /dev/null
+    grep -q "$1" <<< "$functions_in_optional_setup" > /dev/null
     return $?
 }
 
 btrfs_setup(){
   local chroot_dir="${_CHROOT_DIR}"
-  local fs_type=${_FILESYSTEM_TYPE};
+  local fs_type="${_FILESYSTEM_TYPE}";
   
   case $fs_type in
     "btrfs")
-        btrfs subvolume create ${_CHROOT_DIR}/@  
-        btrfs subvolume create ${_CHROOT_DIR}/@/root
-        btrfs subvolume create ${_CHROOT_DIR}/@/.snapshots
-        btrfs subvolume create ${_CHROOT_DIR}/@/var_log
-        btrfs subvolume create ${_CHROOT_DIR}/@/home
-        btrfs subvolume set-default ${_CHROOT_DIR}/@/root
+        btrfs subvolume create "${_CHROOT_DIR}/@"  
+        btrfs subvolume create "${_CHROOT_DIR}/@/root"
+        btrfs subvolume create "${_CHROOT_DIR}/@/.snapshots"
+        btrfs subvolume create "${_CHROOT_DIR}/@/var_log"
+        btrfs subvolume create "${_CHROOT_DIR}/@/home"
+        btrfs subvolume set-default "${_CHROOT_DIR}/@/root"
         
         echo "remounting into new root subvol"
-        umount ${_CHROOT_DIR}/boot
-        umount ${_CHROOT_DIR};
+        umount "${_CHROOT_DIR}/boot"
+        umount "${_CHROOT_DIR}";
         mount_chroot
         ;;
     *) 
