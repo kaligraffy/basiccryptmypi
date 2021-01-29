@@ -24,13 +24,14 @@ initramfs_wifi_setup(){
 #    http://retinal.dehy.de/docs/doku.php?id=technotes:raspberryrootnfs
 #    use the 'fing' app to find the device if mdns isn't working
   echo_info "$FUNCNAME";
-  declare -xr _WIFI_PSK=$(wpa_passphrase "${_WIFI_SSID}" "${_WIFI_PASSWORD}" | grep "psk=" | grep -v "#psk" | sed 's/^[\t]*//g')
+  local wifi_psk;
+  wifi_psk="$(wpa_passphrase "${_WIFI_SSID}" "${_WIFI_PASSWORD}" | grep "psk=" | grep -v "#psk" | sed 's/^[\t]*//g')"
 
   #TODO reimplement defaults, use check to exit if or set default if not set
   echo_debug "Attempting to set initramfs WIFI up "
   
   # Update /boot/cmdline.txt to boot crypt
-  if [[ ! $(grep -q "${_INITRAMFS_WIFI_IP}" "${_CHROOT_DIR}/boot/cmdline.txt") ]]; then
+  if ! grep -wq "${_INITRAMFS_WIFI_IP}" "${_CHROOT_DIR}/boot/cmdline.txt" ; then
     sed -i "s#rootwait#ip=${_INITRAMFS_WIFI_IP} rootwait#g" ${_CHROOT_DIR}/boot/cmdline.txt
   fi
 
@@ -64,7 +65,8 @@ EOT
 #configure system on decrypt to connect to a hotspot specified in env file
 wifi_setup(){
   echo_info "$FUNCNAME";
-  declare -xr _WIFI_PSK=$(wpa_passphrase "${_WIFI_SSID}" "${_WIFI_PASSWORD}" | grep "psk=" | grep -v "#psk" | sed 's/^[\t]*//g')
+  local wifi_psk;
+  wifi_psk="$(wpa_passphrase "${_WIFI_SSID}" "${_WIFI_PASSWORD}" | grep "psk=" | grep -v "#psk" | sed 's/^[\t]*//g')"
   echo_debug "Creating wpa_supplicant file"
   cat <<- EOT > ${_CHROOT_DIR}/etc/wpa_supplicant.conf
 ctrl_interface=/var/run/wpa_supplicant
@@ -80,7 +82,7 @@ network={
 EOT
 
   echo_debug "Updating /etc/network/interfaces file"
-  if [[ ! $(grep -w "# The wifi interface" "${_CHROOT_DIR}/etc/network/interfaces") ]]; then
+  if ! grep -qw "# The wifi interface" "${_CHROOT_DIR}/etc/network/interfaces" ; then
     cat <<- EOT >> "${_CHROOT_DIR}/etc/network/interfaces"
 # The wifi interface
 auto ${_WIFI_INTERFACE}
@@ -118,7 +120,7 @@ ssh_setup(){
 
   # Update sshd settings
   cp -p "${sshd_config}" "${sshd_config}.bak"
-  if [[ ! $( grep -q -w "#New SSH Config" "${sshd_config}") ]]; then
+  if ! grep -q -w "#New SSH Config" "${sshd_config}"; then
   cat <<- EOT >> "${sshd_config}"
 #New SSH Config
 PasswordAuthentication $(echo $_SSH_PASSWORD_AUTHENTICATION)
@@ -130,7 +132,7 @@ PermitEmptyPasswords no
 PermitRootLogin yes
 Protocol 2
 ClientAliveInterval 180
-AllowUsers kali root
+AllowUsers $(echo ${_NEW_DEFAULT_USER}) root
 MaxAuthTries 3
 MaxSessions 2
 EOT
@@ -158,7 +160,7 @@ EOT
 #     - OpenSSH option: AllowGroups                             [ NOT FOUND ]
 #   
   #OPENS UP YOUR SSH PORT
-  if (( $_UFW_SETUP == 1 )) ; then
+  if (( _UFW_SETUP == 1 )) ; then
     chroot_execute ufw allow in ${_SSH_PORT}/tcp;
     chroot_execute ufw enable;
     chroot_execute ufw status verbose;
@@ -184,7 +186,7 @@ dropbear_setup(){
   
   # Now append our key to dropbear authorized_keys file
   echo_debug "checking ssh key for root@hostname. make sure any host key has this comment.";
-  if [[ ! $( grep -q -w "root@${_HOSTNAME}" "${_CHROOT_DIR}/etc/dropbear-initramfs/authorized_keys") ]]; then
+  if ! grep -qw "root@${_HOSTNAME}" "${_CHROOT_DIR}/etc/dropbear-initramfs/authorized_keys" ; then
     cat "${_SSH_LOCAL_KEYFILE}.pub" >> "${_CHROOT_DIR}/etc/dropbear-initramfs/authorized_keys";
   fi
   chmod 600 ${_CHROOT_DIR}/etc/dropbear-initramfs/authorized_keys;
@@ -311,8 +313,8 @@ fake_hwclock_setup(){
 #update system
 apt_upgrade(){
   echo_info "$FUNCNAME";
-  chroot_execute eatmydata apt -qq -y update
-  chroot_execute eatmydata apt -qq -y upgrade
+  chroot_execute $_APT_CMD update
+  chroot_execute $_APT_CMD upgrade
 }
 
 #install and configure docker
@@ -360,52 +362,11 @@ aide_setup(){
 
 #basic snapper install for use with btrfs, snapshots root directory in its entirety with default settings,
 #https://rootco.de/2018-01-19-opensuse-btrfs-subvolumes/
-#experimental
-#TODO btrfs filesystem, proper setup
-#mount root on subvol, with var/log and home also on different subvols
-#probably have to do this prior to the copy of the image in functions.sh (snapper_setup is broken, don't use it)
 snapper_setup(){
   echo_info "$FUNCNAME";
-  #https://rootco.de/2018-01-19-opensuse-btrfs-subvolumes/
-  chroot_package_install rsync
-
-  #create root subvolume
-  chroot_execute btrfs subvolume create /@
-  
-  #create snapshot subvolume
-  chroot_execute btrfs subvolume create /@/root
-  disk_chroot_teardown || true 
-  
-  chroot_execute rsync --hard-links --remove-source-files --exclude '/@' --archive --info=progress2 /* /@/root
-  chroot_execute rsync -av --exclude '/@' --delete `mktemp -d`/ / && rmdir source/
-  chroot_execute find / -maxdepth 1 ! -wholename '/@' -exec rm -rfv {} \;
-  sed -i "s|/               btrfs    defaults,noatime/|/               btrfs    defaults,noatime,subvol=@/root  0     1|" > "${_CHROOT_DIR}/etc/fstab"
-  
-  #create snapshot subvolume
-  chroot_execute btrfs subvolume create /@/.snapshots
-  chroot_execute mkdir /.snapshots
-  echo "/dev/mapper/${_ENCRYPTED_VOLUME_PATH}     /.snapshots             btrfs    defaults,noatime,subvol=@/.snapshots  0     1" > "${_CHROOT_DIR}/etc/fstab"
-
-  
-  #create a subvol for /var/log
-  chroot_execute subvolume create /@/var_log
-  chroot_execute rsync --hard-links --archive --info=progress2 /var/log/* /@/var_log
-  chroot_execute rm -rf /var/log/*
-  echo "/dev/mapper/${_ENCRYPTED_VOLUME_PATH}     /var/log             btrfs    defaults,noatime,subvol=@/var_log  0     1" > "${_CHROOT_DIR}/etc/fstab"
-  
-  #create a subvol for /home
-  chroot_execute subvolume create /@/home
-  chroot_execute rsync --hard-links --archive --info=progress2 /home/* /@/home
-  chroot_execute rm -rf /home/*
-  echo "/dev/mapper/${_ENCRYPTED_VOLUME_PATH}     /home             btrfs    defaults,noatime,subvol=@/home  0     1" > "${_CHROOT_DIR}/etc/fstab"
-  
-  disk_chroot_setup
   chroot_package_install snapper 
   chroot_execute systemctl disable snapper-boot.timer
   chroot_execute systemctl disable snapper-timeline.timer
-  chroot_execute snapper create-config /
-  #chroot_execute snapper create-config /
-  #chroot_execute snapper create-config /
   echo_warn "Snapper installed, but snapshotting services are disabled, enable via systemctl";
 }
 
@@ -424,11 +385,10 @@ ntpsec_setup(){
   chroot_execute chown ntpsec:ntpsec /var/log/ntpsec
   chroot_execute systemctl enable ntpsec.service
 
-  if (( $_UFW_SETUP == 1 )) ; then
+  if (( _UFW_SETUP == 1 )) ; then
     chroot_execute ufw allow out 123/tcp;
     chroot_execute ufw enable;
     chroot_execute ufw status verbose;
-
   fi
 }
 
@@ -457,13 +417,12 @@ vlc_setup(){
   chroot_package_install vlc
   
   #stuttery audio fix on rpi4
-  if [[ ! $( grep -w "load-module module-udev-detect tsched=0" "${_CHROOT_DIR}/etc/pulse/default.pa") ]]; then
+  if ! grep -qx "load-module module-udev-detect tsched=0" "${_CHROOT_DIR}/etc/pulse/default.pa" ; then
     sed -i "s|load-module module-udev-detect|load-module module-udev-detect tsched=0|" "${_CHROOT_DIR}/etc/pulse/default.pa"
   fi
   
-  #bump your gpu memory up too (should make video less bumpy
+  #bump your gpu memory up too (should make video less bumpy)
   atomic_append "gpu_mem=128" "${_CHROOT_DIR}/boot/config.txt";
-
 }
 
 #sysctl hardening (taken fron lynis audit)
@@ -508,13 +467,6 @@ sysctl_hardening_setup(){
   atomic_append "net.ipv6.conf.default.accept_source_route = 0" "${_CHROOT_DIR}/etc/sysctl.conf";
 }
 
-#make boot mount read only
-mount_boot_readonly_setup(){
-  echo_info "$FUNCNAME";
-  sed -i "s#/boot           vfat    defaults          0       2#/boot           vfat    defaults,noatime,ro,errors=remount-ro          0       2#" "${_CHROOT_DIR}/etc/fstab";
-  echo_warn "Remember to remount when running mkinitramfs!";
-} 
-
 #automatically log you in after unlocking your encrypted drive, without a password...somehow. GUI only.
 passwordless_login_setup(){
   echo_info "$FUNCNAME";
@@ -527,9 +479,7 @@ passwordless_login_setup(){
 default_shell_setup(){
   echo_info "$FUNCNAME";
   local main_user='kali'
-  sed -i "s#root:x:0:0:root:/root:/usr/bin/bash#root:x:0:0:root:/root:/usr/bin/$_SHELL#" "${_CHROOT_DIR}/etc/passwd";
-  sed -i "s#$main_user:x:1000:1000::/home/$main_user:/usr/bin/bash#$main_user:x:1000:1000::/home/kali:/usr/bin/$_SHELL#" "${_CHROOT_DIR}/etc/passwd";
-  sed -i "s#$main_user:x:1000:1000::/home/$main_user:/usr/bin/zsh#$main_user:x:1000:1000::/home/kali:/usr/bin/$_SHELL#" "${_CHROOT_DIR}/etc/passwd";
+  #TODO 
 }
 
 #enable bluetooth
@@ -602,7 +552,7 @@ EOT
   mv "${_CHROOT_DIR}/etc/resolv.conf" "${_CHROOT_DIR}/etc/resolv.conf.backup";
   chroot_execute ln -s "/etc/systemd/resolved.conf" "/etc/resolv.conf";
   echo_debug "DNS configured - remember to keep your clock up to date (date -s XX:XX) or DNSSEC Certificate errors may occur";
-  if (( $_UFW_SETUP == 1 )); then
+  if (( _UFW_SETUP == 1 )); then
     chroot_execute ufw allow out 853/tcp;
     chroot_execute ufw enable;
   fi
@@ -651,8 +601,8 @@ chkboot_setup()
 #Test this
 user_setup(){
   echo_info "$FUNCNAME";
-  local user=kali
-  chroot_execute deluser ${user}
+  local default_user='kali'
+  chroot_execute deluser ${default_user}
   chroot_execute adduser ${_NEW_DEFAULT_USER}
 }
 
@@ -664,11 +614,11 @@ vnc_setup(){
   chroot_package_install tightvncserver
   local vnc_user='vnc'; #new vnc user is better
   chroot_execute adduser $vnc_user
-  vnc_user_home=$(cat /etc/passwd | grep "$vnc_user" | cut -c":" -f6)
+  vnc_user_home=;
   #run and kill vnc server once to set up the directory structure
   chroot_execute echo "$VNC_PASSWORD" | vncpasswd -f > $vnc_user_home/.vnc/passwd
     
-  if (( $_UFW_SETUP == 1 )); then
+  if (( _UFW_SETUP == 1 )); then
     chroot_execute ufw allow in 5900/tcp;
     chroot_execute ufw allow in 5901/tcp;
     chroot_execute ufw enable;
@@ -697,11 +647,10 @@ ChrootDirectory /data/%u
 ForceCommand internal-sftp
 EOT
 
-  if (( $_UFW_SETUP == 1 )); then
+  if (( _UFW_SETUP == 1 )); then
     chroot_execute ufw allow in ${_SSH_PORT}/tcp;
     chroot_execute ufw enable;    
     chroot_execute ufw status verbose;
-
   fi
 }
 
@@ -725,9 +674,8 @@ avahi_setup(){
   cp -p "${_CHROOT_DIR}/etc/avahi/avahi-daemon.conf" "${_CHROOT_DIR}/etc/initramfs-tools/avahi-daemon.conf"
   sed -i "s|#enable-dbus=yes|enable-dbus=no|" "${_CHROOT_DIR}/etc/initramfs-tools/avahi-daemon.conf"
   
-
   #Firewall rules for mdns
-  if (( $_UFW_SETUP == 1 )); then
+  if (( _UFW_SETUP == 1 )); then
     chroot_execute ufw allow in 5353/udp;
     chroot_execute ufw enable;
     chroot_execute ufw status verbose;
@@ -768,5 +716,10 @@ miscellaneous_setup(){
   
   #disable splash on startup
   atomic_append "disable_splash=1" "${_CHROOT_DIR}/boot/config.txt"
+  
+  #set boot to be readonly
+  sed -i "s#/boot           vfat    defaults          0       2#/boot           vfat    defaults,noatime,ro,errors=remount-ro          0       2#" \
+  "${_CHROOT_DIR}/etc/fstab";
+
 }
 
