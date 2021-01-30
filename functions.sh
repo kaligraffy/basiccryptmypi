@@ -23,6 +23,7 @@ declare -xr _COLOR_NORMAL='\033[0m'; # No Color
 declare -xr _LOG_FILE="${_BASE_DIR}/build.log"
 declare -xr _IMAGE_FILE="${_BUILD_DIR}/image.img"
 declare -xr _APT_CMD="eatmydata apt-get -qq -y";
+declare -xr _START_TIME="$(date +%s)";
 
 declare _LOG_LEVEL="${_LOG_LEVEL:-1}";
 declare _BLOCK_DEVICE_BOOT=""
@@ -34,7 +35,9 @@ trap_on_exit(){
   if (( $1 == 1 )); then 
     cleanup; 
   fi
-  echo_info "$(basename "$0") finished";
+  local end_time;
+  end_time="$(($(date +%s)-$_START_TIME))"
+  echo_info "$(basename "$0") finished. Script took ${end_time} seconds";
 }
 
 # Cleanup stage 2
@@ -123,6 +126,14 @@ make_initramfs(){
   echo_function_start;
   trap 'trap_on_exit 1' EXIT;
   mount_only;
+  chroot_mkinitramfs_setup;
+}
+
+optional_only(){
+  echo_function_start;
+  trap 'trap_on_exit 1' EXIT;
+  mount_only;
+  optional_setup;
   chroot_mkinitramfs_setup;
 }
 
@@ -343,7 +354,8 @@ EOT
 #sets up encryption settings in chroot
 encryption_setup(){
   echo_function_start;
-  
+  local fs_type
+  fs_type=${_FILESYSTEM_TYPE};
   chroot_package_install cryptsetup busybox
 
   # Creating symbolic link to e2fsck
@@ -370,8 +382,8 @@ proc            /proc           proc    defaults          0       0
 /dev/mmcblk0p1  /boot           vfat    defaults          0       2
 ${_ENCRYPTED_VOLUME_PATH}  /            $fs_type    defaults,noatime,subvol=@/root  0  1
 ${_ENCRYPTED_VOLUME_PATH}  /.snapshots  $fs_type    defaults,noatime,subvol=@/.snapshots  0  1    
-${_ENCRYPTED_VOLUME_PATH}  /var/log     $fs_type    defaults,noatime,subvol=@/var_log  0  1    
-${_ENCRYPTED_VOLUME_PATH}  /home        $fs_type    defaults,noatime,subvol=@/home  0  1
+#${_ENCRYPTED_VOLUME_PATH}  /var/log     $fs_type    defaults,noatime,subvol=@/var_log  0  1    
+#${_ENCRYPTED_VOLUME_PATH}  /home        $fs_type    defaults,noatime,subvol=@/home  0  1
 EOF
     ;;
     "ext4") 
@@ -399,8 +411,8 @@ EOF
   atomic_append 'dm_crypt' "${_CHROOT_DIR}/etc/initramfs-tools/modules";
   
   # Disable autoresize
-  chroot_execute systemctl disable rpi-resizerootfs.service
-  chroot_execute systemctl disable rpiwiggle.service
+  chroot_execute 'systemctl disable rpi-resizerootfs.service'
+  chroot_execute 'systemctl disable rpiwiggle.service'
 }
 
 # Encrypt & Write SD
@@ -416,7 +428,7 @@ partition_image_file(){
   local extracted_image_file_size;
   local image_file_size;
   extracted_image_file_size="$(du -k "${_EXTRACTED_IMAGE}" | cut -f1)"
-  image_file_size="$(echo "$extracted_image_file_size * 1.25" | bc | cut -d'.' -f1)"; 
+  image_file_size="$(echo "$extracted_image_file_size * 1.5" | bc | cut -d'.' -f1)"; 
   touch "$image_file";
   fallocate -l "${image_file_size}KiB" "${image_file}"
   parted_disk_setup "${image_file}" 
@@ -440,7 +452,7 @@ format_filesystem(){
 
   # Create LUKS
   echo_debug "Attempting to create LUKS ${_BLOCK_DEVICE_ROOT} "
-  echo "${_LUKS_PASSWORD}" | cryptsetup -v "${_LUKS_CONFIGURATION}" luksFormat "${_BLOCK_DEVICE_ROOT}"
+  echo "${_LUKS_PASSWORD}" | cryptsetup -v ${_LUKS_CONFIGURATION} luksFormat "${_BLOCK_DEVICE_ROOT}"
   echo "${_LUKS_PASSWORD}" | cryptsetup -v luksOpen "${_BLOCK_DEVICE_ROOT}" "${_LUKS_MAPPING_NAME}"
 
   make_filesystem "vfat" "${_BLOCK_DEVICE_BOOT}"
@@ -615,11 +627,11 @@ chroot_apt_setup(){
   fi
 
   echo_debug "Updating apt-get";
-  chroot_execute "$_APT_CMD" update;
+  chroot_execute "$_APT_CMD update";
 
   #Corrupt package install fix code
-  if [[ $(chroot_execute "$_APT_CMD" --fix-broken install ; echo $?) != 0 ]]; then
-    if [[ $(chroot_execute dpkg --configure -a ; echo $?) != 0 ]]; then
+  if ! chroot_execute "$_APT_CMD --fix-broken install"; then
+    if ! chroot_execute 'dpkg --configure -a'; then
         echo_error "apt corrupted, manual intervention required";
         exit 1;
     fi
@@ -630,7 +642,8 @@ chroot_apt_setup(){
 #speeds up apt
 chroot_install_eatmydata(){
   echo_function_start;
-  chroot_execute apt-get -qq -y install eatmydata
+  chroot_execute 'apt-get -qq -y update'
+  chroot_execute 'apt-get -qq -y install eatmydata'
 }
 
 #installs packages from build
@@ -640,7 +653,7 @@ chroot_package_install(){
   for package in "${packages[@]}"
   do
     echo_info "installing $package";
-    chroot_execute "$_APT_CMD" install "${package}" 
+    chroot_execute "${_APT_CMD} install ${package}" 
   done
 }
 
@@ -651,15 +664,17 @@ chroot_package_purge(){
   for package in "${packages[@]}"
   do
     echo_info "purging $package";
-    chroot_execute "$_APT_CMD" purge "${package}"
+    chroot_execute "${_APT_CMD} purge ${package}"
   done
-  chroot_execute "$_APT_CMD" autoremove
+  chroot_execute "${_APT_CMD} autoremove"
 } 
 
 #run a command in chroot
 chroot_execute(){
   local chroot_dir="${_CHROOT_DIR}";
-  chroot "${chroot_dir}" "$@" | tee -a "$_LOG_FILE";
+  
+  echo_debug "Running: ${@}"
+  chroot ${chroot_dir} ${@} | tee -a "$_LOG_FILE";
   if [[ "${PIPESTATUS[0]}" -ne 0 ]]; then
     echo_error "command in chroot failed"
     exit 1;
@@ -671,14 +686,14 @@ chroot_mkinitramfs_setup(){
   echo_function_start;
   local modules_dir="${_CHROOT_DIR}/lib/modules/";
   local kernel_version;
-  chroot_execute mount -o remount,rw /boot || true
+  chroot_execute 'mount -o remount,rw /boot '
   
   kernel_version=$(find "${modules_dir}" -maxdepth 1 -regex ".*${_KERNEL_VERSION_FILTER}.*" | tail -n 1 | xargs basename);
   echo_debug "kernel is '${kernel_version}'";
   
   echo_debug "running update-initramfs, mkinitramfs"
-  chroot_execute update-initramfs -u -k all
-  chroot_execute mkinitramfs -o /boot/initramfs.gz -v "${kernel_version}"
+  chroot_execute 'update-initramfs -u -k all'
+  chroot_execute "mkinitramfs -o /boot/initramfs.gz -v ${kernel_version}"
 }
 
 #wrapper script for all the setup functions called in build
@@ -807,12 +822,12 @@ options_check(){
       fi
       for prerequisite in $list_of_prerequisites; do 
       #check the prerequisite occurs before the function in $functions_in_optional_setup
-        int_position_of_prereq=$(get_position_in_array "$functions_in_optional_setup" "$prerequisite")
+        int_position_of_prereq=$(get_position_in_array "$prerequisite" "$functions_in_optional_setup")
         if [[ -z "$int_position_of_prereq" ]]; then 
           echo_error "$prerequisite for $function is missing";
           exit 1;
         fi
-        int_position_of_function=$(get_position_in_array "$functions_in_optional_setup" "$function")
+        int_position_of_function=$(get_position_in_array "$function" "$functions_in_optional_setup")
         echo_debug "$int_position_of_prereq"
         echo_debug "$int_position_of_function"
         if (( int_position_of_prereq > int_position_of_function )); then
@@ -829,11 +844,11 @@ options_check(){
        fi
        for prerequisite in $list_of_optional_prerequisites; do 
           #check the prerequisite occurs before the function in $functions_in_optional_setup
-          int_position_of_prereq=$(get_position_in_array "$functions_in_optional_setup" "$prerequisite")
+          int_position_of_prereq=$(get_position_in_array "$prerequisite" "$functions_in_optional_setup")
           if [[ -z "$int_position_of_prereq" ]]; then 
             echo_warn "optional $prerequisite for $function is missing";
           fi
-          int_position_of_function=$(get_position_in_array "$functions_in_optional_setup" "$function")
+          int_position_of_function=$(get_position_in_array "$function" "$functions_in_optional_setup")
           echo_debug "$int_position_of_prereq"
           echo_debug "$int_position_of_function"
           if (( int_position_of_prereq > int_position_of_function )); then
@@ -848,8 +863,9 @@ options_check(){
 
 #returns an index of a value in an array
 get_position_in_array(){
-  my_array="($1)"
-  value="$2"
+  value="$1"
+  shift;
+  my_array=($@)
 
   for i in "${!my_array[@]}"; do
     if [[ "${my_array[$i]}" = "${value}" ]]; then
@@ -955,10 +971,6 @@ set_defaults(){
 
   if function_exists "passwordless_login_setup"; then
     set_default "_PASSWORDLESS_LOGIN_USER" "kali"
-  fi
-  
-  if function_exists "default_shell_setup"; then
-    set_default "_SHELL" "zsh"
   fi
   
   if function_exists "sftp_setup"; then

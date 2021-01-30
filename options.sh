@@ -22,7 +22,6 @@ initramfs_wifi_setup(){
   local wifi_psk;
   wifi_psk="$(wpa_passphrase "${_WIFI_SSID}" "${_WIFI_PASSWORD}" | grep "psk=" | grep -v "#psk" | sed 's/^[\t]*//g')"
 
-  #TODO reimplement defaults, use check to exit if or set default if not set
   echo_debug "Attempting to set initramfs WIFI up "
   
   # Update /boot/cmdline.txt to boot crypt
@@ -156,9 +155,9 @@ EOT
 #   
   #OPENS UP YOUR SSH PORT
   if (( _UFW_SETUP == 1 )) ; then
-    chroot_execute ufw allow in ${_SSH_PORT}/tcp;
-    chroot_execute ufw enable;
-    chroot_execute ufw status verbose;
+    chroot_execute "ufw allow in ${_SSH_PORT}/tcp";
+    chroot_execute 'ufw enable';
+    chroot_execute 'ufw status verbose';
   fi
 }
 
@@ -174,10 +173,10 @@ dropbear_setup(){
   # Installing packages
   chroot_package_install dropbear dropbear-initramfs cryptsetup-initramfs
 
-  #atomic_append "DROPBEAR_OPTIONS='-p $_SSH_PORT -RFEjk -c /bin/unlock.sh'" "${_CHROOT_DIR}/etc/dropbear-initramfs/config";
+  atomic_append "DROPBEAR_OPTIONS='-p $_SSH_PORT -RFEjk -c /bin/unlock.sh'" "${_CHROOT_DIR}/etc/dropbear-initramfs/config";
 
   #TEST test code - remove later
-  atomic_append "DROPBEAR_OPTIONS='-p $_SSH_PORT -RFEjk'" "${_CHROOT_DIR}/etc/dropbear-initramfs/config";
+  #atomic_append "DROPBEAR_OPTIONS='-p $_SSH_PORT -RFEjk'" "${_CHROOT_DIR}/etc/dropbear-initramfs/config";
   
   # Now append our key to dropbear authorized_keys file
   echo_debug "checking ssh key for root@hostname. make sure any host key has this comment.";
@@ -208,7 +207,7 @@ dropbear_setup(){
 #disable the gui 
 display_manager_setup(){
   echo_function_start;
-  chroot_execute systemctl set-default multi-user
+  chroot_execute 'systemctl set-default multi-user'
   echo_warn "To get a gui run startxfce4 on command line"
 }
 
@@ -219,12 +218,12 @@ luks_nuke_setup(){
   if [ -n "${_LUKS_NUKE_PASSWORD}" ]; then
     echo_debug "Attempting to install and configure encrypted pi cryptsetup nuke password."
     chroot_package_install cryptsetup-nuke-password
-    chroot ${_CHROOT_DIR} /bin/bash -c "debconf-set-selections <<- EOT
+    chroot "${_CHROOT_DIR}" /bin/bash -c "debconf-set-selections <<- EOT
 cryptsetup-nuke-password cryptsetup-nuke-password/password string ${_LUKS_NUKE_PASSWORD}
 cryptsetup-nuke-password cryptsetup-nuke-password/password-again string ${_LUKS_NUKE_PASSWORD}
 EOT
 "
-  chroot_execute dpkg-reconfigure -f noninteractive cryptsetup-nuke-password
+  chroot_execute 'dpkg-reconfigure -f noninteractive cryptsetup-nuke-password'
   else
       echo_warn "Nuke password _LUKS_NUKE_PASSWORD not set. Skipping."
   fi
@@ -236,7 +235,7 @@ cpu_governor_setup(){
   chroot_package_install cpufrequtils;
   echo_warn "Use cpufreq-info/systemctl status cpufrequtils to confirm the changes when the device is running";
   echo "GOVERNOR=${_CPU_GOVERNOR}" | tee "${_CHROOT_DIR}/etc/default/cpufrequtils";
-  chroot_execute systemctl enable cpufrequtils;
+  chroot_execute 'systemctl enable cpufrequtils';
 }
 
 #custom hostname setup
@@ -279,7 +278,7 @@ vpn_client_setup(){
   sed -i '/^#AUTOSTART="all"/s/^#//' "${_CHROOT_DIR}/etc/default/openvpn"
 
   echo_debug "Enabling service "
-  chroot_execute systemctl enable openvpn@client.service
+  chroot_execute 'systemctl enable openvpn@client.service'
 }
 
 
@@ -287,9 +286,9 @@ vpn_client_setup(){
 clamav_setup(){
   echo_function_start;
   chroot_package_install clamav clamav-daemon
-  chroot_execute systemctl enable clamav-freshclam.service
-  chroot_execute systemctl enable clamav-daemon.service
-  chroot_execute freshclam
+  chroot_execute 'systemctl enable clamav-freshclam.service'
+  chroot_execute 'systemctl enable clamav-daemon.service'
+  chroot_execute 'freshclam'
   echo_debug "clamav installed"
 }
 
@@ -299,17 +298,19 @@ fake_hwclock_setup(){
   chroot_package_install fake-hwclock
   # set clock even if saved value appears to be in the past
   # sed -i "s|^#FORCE=force|FORCE=force|"  "${_CHROOT_DIR}/etc/default/fake-hwclock"
-  chroot_execute systemctl enable fake-hwclock
-  NOW="$(date "+%Y-%m-%d %H:%M")" 
-  chroot_execute date --set "$NOW"                                                                                                                                                                                               
-  chroot_execute fake-hwclock save
+  chroot_execute 'systemctl enable fake-hwclock'
+  local now;
+  now="$(date "+%Y-%m-%d %H:%M")"
+  #TODO fix
+  #chroot_execute "date --set ${now}"                                                                                                                                                                                               
+  chroot_execute 'fake-hwclock save'
 }
 
 #update system
 apt_upgrade(){
   echo_function_start;
-  chroot_execute "$_APT_CMD" update
-  chroot_execute "$_APT_CMD" upgrade
+  chroot_execute "$_APT_CMD update"
+  chroot_execute "$_APT_CMD upgrade"
 }
 
 #install and configure docker
@@ -335,7 +336,7 @@ docker_setup(){
 #       keeping both for now
   sed -i "s#rootwait#cgroup_enable=memory cgroup_memory=1 rootwait#g" "${_CHROOT_DIR}/boot/cmdline.txt"
   chroot_package_install docker.io
-  chroot_execute systemctl enable docker
+  chroot_execute 'systemctl enable docker'
   echo_debug "docker installed";
 }
 
@@ -350,8 +351,8 @@ packages_setup(){
 aide_setup(){
   echo_function_start;
   chroot_package_install aide
-  chroot_execute aideinit
-  chroot_execute mv /var/lib/aide/aide.db.new /var/lib/aide/aide.db
+  chroot_execute 'aideinit'
+  chroot_execute 'mv /var/lib/aide/aide.db.new /var/lib/aide/aide.db'
   cp -p "${_FILE_DIR}/aide-scripts/aide-check" "${_CHROOT_DIR}/etc/cron.d/aide-check"
 }
 
@@ -359,8 +360,8 @@ aide_setup(){
 snapper_setup(){
   echo_function_start;
   chroot_package_install snapper 
-  chroot_execute systemctl disable snapper-boot.timer
-  chroot_execute systemctl disable snapper-timeline.timer
+  chroot_execute 'systemctl disable snapper-boot.timer'
+  chroot_execute 'systemctl disable snapper-timeline.timer'
   echo_warn "Snapper installed, but not configured, services are disabled, enable via systemctl";
 }
 
@@ -375,14 +376,14 @@ ntpsec_setup(){
   sed -i "s|^pool 2.debian.pool.ntp.org iburst|#pool 2.debian.pool.ntp.org iburst|" "${_CHROOT_DIR}/etc/ntpsec/ntp.conf"
   sed -i "s|^pool 3.debian.pool.ntp.org iburst|#pool 3.debian.pool.ntp.org iburst|" "${_CHROOT_DIR}/etc/ntpsec/ntp.conf"
   
-  chroot_execute mkdir -p /var/log/ntpsec
-  chroot_execute chown ntpsec:ntpsec /var/log/ntpsec
-  chroot_execute systemctl enable ntpsec.service
+  chroot_execute 'mkdir -p /var/log/ntpsec'
+  chroot_execute 'chown ntpsec:ntpsec /var/log/ntpsec'
+  chroot_execute 'systemctl enable ntpsec.service'
 
   if (( _UFW_SETUP == 1 )) ; then
-    chroot_execute ufw allow out 123/tcp;
-    chroot_execute ufw enable;
-    chroot_execute ufw status verbose;
+    chroot_execute 'ufw allow out 123/tcp';
+    chroot_execute 'ufw enable';
+    chroot_execute 'ufw status verbose';
   fi
 }
 
@@ -469,19 +470,11 @@ passwordless_login_setup(){
   sed -i "s|^#autologin-user-timeout=0|autologin-user-timeout=0|" "${_CHROOT_DIR}/etc/lightdm/lightdm.conf"
 }
 
-#set default shell to a shell of your choice
-default_shell_setup(){
-  echo_function_start;
-  local main_user='kali'
-  chroot_execute which "$_SHELL" | chsh "$main_user"                                                                 
-  chroot_execute which "$_SHELL" | chsh root                                                                 
-}
-
 #enable bluetooth
 bluetooth_setup(){
   echo_function_start;
   chroot_package_install bluez
-  chroot_execute systemctl enable bluetooth               
+  chroot_execute 'systemctl enable bluetooth'              
   #TODO setup some bluetooth devices you might have already
 }
 
@@ -493,7 +486,7 @@ apparmor_setup(){
   echo_warn "PACKAGES INSTALLED, NO KERNEL PARAMS CONFIGURED. PLEASE CONFIGURE MANUALLY";
   #add apparmor=1 etc to cmdline.txt
   #build kernel with apparmor options. WIP
-  chroot_execute systemctl enable apparmor.service
+  chroot_execute 'systemctl enable apparmor.service'
 
 }
 
@@ -501,7 +494,7 @@ apparmor_setup(){
 firejail_setup(){
   echo_function_start;
   chroot_package_install firejail firejail-profiles firetools
-  chroot_execute firecfg
+  chroot_execute 'firecfg'
   #TODO firejail configuration for hardened malloc, apparmor integration
 }
 
@@ -511,7 +504,7 @@ random_mac_on_reboot_setup(){
   echo_function_start;
   chroot_package_install macchanger 
   cp -p "${_FILE_DIR}/random-mac-scripts/macspoof" "${_CHROOT_DIR}/etc/systemd/system/macspoof@${_WIFI_INTERFACE}.service";
-  chroot_execute systemctl enable macspoof@${_WIFI_INTERFACE}
+  chroot_execute "systemctl enable macspoof@${_WIFI_INTERFACE}"
 }
 
 #configures two ipv4 ip addresses as your global dns
@@ -521,8 +514,8 @@ random_mac_on_reboot_setup(){
 #requires: , optional: firewall_setup
 dns_setup(){
   echo_function_start;
-  chroot_execute systemctl disable resolvconf || true                                                                                                            
-  chroot_execute systemctl enable systemd-resolved
+  chroot_execute 'systemctl disable resolvconf'                                                                                                           
+  chroot_execute 'systemctl enable systemd-resolved'
   sed -i "s|^#DNS=|DNS=${_DNS1}|" "${_CHROOT_DIR}/etc/systemd/resolved.conf";
   sed -i "s|^#FallbackDNS=|FallbackDNS=${_DNS2}|" "${_CHROOT_DIR}/etc/systemd/resolved.conf";
   sed -i "s|^#DNSSEC=no|DNSSEC=true|" "${_CHROOT_DIR}/etc/systemd/resolved.conf";
@@ -544,12 +537,13 @@ EOT
   atomic_append "nameserver 127.0.0.53" "${_CHROOT_DIR}/etc/systemd/resolved.conf"
   
   echo_debug "creating symlink";
+  touch "${_CHROOT_DIR}/etc/resolv.conf"
   mv "${_CHROOT_DIR}/etc/resolv.conf" "${_CHROOT_DIR}/etc/resolv.conf.backup";
-  chroot_execute ln -s "/etc/systemd/resolved.conf" "/etc/resolv.conf";
+  chroot_execute 'ln -s /etc/systemd/resolved.conf /etc/resolv.conf';
   echo_debug "DNS configured - remember to keep your clock up to date (date -s XX:XX) or DNSSEC Certificate errors may occur";
   if (( _UFW_SETUP == 1 )); then
-    chroot_execute ufw allow out 853/tcp;
-    chroot_execute ufw enable;
+    chroot_execute 'ufw allow out 853/tcp';
+    chroot_execute 'ufw enable';
   fi
   #needs: 853/tcp, doesn't need as we disable llmnr and mdns: 5353/udp,5355/udp
 }
@@ -564,17 +558,17 @@ firewall_setup(){
 
   # Installing packages
   chroot_package_install ufw;
-  chroot_execute ufw logging high;
-  chroot_execute ufw default deny outgoing;
-  chroot_execute ufw default deny incoming;
-  chroot_execute ufw default deny routed;
+  chroot_execute 'ufw logging high';
+  chroot_execute 'ufw default deny outgoing';
+  chroot_execute 'ufw default deny incoming';
+  chroot_execute 'ufw default deny routed';
   
-  chroot_execute ufw allow out 53/udp;
-  chroot_execute ufw allow out 80/tcp;
-  chroot_execute ufw allow out 443/tcp;
+  chroot_execute 'ufw allow out 53/udp';
+  chroot_execute 'ufw allow out 80/tcp';
+  chroot_execute 'ufw allow out 443/tcp';
   
-  chroot_execute ufw enable;
-  chroot_execute ufw status verbose;
+  chroot_execute 'ufw enable';
+  chroot_execute 'ufw status verbose';
   declare -x _UFW_SETUP=1;
 }
 
@@ -584,21 +578,21 @@ chkboot_setup()
   echo_function_start;
   
   #TODO Investigate: touch: cannot touch '/var/lib/chkboot/needs-update': No such file or directory whilst performing apt install
-  chroot_execute mkdir -p /var/lib/chkboot || true
+  chroot_execute 'mkdir -p /var/lib/chkboot || true'
   
   chroot_package_install chkboot;
   sed -i "s#BOOTDISK=/dev/sda#BOOTDISK=${_CHKBOOT_BOOTDISK}#" "${_CHROOT_DIR}/etc/default/chkboot";
   sed -i "s#BOOTPART=/dev/sda1#BOOTPART=${_CHKBOOT_BOOTPART}#" "${_CHROOT_DIR}/etc/default/chkboot";
-  chroot_execute systemctl enable chkboot
+  chroot_execute 'systemctl enable chkboot'
 }
 
-#TODO new method for a new main user (not 'kali')
+#TODO test this
 #Test this
 user_setup(){
  echo_function_start;
   local default_user='kali'
-  chroot_execute deluser ${default_user}
-  chroot_execute adduser ${_NEW_DEFAULT_USER}
+  chroot_execute "deluser ${default_user}"
+  chroot_execute "adduser ${_NEW_DEFAULT_USER}"
 }
 
 #TODO Configure vnc password
@@ -608,16 +602,17 @@ vnc_setup(){
   echo_function_start;
   chroot_package_install tightvncserver
   local vnc_user='vnc'; #new vnc user is better
-  chroot_execute adduser "${vnc_user}"
+  chroot_execute "adduser \"${vnc_user}\""
   vnc_user_home=;
   #run and kill vnc server once to set up the directory structure
-  chroot_execute echo "${VNC_PASSWORD}" | vncpasswd -f > "${vnc_user_home}/.vnc/passwd"
+  cmd="echo \"${VNC_PASSWORD}\" | vncpasswd -f > \"${vnc_user_home}/.vnc/passwd\""
+  chroot_execute $cmd
     
   if (( _UFW_SETUP == 1 )); then
-    chroot_execute ufw allow in 5900/tcp;
-    chroot_execute ufw allow in 5901/tcp;
-    chroot_execute ufw enable;
-    chroot_execute ufw status verbose;
+    chroot_execute 'ufw allow in 5900/tcp';
+    chroot_execute 'ufw allow in 5901/tcp';
+    chroot_execute 'ufw enable';
+    chroot_execute 'ufw status verbose';
   fi
 }
 
@@ -627,13 +622,13 @@ sftp_setup(){
   echo_function_start;
 
   chroot_package_install openssh-sftp-server
-  chroot_execute groupadd sftp_users
-  chroot_execute useradd -g sftp_users -d /data/sftp/upload -s /sbin/nologin sftp
-  chroot_execute /bin/bash -c "echo sftp:${_SFTP_PASSWORD} | /usr/sbin/chpasswd"
+  chroot_execute 'groupadd sftp_users'
+  chroot_execute 'useradd -g sftp_users -d /data/sftp/upload -s /sbin/nologin sftp'
+  chroot_execute "/bin/bash -c echo sftp:${_SFTP_PASSWORD} | /usr/sbin/chpasswd"
  
-  chroot_execute mkdir -p /data/sftp/upload
-  chroot_execute chown -R root:sftp_users /data/sftp
-  chroot_execute chown -R sftp:sftp_users /data/sftp/upload
+  chroot_execute 'mkdir -p /data/sftp/upload'
+  chroot_execute 'chown -R root:sftp_users /data/sftp'
+  chroot_execute 'chown -R sftp:sftp_users /data/sftp/upload'
 
 
   cat <<- EOT > "${_CHROOT_DIR}/etc/ssh/ssh_config.d/sftp_config"
@@ -643,9 +638,9 @@ ForceCommand internal-sftp
 EOT
 
   if (( _UFW_SETUP == 1 )); then
-    chroot_execute ufw allow in ${_SSH_PORT}/tcp;
-    chroot_execute ufw enable;    
-    chroot_execute ufw status verbose;
+    chroot_execute "ufw allow in ${_SSH_PORT}/tcp";
+    chroot_execute 'ufw enable';    
+    chroot_execute 'ufw status verbose';
   fi
 }
 
@@ -658,7 +653,7 @@ avahi_setup(){
   echo_function_start;
 
   chroot_package_install avahi-daemon libnss-mdns
-  chroot_execute systemctl enable avahi-daemon
+  chroot_execute 'systemctl enable avahi-daemon'
   sed -i "s|<port>22</port>|<port>${_SSH_PORT}</port>|" "${_CHROOT_DIR}/usr/share/doc/avahi-daemon/examples/ssh.service";
   cp -p "${_CHROOT_DIR}/usr/share/doc/avahi-daemon/examples/ssh.service" "${_CHROOT_DIR}/etc/avahi/services/ssh.service";
   
@@ -672,9 +667,9 @@ avahi_setup(){
   
   #Firewall rules for mdns
   if (( _UFW_SETUP == 1 )); then
-    chroot_execute ufw allow in 5353/udp;
-    chroot_execute ufw enable;
-    chroot_execute ufw status verbose;
+    chroot_execute 'ufw allow in 5353/udp';
+    chroot_execute 'ufw enable';
+    chroot_execute 'ufw status verbose';
   fi
 }
 
@@ -691,8 +686,8 @@ static_ip_setup(){
 #TODO test this
 keyboard_setup()
 {  
-  chroot_execute dpkg-reconfigure keyboard-configuration
-  chroot_execute service keyboard-setup restart 
+  chroot_execute 'dpkg-reconfigure keyboard-configuration'
+  chroot_execute 'service keyboard-setup restart'
 
   #change initramfs keymap
   sed -i 's|^KEYMAP=n|KEYMAP=y|' "${_CHROOT_DIR}/etc/initramfs-tools/initramfs.conf"

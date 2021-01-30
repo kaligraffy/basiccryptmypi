@@ -24,6 +24,7 @@ ARG1 can be:
 -m or mount_only - only mount an image or disk
 -u or unmount - unmount
 -i or initramfs - mount and run mkinitramfs
+-i or optional - run optional setup only
 -h or help - prints this help message
 HERE
 )
@@ -39,22 +40,32 @@ main(){
 
   case $1 in
     build|-b)
+      #build normally
       build;
       ;;
     build_no_extract|-nx)
+      #build but do not extract files from downloaded image
       build_no_extract;
       ;;
     mount_only|-m)
+      #mount the image only
       mount_only;
       ;;
     initramfs|-i)
+     #mount and run initramfs 
       make_initramfs;
       ;;
     unmount|-u)
+     #unmount new image
       unmount;
       ;;
     help|-h)
+      #print help
       print_usage;
+      ;;
+    optional|-o)
+      #mount, run optional setup and generate initramfs
+      optional_only;
       ;;
     *)
       print_usage;
