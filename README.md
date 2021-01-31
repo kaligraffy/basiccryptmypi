@@ -2,7 +2,15 @@
 basic_cryptmypi - A really simple kali pi build script.
 With thanks to unixabg for the original script.
 
-THIS IS A WORK IN PROGRESS, DON'T DOWNLOAD UNLESS YOU ARE PREPARED TO TROUBLESHOOT
+THIS IS A BETA, DON'T DOWNLOAD UNLESS YOU ARE PREPARED TO TROUBLESHOOT
+
+PURPOSE
+
+Creates a configurable kali sd card or disk image for the raspberry pi with strong encryption as default.
+
+See file env.sh-example-template for a full list of options
+
+Testing is 'ad hoc' and only for the RPI4. Other kernels might work if set in env.sh
 
 USAGE
 
@@ -17,28 +25,20 @@ The script also checks for ordering of optional setup.
 
 ARG1 can be:
 -b or build - standard build
--nx or build_no_extract - build without preparing the filesystem, useful if your script fails on an optional setup and you don't want to copy again
+-nx or build_no_extract - build without preparing the filesystem
 -m or mount_only - only mount an image or disk
 -u or unmount - unmount
+-i or initramfs - mount and run mkinitramfs
 -h or help - prints this help message
+-o or optional_only - mounts and runs whats in optional setup
 
 Follow the prompts
 
-PURPOSE
-
-Creates a configurable kali sd card or usb for the raspberry pi with strong encryption as default. The following 
-options should be descriptive enough, but look in options.sh for what each one does:
-
-See file env.sh-example-template for a full list of options
-
-Testing is 'ad hoc' and only for the RPI4. Other kernels might work if set in env.sh
-
 ISSUES
 
-Mounts need manually unmounting, sometimes
-
-HOW DOES IT WORK
+- Mounts need manually unmounting, sometimes
+- Some optional setup options aren't fully tested
 
 LOGGING
 
-The script logs to the cryptmypi directory
+The script logs to the cryptmypi directory file build.log

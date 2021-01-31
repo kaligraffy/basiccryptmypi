@@ -477,9 +477,7 @@ filesystem_setup(){
       ;;
     *) echo_debug "skipping, fs not supported or ext4";;
   esac
-  
-  #TODO setup btrfs here 
-  #https://rootco.de/2018-01-19-opensuse-btrfs-subvolumes/
+
 }
 
 #formats the disk or image
@@ -729,10 +727,11 @@ echo_debug(){
 }
 
 #tells you the command to copy the image to disk.
-#TODO Flesh out with disk resize instructions/write script
 echo_dd_command(){
   if (( _IMAGE_MODE == 1 )); then
-    echo_info "To burn your disk run: dd if=${_IMAGE_FILE} of=${_OUTPUT_BLOCK_DEVICE} bs=8M status=progress && sync";
+    echo_info "To burn your disk run: dd if=${_IMAGE_FILE} of=${_OUTPUT_BLOCK_DEVICE} bs=8M status=progress && sync";https://github.com/kaligraffy/dd-resize-root
+    echo_info "https://github.com/kaligraffy/dd-resize-root will dd and resize to the full disk if you've selected btrfs"
+
   fi
 }
 
@@ -978,9 +977,6 @@ set_defaults(){
     set_default "_SFTP_PASSWORD" "CHANGEME"
   fi
   
-  if function_exists "keyboard_setup"; then
-    set_default "_KEYBOARD_LAYOUT" "us"
-  fi
   set -eu
 
   #echo out settings for this run
@@ -1024,7 +1020,8 @@ btrfs_setup(){
     "btrfs")
         btrfs subvolume create "${_CHROOT_DIR}/@"  
         btrfs subvolume create "${_CHROOT_DIR}/@/root"
-        btrfs subvolume create "${_CHROOT_DIR}/@/.snapshots"
+        #created automatically by snapper
+        #btrfs subvolume create "${_CHROOT_DIR}/@/.snapshots"
         btrfs subvolume create "${_CHROOT_DIR}/@/var_log"
         btrfs subvolume create "${_CHROOT_DIR}/@/home"
         btrfs subvolume set-default "${_CHROOT_DIR}/@/root"
@@ -1033,6 +1030,7 @@ btrfs_setup(){
         umount "${_CHROOT_DIR}/boot"
         umount "${_CHROOT_DIR}";
         mount_chroot
+        #TODO mount home, var log here too 
         ;;
     *) 
         exit 1;

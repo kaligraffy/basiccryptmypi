@@ -299,11 +299,6 @@ fake_hwclock_setup(){
   # set clock even if saved value appears to be in the past
   # sed -i "s|^#FORCE=force|FORCE=force|"  "${_CHROOT_DIR}/etc/default/fake-hwclock"
   chroot_execute 'systemctl enable fake-hwclock'
-  local now;
-  now="$(date "+%Y-%m-%d %H:%M")"
-  #TODO fix
-  #chroot_execute "date --set ${now}"                                                                                                                                                                                               
-  chroot_execute 'fake-hwclock save'
 }
 
 #update system
@@ -541,6 +536,7 @@ EOT
   mv "${_CHROOT_DIR}/etc/resolv.conf" "${_CHROOT_DIR}/etc/resolv.conf.backup";
   chroot_execute 'ln -s /etc/systemd/resolved.conf /etc/resolv.conf';
   echo_debug "DNS configured - remember to keep your clock up to date (date -s XX:XX) or DNSSEC Certificate errors may occur";
+  
   if (( _UFW_SETUP == 1 )); then
     chroot_execute 'ufw allow out 853/tcp';
     chroot_execute 'ufw enable';
@@ -595,7 +591,7 @@ user_setup(){
   chroot_execute "adduser ${_NEW_DEFAULT_USER}"
 }
 
-#TODO Configure vnc password
+#TODO finish this off
 #sets up a vnc server on your device
 #requires: , optional: firewall_setup ssh_setup
 vnc_setup(){
@@ -644,7 +640,6 @@ EOT
   fi
 }
 
-#TODO random mac on for wpa_supplicant
 
 #MDNS daemon setup - WIP
 #TODO test initramfs avahi
@@ -673,30 +668,6 @@ avahi_setup(){
   fi
 }
 
-#TODO write static ip setup
-static_ip_setup(){
-  echo_function_start;
-    # Update /boot/cmdline.txt to boot crypt
-#if [[ $(grep "${_INITRAMFS_WIFI_IP}" "${_CHROOT_DIR}/boot/cmdline.txt") ]]; then
-#  sed -i "s#ip=${_INITRAMFS_WIFI_IP}#ip=SOMETHING ELSE#g" ${_CHROOT_DIR}/boot/cmdline.txt
-#fi
-}
-
-#set keyboard layout in initramfs and in os
-#TODO test this
-keyboard_setup()
-{  
-  chroot_execute 'dpkg-reconfigure keyboard-configuration'
-  chroot_execute 'service keyboard-setup restart'
-
-  #change initramfs keymap
-  sed -i 's|^KEYMAP=n|KEYMAP=y|' "${_CHROOT_DIR}/etc/initramfs-tools/initramfs.conf"
-  
-  #change xfce settings
-  if [[ -e "${_CHROOT_DIR}/home/kali/.config/xfce4/xfconf/xfce-perchannel-xml" ]]; then
-    sed -i "s|<property name=\"XkbLayout\" type=\"string\" value=\"us\"/>|<property name=\"XkbLayout\" type=\"string\" value=\"${_KEYBOARD_LAYOUT}\"/>|" "${_CHROOT_DIR}/home/kali/.config/xfce4/xfconf/xfce-perchannel-xml"
-  fi
-}
 
 #TODO Test
 #other stuff - add your own!

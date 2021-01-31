@@ -24,8 +24,8 @@ ARG1 can be:
 -m or mount_only - only mount an image or disk
 -u or unmount - unmount
 -i or initramfs - mount and run mkinitramfs
--i or optional - run optional setup only
 -h or help - prints this help message
+-o or optional_only - mounts and runs whats in optional setup
 HERE
 )
   echo_info "$usage";
