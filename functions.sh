@@ -381,7 +381,7 @@ cat << EOF > "${_CHROOT_DIR}/etc/fstab"
 proc            /proc           proc    defaults          0       0
 /dev/mmcblk0p1  /boot           vfat    defaults          0       2
 ${_ENCRYPTED_VOLUME_PATH}  /            $fs_type    defaults,noatime,subvol=@/root  0  1
-${_ENCRYPTED_VOLUME_PATH}  /.snapshots  $fs_type    defaults,noatime,subvol=@/.snapshots  0  1    
+#${_ENCRYPTED_VOLUME_PATH}  /.snapshots  $fs_type    defaults,noatime,subvol=@/.snapshots  0  1    
 #${_ENCRYPTED_VOLUME_PATH}  /var/log     $fs_type    defaults,noatime,subvol=@/var_log  0  1    
 #${_ENCRYPTED_VOLUME_PATH}  /home        $fs_type    defaults,noatime,subvol=@/home  0  1
 EOF

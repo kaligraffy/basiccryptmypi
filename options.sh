@@ -578,7 +578,7 @@ chkboot_setup()
   echo_function_start;
   
   #TODO Investigate: touch: cannot touch '/var/lib/chkboot/needs-update': No such file or directory whilst performing apt install
-  chroot_execute 'mkdir -p /var/lib/chkboot || true'
+  chroot_execute 'mkdir -p /var/lib/chkboot'
   
   chroot_package_install chkboot;
   sed -i "s#BOOTDISK=/dev/sda#BOOTDISK=${_CHKBOOT_BOOTDISK}#" "${_CHROOT_DIR}/etc/default/chkboot";
