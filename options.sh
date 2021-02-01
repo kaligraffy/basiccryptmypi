@@ -569,23 +569,34 @@ firewall_setup(){
 }
 
 #chkboot setup detects boot changes on startup
-chkboot_setup()
-{
+chkboot_setup(){
   echo_function_start;
-  
-  #TODO Investigate: touch: cannot touch '/var/lib/chkboot/needs-update': No such file or directory whilst performing apt install
+  local boot_partition;
+  local prefix="";
+
   chroot_execute 'mkdir -p /var/lib/chkboot'
   
   chroot_package_install chkboot;
+  
+  #if the device contains mmcblk, prefix is set so the device name is picked up correctly
+  if [[ "${_CHKBOOT_BOOTDISK}" == *'mmcblk'* ]]; then
+    prefix='p'
+  fi
+  #Set the proper name of the output block device's partitions
+  #e.g /dev/sda1 /dev/sda2 etc.
+  boot_partition="${_CHKBOOT_BOOTDISK}${prefix}1"
+  
+  
   sed -i "s#BOOTDISK=/dev/sda#BOOTDISK=${_CHKBOOT_BOOTDISK}#" "${_CHROOT_DIR}/etc/default/chkboot";
-  sed -i "s#BOOTPART=/dev/sda1#BOOTPART=${_CHKBOOT_BOOTPART}#" "${_CHROOT_DIR}/etc/default/chkboot";
+  sed -i "s#BOOTPART=/dev/sda1#BOOTPART=${boot_partition}#" "${_CHROOT_DIR}/etc/default/chkboot";
+  
   chroot_execute 'systemctl enable chkboot'
 }
 
 #TODO test this
 #Test this
 user_setup(){
- echo_function_start;
+  echo_function_start;
   local default_user='kali'
   chroot_execute "deluser ${default_user}"
   chroot_execute "adduser ${_NEW_DEFAULT_USER}"

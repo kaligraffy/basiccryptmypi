@@ -966,7 +966,6 @@ set_defaults(){
 
   if function_exists "chkboot_setup"; then
     set_default "_CHKBOOT_BOOTDISK" "MANDATORY"
-    set_default "_CHKBOOT_BOOTPART" "MANDATORY"
   fi
 
   if function_exists "passwordless_login_setup"; then
