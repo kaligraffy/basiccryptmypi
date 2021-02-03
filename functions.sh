@@ -5,25 +5,25 @@ set -eu
 _BASE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )";
 
 
-declare -xr _BUILD_DIR="${_BASE_DIR}/build"
-declare -xr _FILE_DIR="${_BASE_DIR}/files"
-declare -xr _EXTRACTED_IMAGE="${_FILE_DIR}/extracted.img"
-declare -xr _CHROOT_DIR="${_BUILD_DIR}/disk"
+declare -x _BUILD_DIR="${_BASE_DIR}/build"
+declare -x _FILE_DIR="${_BASE_DIR}/files"
+declare -x _EXTRACTED_IMAGE="${_FILE_DIR}/extracted.img"
+declare -x _CHROOT_DIR="${_BUILD_DIR}/disk"
 
-declare -xr _ENCRYPTED_VOLUME_PATH="/dev/mapper/crypt-2"
+declare -x _ENCRYPTED_VOLUME_PATH="/dev/mapper/crypt-2"
 _LUKS_MAPPING_NAME="$(basename ${_ENCRYPTED_VOLUME_PATH})"
 export _LUKS_MAPPING_NAME;
 
-declare -xr _COLOR_ERROR='\033[0;31m'; #red
-declare -xr _COLOR_WARN='\033[1;33m'; #orange
-declare -xr _COLOR_INFO='\033[1;32m'; #light blue
-declare -xr _COLOR_DEBUG='\033[0;37m'; #grey
-declare -xr _COLOR_NORMAL='\033[0m'; # No Color
-#declare -xr _LOG_FILE="${_BASE_DIR}/build-$(date '+%Y-%m-%d-%H:%M:%S').log"
-declare -xr _LOG_FILE="${_BASE_DIR}/build.log"
-declare -xr _IMAGE_FILE="${_BUILD_DIR}/image.img"
-declare -xr _APT_CMD="eatmydata apt-get -qq -y";
-declare -xr _START_TIME="$(date +%s)";
+declare -x _COLOR_ERROR='\033[0;31m'; #red
+declare -x _COLOR_WARN='\033[1;33m'; #orange
+declare -x _COLOR_INFO='\033[1;32m'; #light blue
+declare -x _COLOR_DEBUG='\033[0;37m'; #grey
+declare -x _COLOR_NORMAL='\033[0m'; # No Color
+#declare -x _LOG_FILE="${_BASE_DIR}/build-$(date '+%Y-%m-%d-%H:%M:%S').log"
+declare -x _LOG_FILE="${_BASE_DIR}/build.log"
+declare -x _IMAGE_FILE="${_BUILD_DIR}/image.img"
+declare -x _APT_CMD="eatmydata apt-get -qq -y";
+declare -x _START_TIME="$(date +%s)";
 
 declare _LOG_LEVEL="${_LOG_LEVEL:-1}";
 declare _BLOCK_DEVICE_BOOT=""
@@ -205,7 +205,6 @@ fix_block_device_names(){
   _BLOCK_DEVICE_BOOT="${_OUTPUT_BLOCK_DEVICE}${prefix}1"
   _BLOCK_DEVICE_ROOT="${_OUTPUT_BLOCK_DEVICE}${prefix}2"
 }
-
 
 create_build_directory(){
   if [[ -d "${_BUILD_DIR}" ]]; then
@@ -612,9 +611,9 @@ chroot_teardown(){
   tidy_umount "${chroot_dir}/run/"  
 }
 
-#run apt update
+#must run before ANY apt calls
+#speeds up apt
 chroot_apt_setup(){
-  #Force https on initial use of apt for the main kali repo
   echo_function_start;
   local chroot_root="${_CHROOT_DIR}"
   sed -i 's|http:|https:|g' "${chroot_root}/etc/apt/sources.list";
@@ -624,25 +623,20 @@ chroot_apt_setup(){
       echo_warn "Setting nameserver to $_DNS1 and $_DNS2 in ${chroot_root}/etc/resolv.conf";
       echo -e "nameserver $_DNS1\nnameserver $_DNS2" > "${chroot_root}/etc/resolv.conf";
   fi
-
-  echo_debug "Updating apt-get";
-  chroot_execute "$_APT_CMD update";
-
-  #Corrupt package install fix code
+  
+  #TEST workaround for people with dns over tls and using it on loopback
+  echo -e "nameserver 127.0.0.53" > "${chroot_root}/etc/resolv.conf";
+  
+  chroot_execute 'apt-get -qq -y update'
+  chroot_execute 'apt-get -qq -y install eatmydata'
+  
+    #Corrupt package install fix code
   if ! chroot_execute "$_APT_CMD --fix-broken install"; then
     if ! chroot_execute 'dpkg --configure -a'; then
         echo_error "apt corrupted, manual intervention required";
         exit 1;
     fi
   fi
-}
-
-#must run before ANY apt calls
-#speeds up apt
-chroot_install_eatmydata(){
-  echo_function_start;
-  chroot_execute 'apt-get -qq -y update'
-  chroot_execute 'apt-get -qq -y install eatmydata'
 }
 
 #installs packages from build
@@ -671,13 +665,18 @@ chroot_package_purge(){
 #run a command in chroot
 chroot_execute(){
   local chroot_dir="${_CHROOT_DIR}";
-  
+  set -o pipefail
+  local status
   echo_debug "Running: ${@}"
-  chroot ${chroot_dir} ${@} | tee -a "$_LOG_FILE";
-  if [[ "${PIPESTATUS[0]}" -ne 0 ]]; then
-    echo_error "command in chroot failed"
+  chroot ${chroot_dir} ${@} 
+  status=${?}
+  set +o pipefail
+  echo ${status}
+  if [[ "${status}" -ne 0 ]]; then
+    echo_error "retval of chroot: ${status}, command failed"
     exit 1;
   fi
+  
 }
 
 #generates the initramfs.gz file in /boot
@@ -699,9 +698,9 @@ chroot_mkinitramfs_setup(){
 chroot_all_setup(){
   chroot_setup;
   arm_setup;
-  chroot_install_eatmydata;
-  locale_setup
   chroot_apt_setup;
+  locale_setup
+  #orig. position of apt_setup;
   filesystem_setup;
   encryption_setup;
   optional_setup;
@@ -736,7 +735,7 @@ echo_dd_command(){
 }
 
 echo_function_start(){
-  echo_info "${FUNCNAME[1]}";
+  echo_info "function ${FUNCNAME[1]} started";
 }
 
 #appends config to a file after checking if it's already in the file
@@ -904,7 +903,7 @@ set_defaults(){
     set_default "_LUKS_NUKE_PASSWORD" "."
   fi
   
-  if function_exists "dns_setup"; then
+  if function_exists "secure_dns_setup"; then
     set_default "_DNS1" "1.1.1.1"
     set_default "_DNS2" "9.9.9.9"
   fi
@@ -920,10 +919,6 @@ set_defaults(){
  
   if function_exists "hostname_setup"; then
     set_default "_HOSTNAME" "pikal"
-  fi
-  
-  if function_exists "user_setup"; then
-    set_default "_NEW_DEFAULT_USER" "kali"
   fi
   
   if function_exists "packages_setup"; then
@@ -966,10 +961,6 @@ set_defaults(){
 
   if function_exists "chkboot_setup"; then
     set_default "_CHKBOOT_BOOTDISK" "MANDATORY"
-  fi
-
-  if function_exists "passwordless_login_setup"; then
-    set_default "_PASSWORDLESS_LOGIN_USER" "kali"
   fi
   
   if function_exists "sftp_setup"; then

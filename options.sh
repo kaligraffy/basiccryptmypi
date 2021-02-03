@@ -1,10 +1,10 @@
 #!/bin/bash
 set -eu
-declare -x _UFW_SETUP=0;
 
 #used by wifi_setup and initramfs_wifi_setup
 
 #set dns in resolv.conf for setup only or none dnssec setup
+#use this OR secure_dns_setup, using both will overwrite one of the config files
 simple_dns_setup(){
   echo_function_start;
   echo -e "nameserver $_DNS1\nnameserver $_DNS2" > "${_CHROOT_DIR}/etc/resolv.conf";
@@ -97,7 +97,7 @@ EOT
 }
 
 #set up ssh
-#requires: , optional: firewall_setup
+#requires: , optional: 
 ssh_setup(){
   echo_function_start;
 
@@ -154,11 +154,6 @@ EOT
 #     - OpenSSH option: AllowGroups                             [ NOT FOUND ]
 #   
   #OPENS UP YOUR SSH PORT
-  if (( _UFW_SETUP == 1 )) ; then
-    chroot_execute "ufw allow in ${_SSH_PORT}/tcp";
-    chroot_execute 'ufw enable';
-    chroot_execute 'ufw status verbose';
-  fi
 }
 
 #setup dropbear in initramfs
@@ -254,9 +249,10 @@ root_password_setup(){
 }
 
 #sets the kali user password
+#requires: , optional: user_setup
 user_password_setup(){
   echo_function_start;
-  chroot "${_CHROOT_DIR}" /bin/bash -c "echo kali:${_USER_PASSWORD} | /usr/sbin/chpasswd"
+  chroot "${_CHROOT_DIR}" /bin/bash -c "echo ${_NEW_DEFAULT_USER}:${_USER_PASSWORD} | /usr/sbin/chpasswd"
 }
 
 #setup a vpn client
@@ -296,8 +292,6 @@ clamav_setup(){
 fake_hwclock_setup(){
   echo_function_start;
   chroot_package_install fake-hwclock
-  # set clock even if saved value appears to be in the past
-  # sed -i "s|^#FORCE=force|FORCE=force|"  "${_CHROOT_DIR}/etc/default/fake-hwclock"
   chroot_execute 'systemctl enable fake-hwclock'
 }
 
@@ -361,11 +355,13 @@ snapper_setup(){
 }
 
 #secure network time protocol configuration, also installs ntpdate client for manually pulling the time
-#requires: , optional: firewall_setup
+#requires: , optional: 
 ntpsec_setup(){
   echo_function_start;
   chroot_package_install ntpsec ntpsec-doc ntpsec-ntpdate
-  sed -i "s|^# server time.cloudflare.com nts|server time.cloudflare.com:123 iburst nts \nserver nts.sth1.ntp.se:123 iburst nts\nserver nts.sth2.ntp.se:123 iburst nts|" "/etc/ntpsec/ntp.conf" "${_CHROOT_DIR}/etc/ntpsec/ntp.conf"
+  #https://blog.cloudflare.com/secure-time/
+  #add some other nts servers commented in case you prefer to use them
+  sed -i "s|^# server time.cloudflare.com nts|server time.cloudflare.com:1234 iburst nts \n#server nts.sth1.ntp.se:1234 iburst nts\n#server nts.sth2.ntp.se:1234 iburst nts|" "/etc/ntpsec/ntp.conf" "${_CHROOT_DIR}/etc/ntpsec/ntp.conf"
   sed -i "s|^pool 0.debian.pool.ntp.org iburst|#pool 0.debian.pool.ntp.org iburst|" "${_CHROOT_DIR}/etc/ntpsec/ntp.conf"
   sed -i "s|^pool 1.debian.pool.ntp.org iburst|#pool 1.debian.pool.ntp.org iburst|" "${_CHROOT_DIR}/etc/ntpsec/ntp.conf"
   sed -i "s|^pool 2.debian.pool.ntp.org iburst|#pool 2.debian.pool.ntp.org iburst|" "${_CHROOT_DIR}/etc/ntpsec/ntp.conf"
@@ -374,12 +370,6 @@ ntpsec_setup(){
   chroot_execute 'mkdir -p /var/log/ntpsec'
   chroot_execute 'chown ntpsec:ntpsec /var/log/ntpsec'
   chroot_execute 'systemctl enable ntpsec.service'
-
-  if (( _UFW_SETUP == 1 )) ; then
-    chroot_execute 'ufw allow out 123/tcp';
-    chroot_execute 'ufw enable';
-    chroot_execute 'ufw status verbose';
-  fi
 }
 
 #config iodine
@@ -458,10 +448,11 @@ sysctl_hardening_setup(){
 }
 
 #automatically log you in after unlocking your encrypted drive, without a password...somehow. GUI only.
+#requires: , optional: user_setup
 passwordless_login_setup(){
   echo_function_start;
   sed -i "s|^#greeter-hide-users=false|greeter-hide-users=false|" "${_CHROOT_DIR}/etc/lightdm/lightdm.conf"
-  sed -i "s|^#autologin-user=$|autologin-user=${_PASSWORDLESS_LOGIN_USER}|" "${_CHROOT_DIR}/etc/lightdm/lightdm.conf"
+  sed -i "s|^#autologin-user=$|autologin-user=${_NEW_DEFAULT_USER}|" "${_CHROOT_DIR}/etc/lightdm/lightdm.conf"
   sed -i "s|^#autologin-user-timeout=0|autologin-user-timeout=0|" "${_CHROOT_DIR}/etc/lightdm/lightdm.conf"
 }
 
@@ -489,8 +480,9 @@ apparmor_setup(){
 firejail_setup(){
   echo_function_start;
   chroot_package_install firejail firejail-profiles firetools
-  chroot_execute 'firecfg'
+  #TODO this doesn't play nice with new user - it looks for the old default user kali: chroot_execute 'firecfg'
   #TODO firejail configuration for hardened malloc, apparmor integration
+  echo_warn "Remember to run firecfg"
 }
 
 #randomize mac on reboot
@@ -506,8 +498,8 @@ random_mac_on_reboot_setup(){
 #enables dnssec and DNSOverTLS
 #disables mdns, llmnr
 #credits: https://andrea.corbellini.name/2020/04/28/ubuntu-global-dns/
-#requires: , optional: firewall_setup
-dns_setup(){
+#requires: , optional: 
+secure_dns_setup(){
   echo_function_start;
   chroot_execute 'systemctl disable resolvconf'                                                                                                           
   chroot_execute 'systemctl enable systemd-resolved'
@@ -536,36 +528,6 @@ EOT
   mv "${_CHROOT_DIR}/etc/resolv.conf" "${_CHROOT_DIR}/etc/resolv.conf.backup";
   chroot_execute 'ln -s /etc/systemd/resolved.conf /etc/resolv.conf';
   echo_debug "DNS configured - remember to keep your clock up to date (date -s XX:XX) or DNSSEC Certificate errors may occur";
-  
-  if (( _UFW_SETUP == 1 )); then
-    chroot_execute 'ufw allow out 853/tcp';
-    chroot_execute 'ufw enable';
-  fi
-  #needs: 853/tcp, doesn't need as we disable llmnr and mdns: 5353/udp,5355/udp
-}
-
-#installs a basic firewall
-#TODO replace with firewalld
-#this must be called before ssh_setup, dns_setup, ntpsec_setup or the script 
-#will not work correctly
-#TODO remove flags for ufw and check if ufw is installed instead using chroot_execute
-firewall_setup(){
-  echo_function_start;
-
-  # Installing packages
-  chroot_package_install ufw;
-  chroot_execute 'ufw logging high';
-  chroot_execute 'ufw default deny outgoing';
-  chroot_execute 'ufw default deny incoming';
-  chroot_execute 'ufw default deny routed';
-  
-  chroot_execute 'ufw allow out 53/udp';
-  chroot_execute 'ufw allow out 80/tcp';
-  chroot_execute 'ufw allow out 443/tcp';
-  
-  chroot_execute 'ufw enable';
-  chroot_execute 'ufw status verbose';
-  declare -x _UFW_SETUP=1;
 }
 
 #chkboot setup detects boot changes on startup
@@ -598,13 +560,18 @@ chkboot_setup(){
 user_setup(){
   echo_function_start;
   local default_user='kali'
+  if [ ${_NEW_DEFAULT_USER} != ${default_user} ]; then
   chroot_execute "deluser ${default_user}"
-  chroot_execute "adduser ${_NEW_DEFAULT_USER}"
+  chroot_execute groupadd -g 1000 ${_NEW_DEFAULT_USER}
+  chroot_execute useradd -m -u 1000 -g 1000 -G sudo,audio,bluetooth,cdrom,dialout,dip,lpadmin,netdev,plugdev,scanner,video,${_NEW_DEFAULT_USER} -s /bin/bash ${_NEW_DEFAULT_USER} 
+
+  chroot "${_CHROOT_DIR}" /bin/bash -c "echo ${_NEW_DEFAULT_USER}:${_USER_PASSWORD} | /usr/sbin/chpasswd"
+  fi
 }
 
 #TODO finish this off
 #sets up a vnc server on your device
-#requires: , optional: firewall_setup ssh_setup
+#requires: , optional: ssh_setup
 vnc_setup(){
   echo_function_start;
   chroot_package_install tightvncserver
@@ -614,17 +581,10 @@ vnc_setup(){
   #run and kill vnc server once to set up the directory structure
   cmd="echo \"${VNC_PASSWORD}\" | vncpasswd -f > \"${vnc_user_home}/.vnc/passwd\""
   chroot_execute $cmd
-    
-  if (( _UFW_SETUP == 1 )); then
-    chroot_execute 'ufw allow in 5900/tcp';
-    chroot_execute 'ufw allow in 5901/tcp';
-    chroot_execute 'ufw enable';
-    chroot_execute 'ufw status verbose';
-  fi
 }
 
 #TODO Test sftp
-#requires: ssh_setup, optional: firewall_setup
+#requires: ssh_setup, optional: 
 sftp_setup(){
   echo_function_start;
 
@@ -644,17 +604,12 @@ ChrootDirectory /data/%u
 ForceCommand internal-sftp
 EOT
 
-  if (( _UFW_SETUP == 1 )); then
-    chroot_execute "ufw allow in ${_SSH_PORT}/tcp";
-    chroot_execute 'ufw enable';    
-    chroot_execute 'ufw status verbose';
-  fi
 }
 
 
 #MDNS daemon setup - WIP
 #TODO test initramfs avahi
-#requires: hostname_setup ssh_setup , optional: firewall_setup
+#requires: hostname_setup ssh_setup , optional: 
 avahi_setup(){
   echo_function_start;
 
@@ -670,13 +625,7 @@ avahi_setup(){
   sed -i "s|_SSH_PORT|${_SSH_PORT}|" "${_CHROOT_DIR}/etc/initramfs-tools/hooks/hook_enable_avahi_daemon";
   cp -p "${_CHROOT_DIR}/etc/avahi/avahi-daemon.conf" "${_CHROOT_DIR}/etc/initramfs-tools/avahi-daemon.conf";
   sed -i "s|#enable-dbus=yes|enable-dbus=no|" "${_CHROOT_DIR}/etc/initramfs-tools/avahi-daemon.conf";
-  
-  #Firewall rules for mdns
-  if (( _UFW_SETUP == 1 )); then
-    chroot_execute 'ufw allow in 5353/udp';
-    chroot_execute 'ufw enable';
-    chroot_execute 'ufw status verbose';
-  fi
+
 }
 
 
@@ -684,7 +633,7 @@ avahi_setup(){
 #other stuff - add your own!
 miscellaneous_setup(){
   echo_function_start;
-  #suppress dmesgs in stdout
+  #suppress dmesgs in stdout - useful for low power messages if running headless
   echo "@reboot root /bin/sh echo '1' > /proc/sys/kernel/printk" > "${_CHROOT_DIR}/etc/cron.d/suppress-dmesg"
   
   #disable splash on startup
