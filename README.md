@@ -14,7 +14,7 @@ Testing is 'ad hoc' and only for the RPI4. Other kernels might work if set in en
 
 USAGE
 
-Leave aside about 30GB of space for this
+Leave aside about 30GB of space for this for the kali image, about 10G for pios
 
 Usage: sudo ./cryptmypi.sh ARG1
 
@@ -38,6 +38,8 @@ ISSUES
 
 - Mounts need manually unmounting, sometimes
 - Some optional setup options aren't fully tested
+- Most options are kali tested only, pios configuration is totally untested
+- 64Bit only (forced in the functions)
 
 LOGGING
 

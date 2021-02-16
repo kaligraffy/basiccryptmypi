@@ -4,13 +4,12 @@ set -eu
 #Global variables
 _BASE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )";
 
-
 declare -x _BUILD_DIR="${_BASE_DIR}/build"
 declare -x _FILE_DIR="${_BASE_DIR}/files"
 declare -x _EXTRACTED_IMAGE="${_FILE_DIR}/extracted.img"
 declare -x _CHROOT_DIR="${_BUILD_DIR}/disk"
 
-declare -x _ENCRYPTED_VOLUME_PATH="/dev/mapper/crypt-2"
+declare -x _ENCRYPTED_VOLUME_PATH="/dev/mapper/crypt-1"
 _LUKS_MAPPING_NAME="$(basename ${_ENCRYPTED_VOLUME_PATH})"
 export _LUKS_MAPPING_NAME;
 
@@ -19,12 +18,17 @@ declare -x _COLOR_WARN='\033[1;33m'; #orange
 declare -x _COLOR_INFO='\033[1;32m'; #light blue
 declare -x _COLOR_DEBUG='\033[0;37m'; #grey
 declare -x _COLOR_NORMAL='\033[0m'; # No Color
-#declare -x _LOG_FILE="${_BASE_DIR}/build-$(date '+%Y-%m-%d-%H:%M:%S').log"
+
 declare -x _LOG_FILE="${_BASE_DIR}/build.log"
 declare -x _IMAGE_FILE="${_BUILD_DIR}/image.img"
 declare -x _APT_CMD="eatmydata apt-get -qq -y";
-declare -x _START_TIME="$(date +%s)";
 
+#Can be set up to enable https in apt during setup in chroot
+declare -x _APT_HTTPS=${_APT_HTTPS:-1}
+
+#Useful if you are using a nonstandard resolver for DoT on your host machine
+declare -x _OVERRIDE_DNS_FOR_SETUP_ONLY=${_OVERRIDE_DNS_FOR_SETUP_ONLY:-127.0.0.53}
+declare -x _START_TIME="$(date +%s)";
 declare _LOG_LEVEL="${_LOG_LEVEL:-1}";
 declare _BLOCK_DEVICE_BOOT=""
 declare _BLOCK_DEVICE_ROOT="" 
@@ -286,12 +290,12 @@ copy_image_on_loopback_to_disk(){
 #prompts to check disk is correct before writing out to disk, 
 #if no prompts is set, it skips the check
 check_disk_is_correct(){
+  echo_function_start;
   if [ ! -b "${_OUTPUT_BLOCK_DEVICE}" ]; then
     echo_error "${_OUTPUT_BLOCK_DEVICE} is not a block device" 
     exit 0
   fi
   
-  echo_function_start;
   if (( _NO_PROMPTS == 0 )); then
     local prompt="Device is ${_OUTPUT_BLOCK_DEVICE} (y/N) "
     echo_info "$(lsblk)";
@@ -365,10 +369,15 @@ encryption_setup(){
   atomic_append 'initramfs initramfs.gz followkernel' "${_CHROOT_DIR}/boot/config.txt";
   
   # Update /boot/cmdline.txt to boot crypt
-  sed -i "s|root=/dev/mmcblk0p2|root=${_ENCRYPTED_VOLUME_PATH} cryptdevice=/dev/mmcblk0p2:${_LUKS_MAPPING_NAME}|g" "${_CHROOT_DIR}/boot/cmdline.txt"
-  sed -i "s|rootfstype=ext3|rootfstype=${fs_type}|g" "${_CHROOT_DIR}/boot/cmdline.txt"
+  sed -i "s|root=.* |root=${_ENCRYPTED_VOLUME_PATH} cryptdevice=/dev/mmcblk0p2:${_LUKS_MAPPING_NAME} |g" "${_CHROOT_DIR}/boot/cmdline.txt"
+  sed -i "s|rootfstype=.* |rootfstype=${fs_type} |g" "${_CHROOT_DIR}/boot/cmdline.txt"
   
+  #disable init script for pios
+  sed -i "s|init=.* | |g" "${_CHROOT_DIR}/boot/cmdline.txt"
 
+  #force 64bit
+  atomic_append 'arm_64bit=1' "${_CHROOT_DIR}/boot/config.txt";
+  
   # Enable cryptsetup when building initramfs
   atomic_append 'CRYPTSETUP=y' "${_CHROOT_DIR}/etc/cryptsetup-initramfs/conf-hook"  
   
@@ -406,7 +415,9 @@ EOF
   # Create a hook to include our crypttab in the initramfs
   cp -p "${_FILE_DIR}/initramfs-scripts/zz-cryptsetup" "${_CHROOT_DIR}/etc/initramfs-tools/hooks/zz-cryptsetup";
   
-  # Adding dm_mod to initramfs modules
+  # Adding dm_mod, dm_crypt to initramfs modules
+  #dm_mod needed for pios, oddly doesn't seem to be needed for kali 
+  atomic_append 'dm_mod' "${_CHROOT_DIR}/etc/initramfs-tools/modules";
   atomic_append 'dm_crypt' "${_CHROOT_DIR}/etc/initramfs-tools/modules";
   
   # Disable autoresize
@@ -550,20 +561,6 @@ backup_dropbear_key(){
   fi
 }
 
-#rsync for local copy
-#arguments $1 - to $2 - from
-rsync_local(){
-  echo_function_start;
-  echo_info "starting copy of ${*}";
-  if rsync --hard-links --no-i-r --archive --partial --info=progress2 "${@}"; then
-    echo_info "finished copy of ${*}";
-    sync;
-  else
-    echo_error 'rsync has failed';
-    exit 1;
-  fi
-}
-
 arm_setup(){
   echo_function_start;
   cp /usr/bin/qemu-aarch64-static "${_CHROOT_DIR}/usr/bin/"
@@ -616,21 +613,28 @@ chroot_teardown(){
 chroot_apt_setup(){
   echo_function_start;
   local chroot_root="${_CHROOT_DIR}"
-  sed -i 's|http:|https:|g' "${chroot_root}/etc/apt/sources.list";
-
-  if [ ! -f "${chroot_root}/etc/resolv.conf" ]; then
-      echo_warn "${chroot_root}/etc/resolv.conf does not exist";
-      echo_warn "Setting nameserver to $_DNS1 and $_DNS2 in ${chroot_root}/etc/resolv.conf";
-      echo -e "nameserver $_DNS1\nnameserver $_DNS2" > "${chroot_root}/etc/resolv.conf";
+  
+  #prefer https if set, otherwise don't change
+  if [ ! $_APT_HTTPS ]; then
+    sed -i 's|http:|https:|g' "${chroot_root}/etc/apt/sources.list";
   fi
   
-  #TEST workaround for people with dns over tls and using it on loopback
-  echo -e "nameserver 127.0.0.53" > "${chroot_root}/etc/resolv.conf";
+  if [ ! -f "${chroot_root}/etc/resolv.conf" ]; then
+    echo_warn "${chroot_root}/etc/resolv.conf does not exist";
+    echo_warn "Setting nameserver to $_DNS1 and $_DNS2 in ${chroot_root}/etc/resolv.conf";
+    echo -e "nameserver $_DNS1\nnameserver $_DNS2" > "${chroot_root}/etc/resolv.conf";
+  fi
   
+  #workaround for people with dns over tls and using it on loopback
+  if check_variable_is_set $_OVERRIDE_DNS_FOR_SETUP_ONLY ; then
+    echo -e "nameserver ${_OVERRIDE_DNS_FOR_SETUP_ONLY}" > "${chroot_root}/etc/resolv.conf";
+  fi
+  
+  #Update apt and install eatmydata to speed up things later
   chroot_execute 'apt-get -qq -y update'
   chroot_execute 'apt-get -qq -y install eatmydata'
   
-    #Corrupt package install fix code
+  #Corrupt package install fix code
   if ! chroot_execute "$_APT_CMD --fix-broken install"; then
     if ! chroot_execute 'dpkg --configure -a'; then
         echo_error "apt corrupted, manual intervention required";
@@ -700,86 +704,36 @@ chroot_all_setup(){
   arm_setup;
   chroot_apt_setup;
   locale_setup
-  #orig. position of apt_setup;
   filesystem_setup;
   encryption_setup;
   optional_setup;
   chroot_mkinitramfs_setup;
 }
 
-####PRINT FUNCTIONS####
-echo_error(){ 
-  echo -e "${_COLOR_ERROR}$(date '+%H:%M:%S'): ERROR: ${*}${_COLOR_NORMAL}" | tee -a "${_LOG_FILE}";
-}
-echo_warn(){ 
-  echo -e "${_COLOR_WARN}$(date '+%H:%M:%S'): WARNING: ${*}${_COLOR_NORMAL}" | tee -a "${_LOG_FILE}";
-}
-echo_info(){ 
-  echo -e "${_COLOR_INFO}$(date '+%H:%M:%S'): INFO: ${*}${_COLOR_NORMAL}" | tee -a "${_LOG_FILE}";
-}
-echo_debug(){
-  if [ "$_LOG_LEVEL" -lt 1 ]; then
-    echo -e "${_COLOR_DEBUG}$(date '+%H:%M:%S'): DEBUG: ${*}${_COLOR_NORMAL}";
-  fi
-  #even if output is suppressed by log level output it to the log file
-  echo "$(date '+%H:%M:%S'): ${*}" >> "${_LOG_FILE}";
-}
-
-#tells you the command to copy the image to disk.
-echo_dd_command(){
-  if (( _IMAGE_MODE == 1 )); then
-    echo_info "To burn your disk run: dd if=${_IMAGE_FILE} of=${_OUTPUT_BLOCK_DEVICE} bs=8M status=progress && sync";https://github.com/kaligraffy/dd-resize-root
-    echo_info "https://github.com/kaligraffy/dd-resize-root will dd and resize to the full disk if you've selected btrfs"
-
-  fi
-}
-
-echo_function_start(){
-  echo_info "function ${FUNCNAME[1]} started";
-}
-
-#appends config to a file after checking if it's already in the file
-#$1 the config value $2 the filename
-atomic_append(){
-  CONFIG="$1";
-  FILE="$2";
-  if ! grep -qx "${CONFIG}" "${FILE}" ; then
-    echo "${CONFIG}" >> "${FILE}";
-  fi
-}
-
-#checks if a variable is set or empty ''
-check_variable_is_set(){
-  if [[ ! ${1} ]] || [[ -z "${1}" ]]; then
-    #not set
-    echo '1';
-    return 1;
-  fi
-  #set
-  echo '0';
-}
-#mounts a bind, exits on failure
-check_mount_bind(){
-  # mount a bind
-  if ! mount -o bind "$1" "$2" ; then
-    echo_error "failure mounting $2";
-    exit 1;
-  fi
-}
-
-#mounts 1=$1 to $2, creates folder if not there
-check_directory_and_mount(){
-  echo_debug "mounting $1 to $2";
-  if [[ ! -d "$2" ]]; then 
-    mkdir "$2";
-    echo_debug "created $2";
-  fi
+btrfs_setup(){
+  local chroot_dir="${_CHROOT_DIR}"
+  local fs_type="${_FILESYSTEM_TYPE}";
   
-  if ! mount "$1" "$2" ; then
-    echo_error "failure mounting $1 to $2";
-    exit 1;
-  fi
-  echo_debug "mounted $1 to $2";
+  case $fs_type in
+    "btrfs")
+        btrfs subvolume create "${_CHROOT_DIR}/@"  
+        btrfs subvolume create "${_CHROOT_DIR}/@/root"
+        #created automatically by snapper
+        #btrfs subvolume create "${_CHROOT_DIR}/@/.snapshots"
+        btrfs subvolume create "${_CHROOT_DIR}/@/var_log"
+        btrfs subvolume create "${_CHROOT_DIR}/@/home"
+        btrfs subvolume set-default "${_CHROOT_DIR}/@/root"
+        
+        echo "remounting into new root subvol"
+        umount "${_CHROOT_DIR}/boot"
+        umount "${_CHROOT_DIR}";
+        mount_chroot
+        #TODO mount home, var log here too 
+        ;;
+    *) 
+        exit 1;
+        ;;
+  esac
 }
 
 #unmounts and tidies up the folder
@@ -858,19 +812,6 @@ options_check(){
      fi
   done
   
-}
-
-#returns an index of a value in an array
-get_position_in_array(){
-  value="$1"
-  shift;
-  my_array=($@)
-
-  for i in "${!my_array[@]}"; do
-    if [[ "${my_array[$i]}" = "${value}" ]]; then
-        echo "${i}";
-    fi
-  done
 }
 
 # method default parameter settings, if a variable is "" or unset, sets it to a reasonable default 
@@ -1002,32 +943,6 @@ function_exists() {
     return $?
 }
 
-btrfs_setup(){
-  local chroot_dir="${_CHROOT_DIR}"
-  local fs_type="${_FILESYSTEM_TYPE}";
-  
-  case $fs_type in
-    "btrfs")
-        btrfs subvolume create "${_CHROOT_DIR}/@"  
-        btrfs subvolume create "${_CHROOT_DIR}/@/root"
-        #created automatically by snapper
-        #btrfs subvolume create "${_CHROOT_DIR}/@/.snapshots"
-        btrfs subvolume create "${_CHROOT_DIR}/@/var_log"
-        btrfs subvolume create "${_CHROOT_DIR}/@/home"
-        btrfs subvolume set-default "${_CHROOT_DIR}/@/root"
-        
-        echo "remounting into new root subvol"
-        umount "${_CHROOT_DIR}/boot"
-        umount "${_CHROOT_DIR}";
-        mount_chroot
-        #TODO mount home, var log here too 
-        ;;
-    *) 
-        exit 1;
-        ;;
-  esac
-}
-
 #prompts user for a reply
 #returns 0 for yes or 1 for no
 ask_yes_or_no(){
@@ -1044,4 +959,106 @@ ask_yes_or_no(){
   done
   echo
   return $retval;
+}
+
+#checks if a variable is set or empty ''
+check_variable_is_set(){
+  if [[ ! ${1} ]] || [[ -z "${1}" ]]; then
+    #not set
+    echo '1';
+    return 1;
+  fi
+  #set
+  echo '0';
+}
+#mounts a bind, exits on failure
+check_mount_bind(){
+  # mount a bind
+  if ! mount -o bind "$1" "$2" ; then
+    echo_error "failure mounting $2";
+    exit 1;
+  fi
+}
+
+#mounts 1=$1 to $2, creates folder if not there
+check_directory_and_mount(){
+  echo_debug "mounting $1 to $2";
+  if [[ ! -d "$2" ]]; then 
+    mkdir "$2";
+    echo_debug "created $2";
+  fi
+  
+  if ! mount "$1" "$2" ; then
+    echo_error "failure mounting $1 to $2";
+    exit 1;
+  fi
+  echo_debug "mounted $1 to $2";
+}
+
+#returns an index of a value in an array
+get_position_in_array(){
+  value="$1"
+  shift;
+  my_array=($@)
+
+  for i in "${!my_array[@]}"; do
+    if [[ "${my_array[$i]}" = "${value}" ]]; then
+        echo "${i}";
+    fi
+  done
+}
+
+#appends config to a file after checking if it's already in the file
+#$1 the config value $2 the filename
+atomic_append(){
+  CONFIG="$1";
+  FILE="$2";
+  if ! grep -qx "${CONFIG}" "${FILE}" ; then
+    echo "${CONFIG}" >> "${FILE}";
+  fi
+}
+
+#rsync for local copy
+#arguments $1 - to $2 - from
+rsync_local(){
+  echo_function_start;
+  echo_info "starting copy of ${*}";
+  if rsync --hard-links --no-i-r --archive --partial --info=progress2 "${@}"; then
+    echo_info "finished copy of ${*}";
+    sync;
+  else
+    echo_error 'rsync has failed';
+    exit 1;
+  fi
+}
+
+####PRINT FUNCTIONS####
+echo_error(){ 
+  echo -e "${_COLOR_ERROR}$(date '+%H:%M:%S'): ERROR: ${*}${_COLOR_NORMAL}" | tee -a "${_LOG_FILE}";
+}
+echo_warn(){ 
+  echo -e "${_COLOR_WARN}$(date '+%H:%M:%S'): WARNING: ${*}${_COLOR_NORMAL}" | tee -a "${_LOG_FILE}";
+}
+echo_info(){ 
+  echo -e "${_COLOR_INFO}$(date '+%H:%M:%S'): INFO: ${*}${_COLOR_NORMAL}" | tee -a "${_LOG_FILE}";
+}
+echo_debug(){
+  if [ "$_LOG_LEVEL" -lt 1 ]; then
+    echo -e "${_COLOR_DEBUG}$(date '+%H:%M:%S'): DEBUG: ${*}${_COLOR_NORMAL}";
+  fi
+  #even if output is suppressed by log level output it to the log file
+  echo "$(date '+%H:%M:%S'): ${*}" >> "${_LOG_FILE}";
+}
+
+#tells you the command to copy the image to disk.
+echo_dd_command(){
+  if (( _IMAGE_MODE == 1 )); then
+    echo_info "To burn your disk run: dd if=${_IMAGE_FILE} of=${_OUTPUT_BLOCK_DEVICE} bs=8M status=progress && sync";https://github.com/kaligraffy/dd-resize-root
+    echo_info "https://github.com/kaligraffy/dd-resize-root will dd and resize to the full disk if you've selected btrfs"
+
+  fi
+}
+
+echo_function_start(){
+  echo_info "function ${FUNCNAME[1]} started";
 }
