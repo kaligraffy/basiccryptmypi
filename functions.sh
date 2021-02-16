@@ -828,9 +828,13 @@ set_defaults(){
   set_default "_IMAGE_SHA256" ""
   set_default "_IMAGE_URL" "MANDATORY"
   set_default "_KERNEL_VERSION_FILTER" "MANDATORY"
-  set_default "_NEW_DEFAULT_USER" "kali"
+  
 
   set_default "_OUTPUT_BLOCK_DEVICE" "MANDATORY"
+  
+  if function_exists "user_setup" || function_exists "user_password_setup"; then
+    set_default "_NEW_DEFAULT_USER" "MANDATORY"
+  fi
   
   if function_exists "root_password_setup"; then
     set_default "_ROOT_PASSWORD" "CHANGEME" 
@@ -873,6 +877,8 @@ set_defaults(){
     set_default "_SSH_PASSWORD_AUTHENTICATION" "no"
     set_default "_SSH_BLOCK_SIZE" "4096"
     set_default "_SSH_PORT" "2222"
+    set_default "_NEW_DEFAULT_USER" "MANDATORY"
+
   fi
   
   if function_exists "iodine_setup"; then
