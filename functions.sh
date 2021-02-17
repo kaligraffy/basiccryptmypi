@@ -610,6 +610,10 @@ chroot_mkinitramfs_setup(){
   print_debug "running update-initramfs, mkinitramfs"
   chroot_execute 'update-initramfs -u -k all'
   chroot_execute "mkinitramfs -o /boot/initramfs.gz -v ${kernel_version}"
+  
+  #revert temp dns change
+  echo -e "nameserver 8.8.8.8" > "${chroot_root}/etc/resolv.conf";
+
 }
 
 #wrapper script for all the setup functions called in build
