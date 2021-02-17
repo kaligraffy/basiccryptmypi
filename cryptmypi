@@ -6,7 +6,6 @@ set -eu
 # Load functions, environment variables and dependencies
 . functions.sh;
 . env.sh;
-. options.sh;
 
 print_usage(){
   local usage
@@ -25,7 +24,6 @@ ARG1 can be:
 -u or unmount - unmount
 -i or initramfs - mount and run mkinitramfs
 -h or help - prints this help message
--o or optional_only - mounts and runs whats in optional setup
 HERE
 )
   echo_info "$usage";
@@ -75,5 +73,4 @@ main(){
 }
 
 # Run program
-#TODO Bats testing
 main "${1:-'-h'}";

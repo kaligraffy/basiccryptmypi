@@ -133,20 +133,10 @@ make_initramfs(){
   chroot_mkinitramfs_setup;
 }
 
-optional_only(){
-  echo_function_start;
-  trap 'trap_on_exit 1' EXIT;
-  mount_only;
-  optional_setup;
-  chroot_mkinitramfs_setup;
-}
-
 build_no_extract(){
   echo_function_start;
-  
   install_dependencies;
   set_defaults;
-  options_check;
   trap 'trap_on_exit 1' EXIT;
   # Write to physical disk or image and modify it
   if (( _IMAGE_MODE == 1 )); then 
@@ -164,10 +154,8 @@ build_no_extract(){
 #Program logic
 build(){
   echo_function_start;
-
   install_dependencies;
   set_defaults;
-  options_check;
   download_image;
   extract_image;
   #Check for a build directory
@@ -757,63 +745,6 @@ tidy_umount(){
   return 1  
 }
 
-#runs through the functions specified in optional_setup
-#checks if each function in options.sh has a requires comment
-#of the form '#requires: ???_setup , optional: ???_setup' 
-options_check(){
-  echo_function_start;
-  #get list of functions specified in optional_setup:
-  functions_in_optional_setup=$(sed -n '/optional_setup(){/,/}/p' env.sh | sed '/optional_setup(){/d' | sed '/}/d' | sed 's/^[ \t]*//g' | sed '/^#/d' | cut -d';' -f1 | tr '\n' ' ')
-  echo_debug "$functions_in_optional_setup";
-  for function in $functions_in_optional_setup; do
-    line_above_function_declaration=$(grep -B 1 "^${function}()" options.sh | grep -v "${function}()")    
-    
-    if grep -q '^#requires:' <<< "$line_above_function_declaration"; then 
-      list_of_prerequisites=$(echo "$line_above_function_declaration" | cut -d':' -f2 | sed 's/^[ \t]*//g' | cut -d',' -f1)
-      if [[ -n "$list_of_prerequisites" ]]; then 
-        echo_debug "$function - requires: $list_of_prerequisites" 
-      fi
-      for prerequisite in $list_of_prerequisites; do 
-      #check the prerequisite occurs before the function in $functions_in_optional_setup
-        int_position_of_prereq=$(get_position_in_array "$prerequisite" "$functions_in_optional_setup")
-        if [[ -z "$int_position_of_prereq" ]]; then 
-          echo_error "$prerequisite for $function is missing";
-          exit 1;
-        fi
-        int_position_of_function=$(get_position_in_array "$function" "$functions_in_optional_setup")
-        echo_debug "$int_position_of_prereq"
-        echo_debug "$int_position_of_function"
-        if (( int_position_of_prereq > int_position_of_function )); then
-          echo_error "$prerequisite is called after $function in optional_setup(), please amend function order"#
-          exit 1;
-        fi
-      done
-     fi
-     
-     if grep -q 'optional:' <<< "$line_above_function_declaration"; then 
-       list_of_optional_prerequisites=$(echo "$line_above_function_declaration" | cut -d':' -f3 | sed 's/^[ \t]*//g')
-       if [[ -n "$list_of_optional_prerequisites" ]]; then 
-         echo_debug "$function - optionally requires: $list_of_optional_prerequisites"
-       fi
-       for prerequisite in $list_of_optional_prerequisites; do 
-          #check the prerequisite occurs before the function in $functions_in_optional_setup
-          int_position_of_prereq=$(get_position_in_array "$prerequisite" "$functions_in_optional_setup")
-          if [[ -z "$int_position_of_prereq" ]]; then 
-            echo_warn "optional $prerequisite for $function is missing";
-          fi
-          int_position_of_function=$(get_position_in_array "$function" "$functions_in_optional_setup")
-          echo_debug "$int_position_of_prereq"
-          echo_debug "$int_position_of_function"
-          if (( int_position_of_prereq > int_position_of_function )); then
-            echo_error "$prerequisite is called after $function in optional_setup(), please amend function order"
-            exit 1;
-          fi
-       done
-     fi
-  done
-  
-}
-
 # method default parameter settings, if a variable is "" or unset, sets it to a reasonable default 
 set_defaults(){
   echo_function_start;
@@ -828,92 +759,7 @@ set_defaults(){
   set_default "_IMAGE_SHA256" ""
   set_default "_IMAGE_URL" "MANDATORY"
   set_default "_KERNEL_VERSION_FILTER" "MANDATORY"
-  
-
   set_default "_OUTPUT_BLOCK_DEVICE" "MANDATORY"
-  
-  if function_exists "user_setup" || function_exists "user_password_setup"; then
-    set_default "_NEW_DEFAULT_USER" "MANDATORY"
-  fi
-  
-  if function_exists "root_password_setup"; then
-    set_default "_ROOT_PASSWORD" "CHANGEME" 
-  fi
-  
-  if function_exists "user_password_setup"; then
-    set_default "_USER_PASSWORD" "CHANGEME"
-  fi
-  
-  if function_exists "luks_nuke_setup"; then
-    set_default "_LUKS_NUKE_PASSWORD" "."
-  fi
-  
-  if function_exists "secure_dns_setup"; then
-    set_default "_DNS1" "1.1.1.1"
-    set_default "_DNS2" "9.9.9.9"
-  fi
-  
-  if function_exists "simple_dns_setup"; then
-    set_default "_DNS1" "1.1.1.1"
-    set_default "_DNS2" "9.9.9.9"
-  fi
-  
-  if function_exists "cpu_governor_setup"; then
-    set_default "_CPU_GOVERNOR" "performance"
-  fi
- 
-  if function_exists "hostname_setup"; then
-    set_default "_HOSTNAME" "pikal"
-  fi
-  
-  if function_exists "packages_setup"; then
-    set_default "_PKGS_TO_INSTALL" ""
-    set_default "_PKGS_TO_PURGE" ""
-  fi
-  
-  if function_exists "ssh_setup"; then
-    set_default "_SSH_KEY_PASSPHRASE" "CHANGEME"
-    set_default "_SSH_LOCAL_KEYFILE" "${_FILE_DIR}/id_rsa.pub"
-    set_default "_SSH_PASSWORD_AUTHENTICATION" "no"
-    set_default "_SSH_BLOCK_SIZE" "4096"
-    set_default "_SSH_PORT" "2222"
-    set_default "_NEW_DEFAULT_USER" "MANDATORY"
-
-  fi
-  
-  if function_exists "iodine_setup"; then
-    set_default "_IODINE_DOMAIN" "MANDATORY"
-    set_default "_IODINE_PASSWORD" "MANDATORY"
-  fi
-  
-  if function_exists "vpn_client_setup"; then
-    set_default "_OPENVPN_CONFIG_ZIP" "MANDATORY"
-  fi
-  
-  if function_exists "wifi_setup"; then
-    set_default "_WIFI_PASSWORD" "CHANGEME"
-    set_default "_WIFI_SSID" "WIFI"
-    set_default "_WIFI_INTERFACE" "wlan0"
-  fi
-  
-  if function_exists "random_mac_on_reboot_setup"; then
-    set_default "_WIFI_INTERFACE" "wlan0"
-  fi
-  
-  if function_exists "initramfs_wifi_setup"; then
-    set_default "_INITRAMFS_WIFI_INTERFACE" "wlan0"
-    set_default "_INITRAMFS_WIFI_IP"  ":::::${_INITRAMFS_WIFI_INTERFACE}:dhcp:${_DNS1}:${_DNS2}"
-    set_default "_INITRAMFS_WIFI_DRIVERS" 'brcmfmac brcmutil cfg80211 rfkill';
-  fi
-
-  if function_exists "chkboot_setup"; then
-    set_default "_CHKBOOT_BOOTDISK" "MANDATORY"
-  fi
-  
-  if function_exists "sftp_setup"; then
-    set_default "_SFTP_PASSWORD" "CHANGEME"
-  fi
-  
   set -eu
 
   #echo out settings for this run
@@ -939,14 +785,6 @@ set_default(){
      echo_warn "${var_name} set to default value '${default_value}'";
      export "${var_name}"="${default_value}";
    fi
-}
-
-#checks if a function is defined optional_setup, takes a function name as argument
-function_exists() {
-    functions_in_optional_setup=$(sed -n '/optional_setup(){/,/}/p' env.sh | sed '/optional_setup(){/d' | sed '/}/d' | sed 's/^[ \t]*//g' | sed '/^#/d' | cut -d';' -f1 | tr '\n' ' ')
-    
-    grep -q "$1" <<< "$functions_in_optional_setup" > /dev/null
-    return $?
 }
 
 #prompts user for a reply
