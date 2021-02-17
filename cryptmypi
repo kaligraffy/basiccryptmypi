@@ -12,25 +12,23 @@ print_usage(){
   usage=$(cat << 'HERE' 
 Usage: sudo ./cryptmypi.sh ARG1
 
-BEFORE Running the script. make sure you first create your env.sh based on one of the examples or the template.
-Then comment in/out the functions in optional_setup to what you want.
+BEFORE Running the script. make sure you first create your env.sh based on one of the examples
 If you forget to add a variable in, the script may exit and tell you or choose a reasonable default.
-The script also checks for ordering of optional setup.
 
 ARG1 can be:
 -b or build - standard build
--nx or build_no_extract - build without preparing the filesystem
 -m or mount_only - only mount an image or disk
 -u or unmount - unmount
--i or initramfs - mount and run mkinitramfs
+-i or install - install dependencies
+-mk or mkinitramfs - mounts and runs the mkinitramfs
 -h or help - prints this help message
 HERE
 )
-  echo_info "$usage";
+  print_info "$usage";
 }
 
 main(){
-  echo_info "$(basename "$0") started"
+  print_info "$(basename "$0") started"
 
   trap 'trap_on_exit 0' EXIT;
 
@@ -41,25 +39,21 @@ main(){
       #build normally
       build;
       ;;
-    build_no_extract|-nx)
-      #build but do not extract files from downloaded image
-      build_no_extract;
+    install|-i)
+      #install dependencies only
+      install_dependencies;
       ;;
     mount_only|-m)
       #mount the image only
       mount_only;
       ;;
-    initramfs|-i)
+    mkinitramfs|-mk)
      #mount and run initramfs 
       make_initramfs;
       ;;
     unmount|-u)
      #unmount new image
       unmount;
-      ;;
-    help|-h)
-      #print help
-      print_usage;
       ;;
     *)
       print_usage;
@@ -69,4 +63,4 @@ main(){
 }
 
 # Run program
-main "${1:-'-h'}";
+main "${1:-'print help'}";

@@ -14,7 +14,7 @@ Testing is 'ad hoc' and only for the RPI4. Other kernels might work if set in en
 
 USAGE
 
-Leave aside about 30GB of space for this for the kali image, about 10G for pios
+Leave aside about 20GB of space for this for the kali image, about 10G for pios if using image mode
 
 Usage: sudo ./cryptmypi.sh ARG1
 
@@ -23,12 +23,11 @@ If you forget to add a variable in, the script may exit and tell you or choose a
 
 ARG1 can be:
 -b or build - standard build
--nx or build_no_extract - build without preparing the filesystem
 -m or mount_only - only mount an image or disk
 -u or unmount - unmount
--i or initramfs - mount and run mkinitramfs
+-i or install - install dependencies
+-mk or mkinitramfs - mounts and runs the mkinitramfs
 -h or help - prints this help message
-
 Follow the prompts
 
 ISSUES
