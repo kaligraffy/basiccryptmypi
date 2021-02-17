@@ -902,7 +902,7 @@ set_defaults(){
   
   if function_exists "initramfs_wifi_setup"; then
     set_default "_INITRAMFS_WIFI_INTERFACE" "wlan0"
-    set_default "_INITRAMFS_WIFI_IP"  ":::::${INITRAMFS_WIFI_INTERFACE}:dhcp:${_DNS1}:${_DNS2}"
+    set_default "_INITRAMFS_WIFI_IP"  ":::::${_INITRAMFS_WIFI_INTERFACE}:dhcp:${_DNS1}:${_DNS2}"
     set_default "_INITRAMFS_WIFI_DRIVERS" 'brcmfmac brcmutil cfg80211 rfkill';
   fi
 
