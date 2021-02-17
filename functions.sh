@@ -541,6 +541,7 @@ chroot_apt_setup(){
   if [ ! -f "${chroot_root}/etc/resolv.conf" ] || check_variable_is_set "${_DNS}" ; then
     print_warning "${chroot_root}/etc/resolv.conf does not exist";
     print_warning "Setting nameserver to $_DNS in ${chroot_root}/etc/resolv.conf";
+    mv "${chroot_root}/etc/resolv.conf" "${chroot_root}/etc/resolv.conf.bak";
     echo -e "nameserver $_DNS" > "${chroot_root}/etc/resolv.conf";
   fi
   
@@ -612,7 +613,7 @@ chroot_mkinitramfs_setup(){
   chroot_execute "mkinitramfs -o /boot/initramfs.gz -v ${kernel_version}"
   
   #revert temp dns change
-  echo -e "nameserver 8.8.8.8" > "${chroot_root}/etc/resolv.conf";
+  mv "${chroot_root}/etc/resolv.conf.bak" "${chroot_root}/etc/resolv.conf";
 
 }
 
