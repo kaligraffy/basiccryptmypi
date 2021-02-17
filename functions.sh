@@ -2,32 +2,30 @@
 set -eu
 
 #Global variables
-_BASE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )";
-
-declare -x _BUILD_DIR="${_BASE_DIR}/build"
-declare -x _FILE_DIR="${_BASE_DIR}/files"
-declare -x _EXTRACTED_IMAGE="${_FILE_DIR}/extracted.img"
-declare -x _CHROOT_DIR="${_BUILD_DIR}/disk"
-
-declare -x _ENCRYPTED_VOLUME_PATH="/dev/mapper/crypt-1"
-_LUKS_MAPPING_NAME="$(basename ${_ENCRYPTED_VOLUME_PATH})"
-export _LUKS_MAPPING_NAME;
-
 declare -x _COLOR_ERROR='\033[0;31m'; #red
 declare -x _COLOR_WARN='\033[1;33m'; #orange
 declare -x _COLOR_INFO='\033[1;32m'; #light blue
 declare -x _COLOR_DEBUG='\033[0;37m'; #grey
 declare -x _COLOR_NORMAL='\033[0m'; # No Color
 
-declare -x _LOG_FILE="${_BASE_DIR}/build.log"
-declare -x _IMAGE_FILE="${_BUILD_DIR}/image.img"
+_BASE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )";
+
+declare -x _BUILD_DIR="${_BASE_DIR}/build"
+declare -x _EXTRACTED_IMAGE="${_BASE_DIR}/extracted.img"
+declare -x _CHROOT_DIR="${_BUILD_DIR}/disk"
+
+declare -x _ENCRYPTED_VOLUME_PATH="/dev/mapper/crypt-1"
+_LUKS_MAPPING_NAME="$(basename ${_ENCRYPTED_VOLUME_PATH})"
+export _LUKS_MAPPING_NAME;
+
+declare -x _LOG_FILE="${_BASE_DIR}/build.log";
+declare -x _IMAGE_FILE="${_BUILD_DIR}/image.img";
 declare -x _APT_CMD="eatmydata apt-get -qq -y";
 
 #Can be set up to enable https in apt during setup in chroot
-declare -x _APT_HTTPS=${_APT_HTTPS:-1}
+declare -x _APT_HTTPS=${_APT_HTTPS:-1};
 
 #Useful if you are using a nonstandard resolver for DoT on your host machine
-declare -x _OVERRIDE_DNS_FOR_SETUP_ONLY=${_OVERRIDE_DNS_FOR_SETUP_ONLY:-127.0.0.53}
 declare -x _START_TIME="$(date +%s)";
 declare _LOG_LEVEL="${_LOG_LEVEL:-1}";
 declare _BLOCK_DEVICE_BOOT=""
@@ -222,7 +220,7 @@ extract_image() {
   local image_path;
 
   image_name="$(basename "${_IMAGE_URL}")";
-  image_path="${_FILE_DIR}/${image_name}";
+  image_path="${_BASE_DIR}/${image_name}";
   local extracted_image="${_EXTRACTED_IMAGE}";
 
   #If no prompts is set and extracted image exists then continue to extract
@@ -303,7 +301,7 @@ download_image(){
   local image_out_file;
 
   image_name=$(basename "${_IMAGE_URL}");
-  image_out_file="${_FILE_DIR}/${image_name}"
+  image_out_file="${_BASE_DIR}/${image_name}"
   
   wget -nc "${_IMAGE_URL}" -O "${image_out_file}" || true
   if [ -z "${_IMAGE_SHA256}" ]; then
@@ -377,6 +375,7 @@ cat << EOF > "${_CHROOT_DIR}/etc/fstab"
 proc            /proc           proc    defaults          0       0
 /dev/mmcblk0p1  /boot           vfat    defaults          0       2
 ${_ENCRYPTED_VOLUME_PATH}  /            $fs_type    defaults,noatime,subvol=@/root  0  1
+#Example config you may like to use:
 #${_ENCRYPTED_VOLUME_PATH}  /.snapshots  $fs_type    defaults,noatime,subvol=@/.snapshots  0  1    
 #${_ENCRYPTED_VOLUME_PATH}  /var/log     $fs_type    defaults,noatime,subvol=@/var_log  0  1    
 #${_ENCRYPTED_VOLUME_PATH}  /home        $fs_type    defaults,noatime,subvol=@/home  0  1
@@ -401,7 +400,7 @@ $(basename ${_ENCRYPTED_VOLUME_PATH})    /dev/mmcblk0p2    none    luks
 EOF
 
   # Create a hook to include our crypttab in the initramfs
-  cp -p "${_FILE_DIR}/initramfs-scripts/zz-cryptsetup" "${_CHROOT_DIR}/etc/initramfs-tools/hooks/zz-cryptsetup";
+  cp -p "${_BASE_DIR}/zz-cryptsetup" "${_CHROOT_DIR}/etc/initramfs-tools/hooks/zz-cryptsetup";
   
   # Adding dm_mod, dm_crypt to initramfs modules
   #dm_mod needed for pios, oddly doesn't seem to be needed for kali 
@@ -465,7 +464,6 @@ filesystem_setup(){
   
   case $fs_type in
     "btrfs") 
-      echo_debug "- Setting up btrfs-progs on build machine"
       echo_debug "- Setting up btrfs-progs in chroot"
       chroot_package_install btrfs-progs
       echo_debug "- Adding btrfs module to initramfs-tools/modules"
@@ -512,41 +510,6 @@ make_filesystem(){
             exit 1
             ;;
   esac
-}
-
-#gets from local filesystem or generates a ssh key and puts it on the build 
-create_ssh_key(){
-  echo_function_start;
-  local id_rsa="${_FILE_DIR}/id_rsa";
-  
-  if [ ! -f "${id_rsa}" ]; then 
-    echo_debug "generating ${id_rsa}";
-    ssh-keygen -b "${_SSH_BLOCK_SIZE}" -N "${_SSH_KEY_PASSPHRASE}" -f "${id_rsa}" -C "root@${_HOSTNAME}";
-  fi
-  
-  chmod 600 "${id_rsa}";
-  chmod 644 "${id_rsa}.pub";
-  echo_debug "copying keyfile ${id_rsa} to box's default user .ssh directory";
-  mkdir -p "${_CHROOT_DIR}/root/.ssh/" || true
-  cp -p "${id_rsa}" "${_CHROOT_DIR}/root/.ssh/id_rsa";
-  cp -p "${id_rsa}.pub" "${_CHROOT_DIR}/root/.ssh/id_rsa.pub";        
-}
-
-#puts the sshkey into your files directory for safe keeping
-backup_dropbear_key(){
-  echo_function_start;
-  local temporary_keypath="${1}";
-  local temporary_keyname;
-  temporary_keyname="${_FILE_DIR}/$(basename "${temporary_keypath}")";
-
-  #if theres a key in your files directory copy it into your chroot directory
-  # if there isn't, copy it from your chroot directory into your files directory
-  if [ -f "${temporary_keyname}" ]; then
-    cp -p "${temporary_keyname}" "${temporary_keypath}";
-    chmod 600 "${temporary_keypath}";
-  else
-    cp -p "${temporary_keypath}" "${temporary_keyname}";
-  fi
 }
 
 arm_setup(){
@@ -611,11 +574,6 @@ chroot_apt_setup(){
     echo_warn "${chroot_root}/etc/resolv.conf does not exist";
     echo_warn "Setting nameserver to $_DNS1 and $_DNS2 in ${chroot_root}/etc/resolv.conf";
     echo -e "nameserver $_DNS1\nnameserver $_DNS2" > "${chroot_root}/etc/resolv.conf";
-  fi
-  
-  #workaround for people with dns over tls and using it on loopback
-  if check_variable_is_set $_OVERRIDE_DNS_FOR_SETUP_ONLY ; then
-    echo -e "nameserver ${_OVERRIDE_DNS_FOR_SETUP_ONLY}" > "${chroot_root}/etc/resolv.conf";
   fi
   
   #Update apt and install eatmydata to speed up things later
@@ -694,7 +652,6 @@ chroot_all_setup(){
   locale_setup
   filesystem_setup;
   encryption_setup;
-  optional_setup;
   chroot_mkinitramfs_setup;
 }
 
@@ -706,17 +663,21 @@ btrfs_setup(){
     "btrfs")
         btrfs subvolume create "${_CHROOT_DIR}/@"  
         btrfs subvolume create "${_CHROOT_DIR}/@/root"
+        
         #created automatically by snapper
         #btrfs subvolume create "${_CHROOT_DIR}/@/.snapshots"
-        btrfs subvolume create "${_CHROOT_DIR}/@/var_log"
-        btrfs subvolume create "${_CHROOT_DIR}/@/home"
+        
+        #optional 
+        #TODO mount home, var log here too 
+        #btrfs subvolume create "${_CHROOT_DIR}/@/var_log"
+        #btrfs subvolume create "${_CHROOT_DIR}/@/home"
+        
         btrfs subvolume set-default "${_CHROOT_DIR}/@/root"
         
         echo "remounting into new root subvol"
         umount "${_CHROOT_DIR}/boot"
         umount "${_CHROOT_DIR}";
         mount_chroot
-        #TODO mount home, var log here too 
         ;;
     *) 
         exit 1;
@@ -761,9 +722,6 @@ set_defaults(){
   set_default "_KERNEL_VERSION_FILTER" "MANDATORY"
   set_default "_OUTPUT_BLOCK_DEVICE" "MANDATORY"
   set -eu
-
-  #echo out settings for this run
-  set | grep '^_' > "${_LOG_FILE}"
 }
 
 #sets a given variable_name $1 to a default value $2
@@ -776,7 +734,7 @@ set_default(){
    local current_value;
    current_value="$(eval echo "\$${var_name}")"
    if [[ "$( check_variable_is_set "$current_value")" == "0" ]]; then
-     echo_debug "${var_name} was set to '${current_value}'";
+     echo_info "${var_name} is set to '${current_value}'";
    else
      if [[ $default_value == 'MANDATORY' ]]; then
        echo_error "${var_name} was not set and is mandatory, please amend env.sh'";
@@ -897,7 +855,7 @@ echo_debug(){
 #tells you the command to copy the image to disk.
 echo_dd_command(){
   if (( _IMAGE_MODE == 1 )); then
-    echo_info "To burn your disk run: dd if=${_IMAGE_FILE} of=${_OUTPUT_BLOCK_DEVICE} bs=8M status=progress && sync";https://github.com/kaligraffy/dd-resize-root
+    echo_info "To burn your disk run: dd if=${_IMAGE_FILE} of=${_OUTPUT_BLOCK_DEVICE} bs=8M status=progress && sync";
     echo_info "https://github.com/kaligraffy/dd-resize-root will dd and resize to the full disk if you've selected btrfs"
 
   fi

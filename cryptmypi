@@ -61,10 +61,6 @@ main(){
       #print help
       print_usage;
       ;;
-    optional|-o)
-      #mount, run optional setup and generate initramfs
-      optional_only;
-      ;;
     *)
       print_usage;
       ;;
