@@ -1,9 +1,8 @@
 #!/bin/bash
 set -eu
 
-_BASE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )";
+declare -r _BASE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )";
 declare -x _BUILD_DIR="${_BASE_DIR}/build"
-declare -x _EXTRACTED_IMAGE="${_BASE_DIR}/extracted.img"
 declare -x _CHROOT_DIR="${_BUILD_DIR}/disk"
 declare -x _ENCRYPTED_VOLUME_PATH="/dev/mapper/crypt-1"
 _LUKS_MAPPING_NAME="$(basename ${_ENCRYPTED_VOLUME_PATH})"
@@ -190,7 +189,7 @@ extract_image() {
   local image_path;
   image_name="$(basename "${_IMAGE_URL}")";
   image_path="${_BASE_DIR}/${image_name}";
-  local extracted_image="${_EXTRACTED_IMAGE}";
+  local extracted_image="${_BASE_DIR}/$(basename ${_IMAGE_URL} | sed 's#.xz##' | sed 's#.zip##')";
 
   #If no prompts is set and extracted image exists then continue to extract
   if [[ -e "${extracted_image}" ]] && (( _NO_PROMPTS == 1 )); then
@@ -236,7 +235,7 @@ extract_image() {
 #mounts the extracted image via losetup
 copy_image_on_loopback_to_disk(){
   print_function_name;
-  local extracted_image="${_EXTRACTED_IMAGE}";
+  local extracted_image="${_BASE_DIR}/$(basename ${_IMAGE_URL} | sed 's#.xz##' | sed 's#.zip##')";
   local loop_device;
   
   loop_device=$(losetup -P -f --read-only --show "$extracted_image");
@@ -391,10 +390,12 @@ partition_disk(){
 partition_image_file(){
   print_function_name;
   local image_file=${_IMAGE_FILE};
+  local extracted_image="${_BASE_DIR}/$(basename ${_IMAGE_URL} | sed 's#.xz##' | sed 's#.zip##')";
   local extracted_image_file_size;
   local image_file_size;
-  extracted_image_file_size="$(du -k "${_EXTRACTED_IMAGE}" | cut -f1)"
-  image_file_size="$(echo "$extracted_image_file_size * 1.5" | bc | cut -d'.' -f1)"; 
+  
+  extracted_image_file_size="$(du -k "${extracted_image}" | cut -f1)"
+  image_file_size="$(echo "$extracted_image_file_size * 1.1" | bc | cut -d'.' -f1)"; 
   touch "$image_file";
   fallocate -l "${image_file_size}KiB" "${image_file}"
   parted_disk_setup "${image_file}" 
@@ -539,7 +540,7 @@ chroot_apt_setup(){
   fi
   
   if [ ! -f "${chroot_root}/etc/resolv.conf" ] || check_variable_is_set "${_DNS}" ; then
-    print_warning "${chroot_root}/etc/resolv.conf does not exist";
+    print_warning "${chroot_root}/etc/resolv.conf does not exist or _DNS is set";
     print_warning "Setting nameserver to $_DNS in ${chroot_root}/etc/resolv.conf";
     mv "${chroot_root}/etc/resolv.conf" "${chroot_root}/etc/resolv.conf.bak";
     echo -e "nameserver $_DNS" > "${chroot_root}/etc/resolv.conf";
@@ -584,13 +585,11 @@ chroot_package_purge(){
 #run a command in chroot
 chroot_execute(){
   local chroot_dir="${_CHROOT_DIR}";
-  set -o pipefail
   local status
   print_debug "Running: ${@}"
   chroot ${chroot_dir} ${@} 
   status=${?}
-  set +o pipefail
-  echo ${status}
+
   if [[ "${status}" -ne 0 ]]; then
     print_error "retval of chroot: ${status}, command failed"
     exit 1;

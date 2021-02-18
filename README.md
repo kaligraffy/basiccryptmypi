@@ -1,25 +1,23 @@
 # basic_cryptmypi
 basic_cryptmypi - A really simple pi deployment script.
-With thanks to unixabg for the original script.
 
-THIS IS A BETA, DON'T DOWNLOAD UNLESS YOU ARE PREPARED TO TROUBLESHOOT
+With thanks to unixabg for the original script.
 
 PURPOSE
 
 Creates a configurable sd card or disk image for the raspberry pi with strong encryption as default with kali or pios
 
-See file env.sh-example-template for a full list of options
-
-Testing is 'ad hoc' and only for the RPI4. Other kernels might work if set in env.sh
+Supports 64/32 bit, kali and pios
 
 USAGE
 
-Leave aside about 20GB of space for this for the kali image, about 10G for pios if using image mode
+Leave aside about 20GB of space for this for the kali image, about 5G for pios if using image mode
 
-Usage: sudo ./cryptmypi.sh ARG1
+Usage: 
 
-BEFORE Running the script. make sure you first create your env.sh based on one of the examples
-If you forget to add a variable in, the script may exit and tell you or choose a reasonable default.
+rename an env.sh example to env.sh and modify variables
+
+sudo ./cryptmypi.sh ARG1
 
 ARG1 can be:
 -b or build - standard build
@@ -32,8 +30,7 @@ Follow the prompts
 
 ISSUES
 
-- Mounts need manually unmounting, sometimes
-- 64Bit only (forced in the functions)
+- chroot commands aren't necessarily raising errors when they error!
 
 LOGGING
 

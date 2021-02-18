@@ -3,17 +3,18 @@ set -eu
 
 # Creates a configurable kali pi build
 
-# Load functions, environment variables and dependencies
-. functions.sh;
+# Load functions, environment variables 
+. functions.sh
 . env.sh;
 
 print_usage(){
   local usage
   usage=$(cat << 'HERE' 
-Usage: sudo ./cryptmypi.sh ARG1
+Usage: 
 
-BEFORE Running the script. make sure you first create your env.sh based on one of the examples
-If you forget to add a variable in, the script may exit and tell you or choose a reasonable default.
+rename an env.sh example to env.sh and modify variables
+
+sudo ./cryptmypi.sh ARG1
 
 ARG1 can be:
 -b or build - standard build
