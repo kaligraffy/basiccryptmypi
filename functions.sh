@@ -1,22 +1,24 @@
 #!/bin/bash
 set -eu
 
+declare -r _START_TIME="$(date +%s)";
 declare -r _BASE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )";
-declare -x _BUILD_DIR="${_BASE_DIR}/build"
-declare -x _CHROOT_DIR="${_BUILD_DIR}/disk"
-declare -x _ENCRYPTED_VOLUME_PATH="/dev/mapper/crypt-1"
-_LUKS_MAPPING_NAME="$(basename ${_ENCRYPTED_VOLUME_PATH})"
-export _LUKS_MAPPING_NAME;
+declare _BUILD_DIR="${_BUILD_DIR:-"${_BASE_DIR}/build"}"
 
-declare -x _LOG_FILE="${_BASE_DIR}/build.log";
-declare -x _IMAGE_FILE="${_BUILD_DIR}/image.img";
-declare -x _APT_CMD="eatmydata apt-get -qq -y";
+#can be overriden in env.sh
+declare _APT_CMD=${_APT_CMD:-"eatmydata apt-get -qq -y"};
 declare _APT_HTTPS="${_APT_HTTPS:-0}";
 declare _64BIT="${_64BIT:-0}";
-declare -x _START_TIME="$(date +%s)";
 declare _LOG_LEVEL="${_LOG_LEVEL:-1}";
+declare _CHROOT_DIR="${_CHROOT_DIR:-"${_BASE_DIR}/disk"}"; #shouldn't be set to build dir
+declare _ENCRYPTED_VOLUME_PATH=${_ENCRYPTED_VOLUME_PATH:-"/dev/mapper/crypt-1"}
+declare _IMAGE_FILE="${_IMAGE_FILE:-"${_BUILD_DIR}/image.img"}";
+declare _LOG_FILE="${_LOG_FILE:-"${_BASE_DIR}/build.log"}";
+
 declare _BLOCK_DEVICE_BOOT=""
 declare _BLOCK_DEVICE_ROOT="" 
+
+declare _LUKS_MAPPING_NAME="$(basename ${_ENCRYPTED_VOLUME_PATH})"
 
 # Runs on script exit, tidies up the mounts.
 trap_on_exit(){
@@ -168,7 +170,7 @@ fix_block_device_names(){
 create_build_directory(){
   if [ -d "${_BUILD_DIR}" ]; then
     local prompt="Build directory ${_BUILD_DIR} already exists. Recreate it? (y/N)  ";
-    if ask_yes_or_no "$prompt" || (( _NO_PROMPTS == 1 )); then  
+    if [ -z "$(ls -A ${_BUILD_DIR})" ] || ask_yes_or_no "$prompt" || (( _NO_PROMPTS == 1 )) ; then  
       rm -rf "${_BUILD_DIR}" ;
       mkdir "${_BUILD_DIR}" ; 
     else
@@ -540,8 +542,8 @@ chroot_apt_setup(){
   fi
   
   if [ ! -f "${chroot_root}/etc/resolv.conf" ] || check_variable_is_set "${_DNS}" ; then
-    print_warning "${chroot_root}/etc/resolv.conf does not exist or _DNS is set";
-    print_warning "Setting nameserver to $_DNS in ${chroot_root}/etc/resolv.conf";
+    print_info "${chroot_root}/etc/resolv.conf does not exist or _DNS is set";
+    print_info "Setting nameserver to $_DNS in ${chroot_root}/etc/resolv.conf";
     mv "${chroot_root}/etc/resolv.conf" "${chroot_root}/etc/resolv.conf.bak";
     echo -e "nameserver $_DNS" > "${chroot_root}/etc/resolv.conf";
   fi
@@ -605,7 +607,6 @@ chroot_mkinitramfs_setup(){
   chroot_execute 'mount -o remount,rw /boot '
   
   kernel_version=$(find "${modules_dir}" -maxdepth 1 -regex ".*${_KERNEL_VERSION_FILTER}.*" | tail -n 1 | xargs basename);
-  print_debug "kernel is '${kernel_version}'";
   
   print_debug "running update-initramfs, mkinitramfs"
   chroot_execute 'update-initramfs -u -k all'
@@ -712,7 +713,7 @@ set_default(){
        print_error "${var_name} was not set and is mandatory, please amend env.sh'";
        exit 1;
      fi
-     print_warning "${var_name} set to default value '${default_value}'";
+     print_info "${var_name} set to default value '${default_value}'";
      export "${var_name}"="${default_value}";
    fi
 }
