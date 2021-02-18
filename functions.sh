@@ -602,6 +602,7 @@ chroot_execute(){
 #generates the initramfs.gz file in /boot
 chroot_mkinitramfs_setup(){
   print_function_name;
+  local chroot_root="${_CHROOT_DIR}"
   local modules_dir="${_CHROOT_DIR}/lib/modules/";
   local kernel_version;
   chroot_execute 'mount -o remount,rw /boot '
