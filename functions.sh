@@ -3,32 +3,35 @@ set -eu
 
 declare -r _START_TIME="$(date +%s)";
 declare -r _BASE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )";
-declare _BUILD_DIR="${_BUILD_DIR:-"${_BASE_DIR}/build"}"
 
 #can be overriden in env.sh
+declare _BUILD_DIR="${_BUILD_DIR:-"${_BASE_DIR}/build"}"
 declare _APT_CMD=${_APT_CMD:-"eatmydata apt-get -qq -y"};
 declare _APT_HTTPS="${_APT_HTTPS:-0}";
 declare _64BIT="${_64BIT:-0}";
 declare _LOG_LEVEL="${_LOG_LEVEL:-1}";
 declare _CHROOT_DIR="${_CHROOT_DIR:-"${_BASE_DIR}/disk"}"; #shouldn't be set to build dir
-declare _ENCRYPTED_VOLUME_PATH=${_ENCRYPTED_VOLUME_PATH:-"/dev/mapper/crypt-1"}
+declare _ENCRYPTED_VOLUME_PATH=${_ENCRYPTED_VOLUME_PATH:-"/dev/mapper/crypt"}; #set this to something else in your env file if you already have something called crypt on your system
 declare _IMAGE_FILE="${_IMAGE_FILE:-"${_BUILD_DIR}/image.img"}";
 declare _LOG_FILE="${_LOG_FILE:-"${_BASE_DIR}/build.log"}";
-
+declare image_file_size_modifier="1.1"; #amount to multiply the existing image (when making the system image) by, i.e 1.1 is 1.1 x the downloaded image size. 
 declare _BLOCK_DEVICE_BOOT=""
 declare _BLOCK_DEVICE_ROOT="" 
-
+declare _EXTRA_PACKAGES=${_EXTRA_PACKAGES:-""}
 declare _LUKS_MAPPING_NAME="$(basename ${_ENCRYPTED_VOLUME_PATH})"
 
 # Runs on script exit, tidies up the mounts.
 trap_on_exit(){
   print_function_name;
-  if (( $1 == 1 )); then 
-    cleanup; 
-  fi
   local end_time;
   end_time="$(($(date +%s)-$_START_TIME))"
-  print_info "$(basename "$0") finished. Script took ${end_time} seconds";
+  cleanup;
+  
+  if (( $1 == 1 )); then 
+    print_info "$(basename "$0") failed. Script took ${end_time} seconds";
+  else
+    print_info "$(basename "$0") finished successfully. Script took ${end_time} seconds";
+  fi
 }
 
 # Cleanup stage 2
@@ -318,6 +321,7 @@ encryption_setup(){
   chroot "${_CHROOT_DIR}" /bin/bash -c "test -L /sbin/fsck.luks || ln -s /sbin/e2fsck /sbin/fsck.luks"
 
   # Indicate kernel to use initramfs - facilitates loading drivers
+  sed -i 's|^initramfs.*|\#&|g' "${_CHROOT_DIR}/boot/config.txt";
   atomic_append 'initramfs initramfs.gz followkernel' "${_CHROOT_DIR}/boot/config.txt";
   
   # Update /boot/cmdline.txt to boot crypt
@@ -388,7 +392,7 @@ partition_disk(){
   parted_disk_setup "${_OUTPUT_BLOCK_DEVICE}" 
 }
 
-#makes an image file 1.25 * the size of the extracted image, then partitions the disk
+#makes an image file 1.1 * the size of the extracted image, then partitions the disk
 partition_image_file(){
   print_function_name;
   local image_file=${_IMAGE_FILE};
@@ -397,12 +401,13 @@ partition_image_file(){
   local image_file_size;
   
   extracted_image_file_size="$(du -k "${extracted_image}" | cut -f1)"
-  image_file_size="$(echo "$extracted_image_file_size * 1.1" | bc | cut -d'.' -f1)"; 
+  image_file_size="$(echo "${extracted_image_file_size} * ${image_file_size_modifier}" | bc | cut -d'.' -f1)"; 
   touch "$image_file";
   fallocate -l "${image_file_size}KiB" "${image_file}"
   parted_disk_setup "${image_file}" 
 }
 
+# Mounts the image which will be the new system image on loopback interface
 loopback_image_file(){
   print_function_name;
   local image_file=${_IMAGE_FILE};
@@ -414,7 +419,7 @@ loopback_image_file(){
   _BLOCK_DEVICE_ROOT="${loop_device}p2"
 }
 
-#makes a luks container and formats the disk/image
+# Makes a luks container and formats the new disk/image
 format_filesystem(){
   print_function_name;
 
@@ -544,16 +549,22 @@ chroot_apt_setup(){
   if [ ! -f "${chroot_root}/etc/resolv.conf" ] || check_variable_is_set "${_DNS}" ; then
     print_info "${chroot_root}/etc/resolv.conf does not exist or _DNS is set";
     print_info "Setting nameserver to $_DNS in ${chroot_root}/etc/resolv.conf";
-    mv "${chroot_root}/etc/resolv.conf" "${chroot_root}/etc/resolv.conf.bak";
-    echo -e "nameserver $_DNS" > "${chroot_root}/etc/resolv.conf";
+    if [ -f "${chroot_root}/etc/resolv.conf" ]; then
+      #if there was one, then back it up
+      mv "${chroot_root}/etc/resolv.conf" "${chroot_root}/etc/resolv.conf.bak";
+    fi
+    echo -e "nameserver ${_DNS}" > "${chroot_root}/etc/resolv.conf";
   fi
   
   #Update apt and install eatmydata to speed up things later
   chroot_execute 'apt-get -qq -y update'
   chroot_execute 'apt-get -qq -y install eatmydata'
+  if check_variable_is_set ${_EXTRA_PACKAGES}; then
+    chroot_execute "${_APT_CMD} install ${_EXTRA_PACKAGES}"
+  fi
   
   #Corrupt package install fix code
-  if ! chroot_execute "$_APT_CMD --fix-broken install"; then
+  if ! chroot_execute "${_APT_CMD} --fix-broken install"; then
     if ! chroot_execute 'dpkg --configure -a'; then
         print_error "apt corrupted, manual intervention required";
         exit 1;
@@ -614,8 +625,9 @@ chroot_mkinitramfs_setup(){
   chroot_execute "mkinitramfs -o /boot/initramfs.gz -v ${kernel_version}"
   
   #revert temp dns change
-  mv "${chroot_root}/etc/resolv.conf.bak" "${chroot_root}/etc/resolv.conf";
-
+  if [ -f "${chroot_root}/etc/resolv.conf.bak" ]; then
+    mv "${chroot_root}/etc/resolv.conf.bak" "${chroot_root}/etc/resolv.conf";
+  fi
 }
 
 #wrapper script for all the setup functions called in build

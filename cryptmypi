@@ -4,8 +4,8 @@ set -eu
 # Creates a configurable kali pi build
 
 # Load functions, environment variables 
-. functions.sh
 . env.sh;
+. functions.sh
 
 print_usage(){
   local usage
@@ -18,7 +18,7 @@ sudo ./cryptmypi.sh ARG1
 
 ARG1 can be:
 -b or build - standard build
--m or mount_only - only mount an image or disk
+-m or mount - decrypt and mount an image or disk
 -u or unmount - unmount
 -i or install - install dependencies
 -mk or mkinitramfs - mounts and runs the mkinitramfs
@@ -36,24 +36,24 @@ main(){
   check_run_as_root;
 
   case $1 in
-    build|-b)
+    build|-b|-B)
       #build normally
       build;
       ;;
-    install|-i)
+    install|-i|-I)
       #install dependencies only
       install_dependencies;
       ;;
-    mount_only|-m)
+    mount|-m|-M)
       #mount the image only
       mount_only;
       ;;
-    mkinitramfs|-mk)
-     #mount and run initramfs 
+    mkinitramfs|-mk|-MK)
+      #mount and run initramfs 
       make_initramfs;
       ;;
-    unmount|-u)
-     #unmount new image
+    unmount|-u|-U)
+      #unmount new image
       unmount;
       ;;
     *)
