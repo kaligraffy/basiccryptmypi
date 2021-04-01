@@ -1,67 +1,89 @@
 #!/bin/bash
 set -eu
 
-# Creates a configurable kali pi build
+# Creates a configurable kali pi build image or disk which is encrypted
 
 # Load functions, environment variables 
-. env.sh;
+. env.sh
 . functions.sh
 
+# Print how the script can be used
 print_usage(){
   local usage
   usage=$(cat << 'HERE' 
 Usage: 
 
-rename an env.sh example to env.sh and modify variables
+ Rename an env.sh-example to env.sh and modify variables
 
-sudo ./cryptmypi.sh ARG1
+ Then run: sudo ./cryptmypi.sh ARG1
 
-ARG1 can be:
--b or build - standard build
--m or mount - decrypt and mount an image or disk
--u or unmount - unmount
--i or install - install dependencies
--mk or mkinitramfs - mounts and runs the mkinitramfs
--h or help - prints this help message
+ ARG1 can be:
+  -b or build - standard build
+  -m or mount - decrypt and mount an image or disk
+  -u or unmount - unmount an image or disk
+  -i or install - install dependencies
+  -mk or mkinitramfs - mounts and runs the mkinitramfs
+  -h or help - prints this help message
+  
 HERE
 )
   print_info "$usage";
 }
 
+# Main program logic of script
 main(){
+  
+  # clear log file for new run
+  echo '' > "${_log_file}"; 
+  
   print_info "$(basename "$0") started"
 
-  trap 'trap_on_exit 0' EXIT;
-
   check_run_as_root;
-
+  
+  # trap explanation:
+  # 1 1 = fail and no cleanup of mounts
+  # 1 0 = fail and clean up mounts
+  # 0 1 = success, no cleanup of mounts
+  # 0 0 = success and clean up mounts
+    
   case $1 in
     build|-b|-B)
       #build normally
+      trap 'trap_on_exit 1 0' EXIT;
       build;
+      trap 'trap_on_exit 0 0' EXIT;
       ;;
     install|-i|-I)
       #install dependencies only
+      trap 'trap_on_exit 1 1' EXIT;
       install_dependencies;
+      trap 'trap_on_exit 0 1' EXIT;
       ;;
     mount|-m|-M)
       #mount the image only
+      trap 'trap_on_exit 1 0' EXIT;
       mount_only;
+      trap 'trap_on_exit 0 1' EXIT;
       ;;
     mkinitramfs|-mk|-MK)
       #mount and run initramfs 
+      trap 'trap_on_exit 1 0' EXIT;
       make_initramfs;
+      trap 'trap_on_exit 0 1' EXIT;
       ;;
     unmount|-u|-U)
       #unmount new image
+      trap 'trap_on_exit 1 1' EXIT;
       unmount;
+      trap 'trap_on_exit 0 0' EXIT;
       ;;
     *)
+      trap 'trap_on_exit 0 1' EXIT;
       print_usage;
       ;;
   esac
   exit 0;
 }
 
-# Run program
-main "${1:-'print help'}";
+# Run program, if no arguments called, supply one so script doesn't error (set -eu)
+main "${1:-'print usage'}";
